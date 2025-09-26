@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="icon" type="image/svg" href="assest/store.svg">
+    <title>Cash Entry - Tally</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Material Symbols Outlined -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="spacer"></div>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+                <button class="header-button" id="customerBalanceBtn" aria-label="Customer Balances">
+                    <span class="material-symbols-outlined icon-md" style="position:relative;">group<span class="icon-sm" style="position:absolute; top:-2px; color: var(--red-700);">৳</span></span>
+                </button>
+            <button class="header-button" id="historyBtn" aria-label="History">
+                <span class="material-symbols-outlined icon-lg">history</span>
+            </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-container">
+                <!-- Logo/Icon Area -->
+                <div class="logo-section">
+                    <div class="icon-container">
+                        <img src="assest/store.svg" alt="Store Logo" class="money-emoji store-logo" />
+                    </div>
+                    <h2>Samad's Store</h2>
+                </div>
+
+                <!-- Cash Input -->
+                <div class="input-section">
+                    <div class="cash-input-container">
+                        <input 
+                            type="text" 
+                            id="cashInput" 
+                            placeholder="Enter Amount"
+                            readonly
+                            class="cash-input"
+                        >
+                    </div>
+
+                    <!-- Current Balance Display -->
+                    <div class="balance-display" id="balanceDisplay" style="display: none;">
+                        <div class="balance-label">Current Balance</div>
+                        <div class="balance-amount" id="balanceAmount">৳ 0.00</div>
+                    </div>
+                </div>
+
+                <!-- Quick Amount Buttons -->
+                <div class="quick-amounts">
+                    <button class="quick-btn" data-amount="5">৳ 5</button>
+                    <button class="quick-btn" data-amount="10">৳ 10</button>
+                    <button class="quick-btn" data-amount="20">৳ 20</button>
+                    <button class="quick-btn" data-amount="30">৳ 30</button>
+                    <button class="quick-btn" data-amount="40">৳ 40</button>
+                    <button class="quick-btn" data-amount="50">৳ 50</button>
+                    <button class="quick-btn" data-amount="100">৳ 100</button>
+                    <button class="quick-btn" data-amount="500">৳ 500</button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Calculator Overlay -->
+        <div class="calculator-overlay" id="calculatorOverlay">
+            <div class="overlay-bg" id="calculatorBg"></div>
+            <div class="calculator" id="calculator">
+                <div class="calculator-header">
+                    <h3>Calculator</h3>
+                    <button class="close-btn" id="closeCalculator" aria-label="Close calculator">
+                        <span class="material-symbols-outlined icon-lg">close</span>
+                    </button>
+                </div>
+
+                <!-- Calculator Display -->
+                <div class="calculator-display">
+                    <div class="display-text" id="calculatorDisplay">0</div>
+                    <!-- Expression / history line shows the chained operations leading to the current value -->
+                    <div class="expression-text" id="calculatorExpression" aria-live="polite"></div>
+                </div>
+
+                <!-- Calculator Grid -->
+                <div class="calculator-grid">
+                    <button class="calc-btn function-btn" data-action="clear" aria-label="Clear">
+                        <span class="material-symbols-outlined icon-lg">backspace</span>
+                    </button>
+
+                    <button class="calc-btn function-btn" data-action="plusminus" aria-label="Plus minus">
+                        <span class="symbol-char">±</span>
+                    </button>
+
+                    <button class="calc-btn function-btn" data-action="percent" aria-label="Percent">
+                        <span class="material-symbols-outlined">percent</span>
+                    </button>
+
+                    <button class="calc-btn operation-btn" data-action="divide" aria-label="Divide">
+                        <span class="symbol-char">÷</span>
+                    </button>
+                    
+                    <button class="calc-btn number-btn" data-number="7">7</button>
+                    <button class="calc-btn number-btn" data-number="8">8</button>
+                    <button class="calc-btn number-btn" data-number="9">9</button>
+
+                    <button class="calc-btn operation-btn" data-action="multiply" aria-label="Multiply">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                    
+                    <button class="calc-btn number-btn" data-number="4">4</button>
+                    <button class="calc-btn number-btn" data-number="5">5</button>
+                    <button class="calc-btn number-btn" data-number="6">6</button>
+
+                    <button class="calc-btn operation-btn" data-action="subtract" aria-label="Subtract">
+                        <span class="material-symbols-outlined">remove</span>
+                    </button>
+                    
+                    <button class="calc-btn number-btn" data-number="1">1</button>
+                    <button class="calc-btn number-btn" data-number="2">2</button>
+                    <button class="calc-btn number-btn" data-number="3">3</button>
+
+                    <button class="calc-btn operation-btn" data-action="add" aria-label="Add">
+                        <span class="material-symbols-outlined">add</span>
+                    </button>
+                    
+                    <button class="calc-btn number-btn zero-btn" data-number="0">0</button>
+                    <button class="calc-btn number-btn" data-number=".">.</button>
+
+                    <button class="calc-btn operation-btn" data-action="equals" aria-label="Equals">
+                        <span class="material-symbols-outlined">equal</span>
+                    </button>
+                </div>
+
+                <!-- Cash In/Out Buttons -->
+                <div class="cash-actions">
+                    <button class="cash-btn cash-in-btn" id="cashInBtn">Cash In</button>
+                    <button class="cash-btn cash-out-btn" id="cashOutBtn">Cash Out</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction History Sidebar -->
+        <div class="history-sidebar" id="historySidebar">
+            <div class="history-header">
+                <h3>Transaction History</h3>
+                <button class="close-btn" id="closeHistory" aria-label="Close history">
+                    <span class="material-symbols-outlined icon-lg">close</span>
+                </button>
+            </div>
+
+            <!-- Summary -->
+            <div class="history-summary">
+                <div class="summary-row">
+                    <span class="summary-label">Cash In:</span>
+                    <span class="summary-value cash-in" id="totalCashIn">৳ 0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Cash Out:</span>
+                    <span class="summary-value cash-out" id="totalCashOut">৳ 0.00</span>
+                </div>
+                <div class="summary-row total-row">
+                    <span class="summary-label">Net Amount:</span>
+                    <span class="summary-value" id="netAmount">৳ 0.00</span>
+                </div>
+            </div>
+
+            <!-- Transaction List -->
+            <div class="transaction-list" id="transactionList">
+                <div class="empty-state" id="emptyState">
+                    No transactions yet
+                </div>
+            </div>
+
+            <!-- history footer removed as requested -->
+        </div>
+
+        <!-- History Overlay Background -->
+        <div class="history-overlay-bg" id="historyOverlayBg"></div>
+
+        <!-- Customer Balance Sidebar -->
+        <div class="cb-sidebar" id="cbSidebar">
+            <div class="history-header"> <!-- reuse existing header styling -->
+                <h3>Customer Balances</h3>
+                <button class="close-btn" id="closeCbSidebar" aria-label="Close customer balances">
+                    <span class="material-symbols-outlined icon-lg">close</span>
+                </button>
+            </div>
+            <div class="cb-content">
+                <div class="cb-top-row">
+                    <input type="text" id="cbSearch" class="cb-search" placeholder="Search customers">
+                    <button class="cb-add-btn" id="cbAddBtn">Add</button>
+                </div>
+                <div class="cb-list" id="cbList">
+                    <div class="cb-empty" id="cbEmptyState">No customers yet</div>
+                </div>
+            </div>
+        </div>
+        <div class="cb-overlay-bg" id="cbOverlayBg"></div>
+
+        <!-- Customer Balance Add/Edit Modal (CB modal) -->
+        <div class="cb-modal-overlay" id="cbModalOverlay">
+            <div class="cb-modal" id="cbModal">
+                <div class="cb-modal-header">
+                    <h3 id="cbModalTitle">Add Customer</h3>
+                    <button class="close-btn" id="closeCbModal" aria-label="Close">
+                        <span class="material-symbols-outlined icon-lg">close</span>
+                    </button>
+                </div>
+                <div class="cb-modal-body">
+                    <div class="form-field">
+                        <label for="cbNameInput">Customer Name</label>
+                        <input type="text" id="cbNameInput" placeholder="Name">
+                    </div>
+                    <div class="form-field">
+                        <label for="cbReasonInput">Description</label>
+                        <textarea id="cbReasonInput" rows="3" placeholder="Optional description"></textarea>
+                    </div>
+                    <div class="form-field">
+                        <label for="cbAmountInput">Amount</label>
+                        <input type="number" id="cbAmountInput" step="0.01" placeholder="0.00">
+                        <div class="cb-current-balance" id="cbCurrentBalance" style="display:none;">Current Balance: <span id="cbCurrentBalanceValue">৳ 0.00</span></div>
+                    </div>
+                </div>
+                <!-- Unified Actions: Unpaid (subtract) / Paid (add) -->
+                <div class="cb-modal-actions" id="cbActions" style="gap:0.75rem;">
+                    <button type="button" class="cb-inc-btn cb-dec" id="cbUnpaidBtn" aria-label="Unpaid (subtract)" style="flex:1;">Unpaid</button>
+                    <button type="button" class="cb-inc-btn cb-inc" id="cbPaidBtn" aria-label="Paid (add)" style="flex:1;">Paid</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer Balance History Modal (CBH modal) -->
+        <div class="cbh-modal-overlay" id="cbhModalOverlay">
+            <div class="cbh-modal" id="cbhModal">
+                <div class="cb-modal-header">
+                    <h3 id="cbhModalTitle">History</h3>
+                    <button class="close-btn" id="closeCbhModal" aria-label="Close">
+                        <span class="material-symbols-outlined icon-lg">close</span>
+                    </button>
+                </div>
+                <div class="cbh-history-list" id="cbhHistoryList">
+                    <!-- history entries injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

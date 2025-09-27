@@ -48,6 +48,9 @@ const cbSearch = document.getElementById('cbSearch');
 const cbAddBtn = document.getElementById('cbAddBtn');
 const cbList = document.getElementById('cbList');
 const cbEmptyState = document.getElementById('cbEmptyState');
+const cbTotals = document.getElementById('cbTotals');
+const cbTotalPaid = document.getElementById('cbTotalPaid');
+const cbTotalUnpaid = document.getElementById('cbTotalUnpaid');
 // CB Modal
 const cbModalOverlay = document.getElementById('cbModalOverlay');
 const cbModal = document.getElementById('cbModal');
@@ -530,6 +533,14 @@ function openCbModal(editCustomerName = null) {
         if (data) {
             cbCurrentBalanceValue.textContent = formatCurrency(data.total);
             cbCurrentBalance.style.display = 'block';
+            // apply color by sign
+            if (data.total > 0) {
+                cbCurrentBalanceValue.style.color = 'var(--green-700)';
+            } else if (data.total < 0) {
+                cbCurrentBalanceValue.style.color = 'var(--red-700)';
+            } else {
+                cbCurrentBalanceValue.style.color = 'var(--muted-foreground)';
+            }
         } else {
             cbCurrentBalance.style.display = 'none';
         }
@@ -588,6 +599,22 @@ function renderCustomerBalanceList() {
     if (cbSearchQuery) {
         const q = cbSearchQuery.toLowerCase();
         filtered = names.filter(n => n.toLowerCase().includes(q));
+    }
+    // Totals across all customers
+    let totalPositive = 0;
+    let totalNegative = 0; // stored as negative sums
+    names.forEach(n => {
+        const t = customerBalances[n].total;
+        if (t >= 0) totalPositive += t; else totalNegative += t;
+    });
+    if (names.length === 0) {
+        if (cbTotals) cbTotals.style.display = 'none';
+    } else {
+        if (cbTotals) {
+            cbTotals.style.display = 'grid';
+            if (cbTotalPaid) cbTotalPaid.textContent = formatCurrency(totalPositive);
+            if (cbTotalUnpaid) cbTotalUnpaid.textContent = formatCurrency(Math.abs(totalNegative));
+        }
     }
     if (filtered.length === 0) {
         cbList.innerHTML = '<div class="cb-empty">' + (names.length === 0 ? 'No customers yet' : 'No matches') + '</div>';
@@ -691,6 +718,14 @@ function applyCbDelta(sign) { // +1 Paid, -1 Unpaid
     cbAmountInput.value = '';
     cbReasonInput.value = '';
     cbCurrentBalanceValue.textContent = formatCurrency(data.total);
+    // dynamic color update
+    if (data.total > 0) {
+        cbCurrentBalanceValue.style.color = 'var(--green-700)';
+    } else if (data.total < 0) {
+        cbCurrentBalanceValue.style.color = 'var(--red-700)';
+    } else {
+        cbCurrentBalanceValue.style.color = 'var(--muted-foreground)';
+    }
     renderCustomerBalanceList();
 }
 

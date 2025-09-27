@@ -1073,13 +1073,19 @@ body {
 }
 
 .cb-current-balance {
-  margin-top: .4rem;
-  font-size: var(--fs-xs);
+  margin-top: 0.5rem;
+  font-size: var(--fs-base); /* larger than before */
   color: var(--muted-foreground);
+  display: flex;
+  gap: .35rem;
+  align-items: baseline;
+  font-weight: var(--font-weight-medium);
 }
 
 .cb-current-balance span {
+  font-size: var(--fs-heading-sm); /* emphasize numeric value */
   font-weight: var(--font-weight-medium);
+  color: var(--foreground);
 }
 
 .cb-inc-btn {
@@ -1326,6 +1332,24 @@ input:focus {
   margin: auto;
   margin-top: 5px;
 }
+
+/* Customer Balance Totals (sidebar) */
+.cb-totals {
+  margin: .6rem 0 .4rem;
+  padding: .55rem .75rem;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .75rem .5rem;
+  font-size: var(--fs-xs);
+}
+.cb-total-item { display:flex; flex-direction:column; gap: .15rem; }
+.cb-total-label { color: var(--muted-foreground); font-size: var(--fs-sm); }
+.cb-total-value { font-weight: var(--font-weight-medium); font-size: var(--fs-base); }
+.cb-total-paid { color: var(--green-700); }
+.cb-total-unpaid { color: var(--red-700); }
 
 /* Quick Amount Buttons */
 .quick-amounts {
@@ -1947,13 +1971,19 @@ input:focus {
 }
 
 .cb-current-balance {
-  margin-top: 0.4rem;
-  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: var(--fs-base);
   color: var(--muted-foreground);
+  display: flex;
+  gap: .35rem;
+  align-items: baseline;
+  font-weight: var(--font-weight-medium);
 }
 
 .cb-current-balance span {
   font-weight: var(--font-weight-medium);
+  font-size: var(--fs-heading-sm);
+  color: var(--foreground);
 }
 
 .hidden {

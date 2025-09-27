@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -11,6 +12,7 @@
     <!-- Material Symbols Outlined -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
+
 <body>
     <div class="app">
         <!-- Header -->
@@ -18,11 +20,13 @@
             <div class="spacer"></div>
             <div style="display:flex; gap:0.5rem; align-items:center;">
                 <button class="header-button" id="customerBalanceBtn" aria-label="Customer Balances">
-                    <span class="material-symbols-outlined icon-md" style="position:relative;">group<span class="icon-sm" style="position:absolute; top:-2px; color: var(--red-700);">৳</span></span>
+                    <span class="material-symbols-outlined icon-lg"
+                        style="position:relative; margin-left: -10px;">group<span class="icon-sm"
+                            style="position:absolute; top:-3px; color: var(--red-700); font-size: 0.5rem">৳</span></span>
                 </button>
-            <button class="header-button" id="historyBtn" aria-label="History">
-                <span class="material-symbols-outlined icon-lg">history</span>
-            </button>
+                <button class="header-button" id="historyBtn" aria-label="History">
+                    <span class="material-symbols-outlined icon-lg">history</span>
+                </button>
             </div>
         </header>
 
@@ -40,13 +44,7 @@
                 <!-- Cash Input -->
                 <div class="input-section">
                     <div class="cash-input-container">
-                        <input 
-                            type="text" 
-                            id="cashInput" 
-                            placeholder="Enter Amount"
-                            readonly
-                            class="cash-input"
-                        >
+                        <input type="text" id="cashInput" placeholder="Enter Amount" readonly class="cash-input">
                     </div>
 
                     <!-- Current Balance Display -->
@@ -74,74 +72,89 @@
         <div class="calculator-overlay" id="calculatorOverlay">
             <div class="overlay-bg" id="calculatorBg"></div>
             <div class="calculator" id="calculator">
-                <div class="calculator-header">
-                    <h3>Calculator</h3>
-                    <button class="close-btn" id="closeCalculator" aria-label="Close calculator">
-                        <span class="material-symbols-outlined icon-lg">close</span>
+                <!-- New Compact Calculator (no title, down button inside) -->
+                <div class="calculator-top">
+                    <button class="calc-dismiss-btn" id="closeCalculator" aria-label="Close calculator">
+                        <span class="material-symbols-outlined">expand_more</span>
                     </button>
                 </div>
-
-                <!-- Calculator Display -->
                 <div class="calculator-display">
                     <div class="display-text" id="calculatorDisplay">0</div>
-                    <!-- Expression / history line shows the chained operations leading to the current value -->
                     <div class="expression-text" id="calculatorExpression" aria-live="polite"></div>
                 </div>
 
-                <!-- Calculator Grid -->
-                <div class="calculator-grid">
-                    <button class="calc-btn function-btn" data-action="clear" aria-label="Clear">
-                        <span class="material-symbols-outlined icon-lg">backspace</span>
+                <!-- Redesigned Keypad -->
+                <div class="keypad-grid" id="keypadGrid">
+                    <!-- Row 1 -->
+                    <button class="kp-btn kp-clear" data-action="allclear">AC</button>
+                    <button class="kp-btn kp-func" data-action="backspace" aria-label="Backspace"><span
+                            class="material-symbols-outlined">backspace</span></button>
+                    <button class="kp-btn kp-op" data-action="percent" aria-label="Percent">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M288 192C288 139 245 96 192 96C139 96 96 139 96 192C96 245 139 288 192 288C245 288 288 245 288 192zM544 448C544 395 501 352 448 352C395 352 352 395 352 448C352 501 395 544 448 544C501 544 544 501 544 448zM534.6 150.6C547.1 138.1 547.1 117.8 534.6 105.3C522.1 92.8 501.8 92.8 489.3 105.3L105.3 489.3C92.8 501.8 92.8 522.1 105.3 534.6C117.8 547.1 138.1 547.1 150.6 534.6L534.6 150.6z" />
+                        </svg>
+                    </button>
+                    <button class="kp-btn kp-cash-out cash-out-btn" id="cashOutBtn">Cash Out</button>
+                    <!-- plus spans rows 4-5 column 5 -->
+
+                    <!-- Row 2 -->
+                    <button class="kp-btn kp-num" data-number="7">7</button>
+                    <button class="kp-btn kp-num" data-number="8">8</button>
+                    <button class="kp-btn kp-num" data-number="9">9</button>
+                    <button class="kp-btn kp-cash-in cash-in-btn" id="cashInBtn">Cash In</button>
+
+                    <!-- Row 3 -->
+                    <button class="kp-btn kp-num" data-number="4">4</button>
+                    <button class="kp-btn kp-num" data-number="5">5</button>
+                    <button class="kp-btn kp-num" data-number="6">6</button>
+                    <button class="kp-btn kp-op" data-op="*" aria-label="Multiply">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
+                        </svg>
+                    </button>
+                    <button class="kp-btn kp-op" data-op="/" aria-label="Divide">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M320 112C350.9 112 376 137.1 376 168C376 198.9 350.9 224 320 224C289.1 224 264 198.9 264 168C264 137.1 289.1 112 320 112zM96 320C96 302.3 110.3 288 128 288L512 288C529.7 288 544 302.3 544 320C544 337.7 529.7 352 512 352L128 352C110.3 352 96 337.7 96 320zM264 472C264 441.1 289.1 416 320 416C350.9 416 376 441.1 376 472C376 502.9 350.9 528 320 528C289.1 528 264 502.9 264 472z" />
+                        </svg>
                     </button>
 
-                    <button class="calc-btn function-btn" data-action="plusminus" aria-label="Plus minus">
-                        <span class="symbol-char">±</span>
+                    <!-- Row 4 -->
+                    <button class="kp-btn kp-num" data-number="1">1</button>
+                    <button class="kp-btn kp-num" data-number="2">2</button>
+                    <button class="kp-btn kp-num" data-number="3">3</button>
+                    <button class="kp-btn kp-op" data-op="-" aria-label="Minus">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M96 320C96 302.3 110.3 288 128 288L512 288C529.7 288 544 302.3 544 320C544 337.7 529.7 352 512 352L128 352C110.3 352 96 337.7 96 320z" />
+                        </svg>
+                    </button>
+                    <button class="kp-btn kp-plus kp-plus-span" data-op="+" aria-label="Plus">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M352 128C352 110.3 337.7 96 320 96C302.3 96 288 110.3 288 128L288 288L128 288C110.3 288 96 302.3 96 320C96 337.7 110.3 352 128 352L288 352L288 512C288 529.7 302.3 544 320 544C337.7 544 352 529.7 352 512L352 352L512 352C529.7 352 544 337.7 544 320C544 302.3 529.7 288 512 288L352 288L352 128z" />
+                        </svg>
                     </button>
 
-                    <button class="calc-btn function-btn" data-action="percent" aria-label="Percent">
-                        <span class="material-symbols-outlined">percent</span>
+                    <!-- Row 5 -->
+                    <button class="kp-btn kp-num" data-number=".">.</button>
+                    <button class="kp-btn kp-num" data-number="0">0</button>
+                    <button class="kp-btn kp-num" data-number="00">00</button>
+                    <button class="kp-btn kp-op" data-action="equals" aria-label="Equals">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M128 192C110.3 192 96 206.3 96 224C96 241.7 110.3 256 128 256L512 256C529.7 256 544 241.7 544 224C544 206.3 529.7 192 512 192L128 192zM128 384C110.3 384 96 398.3 96 416C96 433.7 110.3 448 128 448L512 448C529.7 448 544 433.7 544 416C544 398.3 529.7 384 512 384L128 384z" />
+                        </svg>
                     </button>
-
-                    <button class="calc-btn operation-btn" data-action="divide" aria-label="Divide">
-                        <span class="symbol-char">÷</span>
-                    </button>
-                    
-                    <button class="calc-btn number-btn" data-number="7">7</button>
-                    <button class="calc-btn number-btn" data-number="8">8</button>
-                    <button class="calc-btn number-btn" data-number="9">9</button>
-
-                    <button class="calc-btn operation-btn" data-action="multiply" aria-label="Multiply">
-                        <span class="material-symbols-outlined">close</span>
-                    </button>
-                    
-                    <button class="calc-btn number-btn" data-number="4">4</button>
-                    <button class="calc-btn number-btn" data-number="5">5</button>
-                    <button class="calc-btn number-btn" data-number="6">6</button>
-
-                    <button class="calc-btn operation-btn" data-action="subtract" aria-label="Subtract">
-                        <span class="material-symbols-outlined">remove</span>
-                    </button>
-                    
-                    <button class="calc-btn number-btn" data-number="1">1</button>
-                    <button class="calc-btn number-btn" data-number="2">2</button>
-                    <button class="calc-btn number-btn" data-number="3">3</button>
-
-                    <button class="calc-btn operation-btn" data-action="add" aria-label="Add">
-                        <span class="material-symbols-outlined">add</span>
-                    </button>
-                    
-                    <button class="calc-btn number-btn zero-btn" data-number="0">0</button>
-                    <button class="calc-btn number-btn" data-number=".">.</button>
-
-                    <button class="calc-btn operation-btn" data-action="equals" aria-label="Equals">
-                        <span class="material-symbols-outlined">equal</span>
-                    </button>
-                </div>
-
-                <!-- Cash In/Out Buttons -->
-                <div class="cash-actions">
-                    <button class="cash-btn cash-in-btn" id="cashInBtn">Cash In</button>
-                    <button class="cash-btn cash-out-btn" id="cashOutBtn">Cash Out</button>
+                    <!-- plus continues span -->
                 </div>
             </div>
         </div>
@@ -215,23 +228,23 @@
                 </div>
                 <div class="cb-modal-body">
                     <div class="form-field">
-                        <label for="cbNameInput">Customer Name</label>
-                        <input type="text" id="cbNameInput" placeholder="Name">
+                        <input type="text" id="cbNameInput" placeholder="Customer Name">
                     </div>
                     <div class="form-field">
-                        <label for="cbReasonInput">Description</label>
-                        <textarea id="cbReasonInput" rows="3" placeholder="Optional description"></textarea>
+                        <textarea id="cbReasonInput" rows="3" placeholder="Order Details"></textarea>
                     </div>
                     <div class="form-field">
-                        <label for="cbAmountInput">Amount</label>
                         <input type="number" id="cbAmountInput" step="0.01" placeholder="0.00">
-                        <div class="cb-current-balance" id="cbCurrentBalance" style="display:none;">Current Balance: <span id="cbCurrentBalanceValue">৳ 0.00</span></div>
+                        <div class="cb-current-balance" id="cbCurrentBalance" style="display:none;">Current Balance:
+                            <span id="cbCurrentBalanceValue">৳ 0.00</span></div>
                     </div>
                 </div>
                 <!-- Unified Actions: Unpaid (subtract) / Paid (add) -->
                 <div class="cb-modal-actions" id="cbActions" style="gap:0.75rem;">
-                    <button type="button" class="cb-inc-btn cb-dec" id="cbUnpaidBtn" aria-label="Unpaid (subtract)" style="flex:1;">Unpaid</button>
-                    <button type="button" class="cb-inc-btn cb-inc" id="cbPaidBtn" aria-label="Paid (add)" style="flex:1;">Paid</button>
+                    <button type="button" class="cb-inc-btn cb-dec" id="cbUnpaidBtn" aria-label="Unpaid (subtract)"
+                        style="flex:1;">Unpaid</button>
+                    <button type="button" class="cb-inc-btn cb-inc" id="cbPaidBtn" aria-label="Paid (add)"
+                        style="flex:1;">Paid</button>
                 </div>
             </div>
         </div>
@@ -254,4 +267,5 @@
 
     <script src="script.js"></script>
 </body>
+
 </html>

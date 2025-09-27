@@ -13,10 +13,9 @@ let cbSearchQuery = '';
 
 // Calculator State
 let display = '0';
-let previousValue = '';
-let operation = '';
-let waitingForNewValue = false;
-let expression = ''; // track chained expression for display (e.g., "5+10+13+30")
+// For new expression-first calculator; we keep a raw expression string.
+let expression = ''; // full expression user builds (e.g. "5+10*3")
+let lastEvaluatedValue = 0; // store last computed numeric value
 
 // DOM Elements
 const cashInput = document.getElementById('cashInput');
@@ -94,156 +93,105 @@ function formatTimeFull(date) {
 
 // Calculator Functions
 function inputNumber(num) {
-    // prevent multiple decimals in the same number
-    if (num === '.' && display.includes('.')) return;
+    const endsWithOp = /[+\-*/]$/.test(expression);
+    const lastToken = expression.match(/([0-9]*\.?[0-9]*)$/)?.[0] || '';
+    if (num === '.' && lastToken.includes('.')) return; // prevent double decimal in current operand
 
-    if (waitingForNewValue) {
-        // starting a new operand after an operator
-        display = num;
-        waitingForNewValue = false;
-
-        // If expression is empty or the previous calculation was completed, start fresh
-        const endsWithOp = /[+\-×÷]$/.test(expression);
-        if (!expression || (!endsWithOp && previousValue === '' && operation === '')) {
-            expression = num;
-        } else {
-            // append new operand's first digit
-            expression = expression + num;
-        }
+    if (endsWithOp) {
+        // Start a fresh operand after an operator
+        display = (num === '.' ? '0.' : num);
+        expression += num;
     } else {
-        display = display === '0' && num !== '.' ? num : display + num;
-        // Append digit to the current operand in the expression
-        expression = expression + num;
+        if (display === '0' && num !== '.') display = num; else display += num;
+        expression += num;
     }
-
     updateCalculatorDisplay();
     renderExpression();
 }
-
-function inputOperation(nextOperation) {
-    const inputValue = parseFloat(display);
-
-    if (previousValue === '') {
-        previousValue = display;
-    } else if (operation && !waitingForNewValue) {
-        // perform pending calculation if there's an operation and we have a second operand
-        const currentValue = parseFloat(previousValue);
-        const newValue = calculate(currentValue, inputValue, operation);
-
-        display = String(newValue);
-        previousValue = String(newValue);
-    }
-
-    waitingForNewValue = true;
-    operation = nextOperation;
-
-    // Append or replace operator in expression. Map operation names to symbols
-    const opSymbol = ({ add: '+', subtract: '-', multiply: '×', divide: '÷' }[nextOperation] || nextOperation);
-    if (!expression) {
-        // start expression with the current display value
-        expression = display + opSymbol;
-    } else if (/[+\-×÷]$/.test(expression)) {
-        // replace the trailing operator with the new one (prevents '++' or '+-')
-        expression = expression.slice(0, -1) + opSymbol;
-    } else {
-        expression = expression + opSymbol;
-    }
-
+function inputOperator(op) {
+    if (!expression && display !== '0') { expression = display; }
+    // replace trailing operator
+    if (/([+\-*/])$/.test(expression)) { expression = expression.slice(0, -1) + op; }
+    else if (expression) { expression += op; }
+    // Show live evaluated value ignoring the trailing operator
+    const provisional = evaluateExpression(expression);
+    display = String(provisional);
     renderExpression();
     updateCalculatorDisplay();
 }
-
-function calculate(firstValue, secondValue, operation) {
-    switch (operation) {
-        case 'add':
-            return firstValue + secondValue;
-        case 'subtract':
-            return firstValue - secondValue;
-        case 'multiply':
-            return firstValue * secondValue;
-        case 'divide':
-            return firstValue / secondValue;
-        default:
-            return secondValue;
-    }
-}
-
-function performCalculation() {
-    const inputValue = parseFloat(display);
-
-    if (previousValue !== '' && operation) {
-        // If equals pressed immediately after an operator and no new number entered,
-        // treat it as 'remove the trailing operator' and show the original number.
-        if (waitingForNewValue || /[+\-×÷]$/.test(expression) && String(inputValue) === '') {
-            // remove trailing operator from expression
-            if (/[+\-×÷]$/.test(expression)) {
-                expression = expression.slice(0, -1);
-            }
-
-            // Reset pending operation state but keep the original display value
-            display = String(previousValue || display);
-            previousValue = '';
-            operation = '';
-            waitingForNewValue = false;
-
-            renderExpression();
-            updateCalculatorDisplay();
-            return;
-        }
-
-        // Normal calculation flow when we have both operands
-        const currentValue = parseFloat(previousValue);
-        const newValue = calculate(currentValue, inputValue, operation);
-
-        display = String(newValue);
-        previousValue = '';
-        operation = '';
-        waitingForNewValue = true;
-
-        // If the expression ended with an operator (user pressed operator then equals),
-        // we'll not append a repeated operand here; digits should already be present
-        // from user input, so simply render the current expression.
-        if (/[+\-×÷]$/.test(expression)) {
-            // Remove trailing operator if somehow left
-            expression = expression.slice(0, -1);
-        }
-
+function percentAction() {
+    // Apply percent to last number token
+    const match = expression.match(/([0-9]*\.?[0-9]*)$/);
+    if (match && match[0]) {
+        const num = parseFloat(match[0]);
+        const repl = (num / 100).toString();
+        expression = expression.slice(0, -match[0].length) + repl;
+        display = repl;
         renderExpression();
         updateCalculatorDisplay();
     }
 }
-
-function clearCalculator() {
-    display = '0';
-    previousValue = '';
-    operation = '';
-    waitingForNewValue = false;
-    expression = '';
+function backspace() {
+    if (!expression) return;
+    expression = expression.slice(0, -1);
+    // recompute display: last number token or 0
+    const m = expression.match(/([0-9]*\.?[0-9]*)$/);
+    display = m && m[0] ? m[0] : '0';
     updateCalculatorDisplay();
     renderExpression();
 }
-
-function updateCalculatorDisplay() {
-    calculatorDisplay.textContent = display;
+function clearCalculator() {
+    expression = ''; display = '0'; lastEvaluatedValue = 0; updateCalculatorDisplay(); renderExpression();
 }
+function evaluateExpression(raw) {
+    if (!raw) return 0;
+    // sanitize: only digits . and operators
+    let safe = raw.replace(/×/g, '*').replace(/÷/g, '/');
+    safe = safe.replace(/[^0-9+\-*/.]/g, '');
+    // remove trailing operator
+    if (/([+\-*/])$/.test(safe)) safe = safe.slice(0, -1);
+    if (!safe) return 0;
+    // BODMAS handled by JS eval of sanitized arithmetic
+    try {
+        // eslint-disable-next-line no-eval
+        const val = eval(safe);
+        if (typeof val === 'number' && isFinite(val)) return val; else return 0;
+    } catch { return 0; }
+}
+function performCalculation() {
+    // Remove trailing operator if present
+    if (/([+\-*/])$/.test(expression)) expression = expression.slice(0, -1);
+    const val = evaluateExpression(expression);
+    lastEvaluatedValue = val;
+    display = String(val);
+    updateCalculatorDisplay();
+}
+
+function updateCalculatorDisplay() { calculatorDisplay.textContent = display || '0'; }
 
 function renderExpression() {
     if (!calculatorExpression) return;
     if (!expression) {
         calculatorExpression.textContent = '';
     } else {
-        // Show expression with normal plus/minus and dots for multiply/divide symbols if needed
-        // Use simple replacement for readability (×/÷ kept as-is)
-        calculatorExpression.textContent = expression;
+        // Display-friendly expression: show × and ÷ instead of * and /
+        calculatorExpression.textContent = formatDisplayExpression(expression);
     }
 }
 
+// Convert raw expression (with * and /) to display form (× and ÷)
+function formatDisplayExpression(expr) {
+    if (!expr) return '';
+    return expr.replace(/\*/g, '×').replace(/\//g, '÷');
+}
+
 // Transaction Functions
-function addTransaction(type, amount) {
+function addTransaction(type, amount, exprStr) {
     const transaction = {
         id: Date.now().toString(),
         type: type,
         amount: amount,
+        expression: exprStr || '',
         timestamp: new Date()
     };
     transactions.unshift(transaction);
@@ -260,7 +208,7 @@ function updateBalance() {
             .filter(t => t.type === 'cash_out')
             .reduce((sum, t) => sum + t.amount, 0);
         const balance = totalIn - totalOut;
-        
+
         balanceAmount.textContent = formatCurrency(balance.toString());
         balanceDisplay.style.display = 'block';
     } else {
@@ -295,19 +243,20 @@ function updateTransactionHistory() {
             const label = transaction.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
             const sign = transaction.type === 'cash_in' ? '+' : '-';
             return `
-            <div class="transaction-item">
+            <div class="transaction-item" data-id="${transaction.id}">
                 <div class="transaction-info">
                     <div class="transaction-type">
                         <span class="type-indicator ${hyphenClass}"></span>
                         <span>${label}</span>
                     </div>
                     <div class="transaction-time">${formatTime(transaction.timestamp)}</div>
+                    ${transaction.expression ? `<div class="transaction-expression">${escapeHtml(formatDisplayExpression(transaction.expression))} = ${formatCurrency(transaction.amount)}</div>` : ''}
                 </div>
-                <div class="transaction-amount ${hyphenClass}">
-                    ${sign}${formatCurrency(transaction.amount)}
+                <div class="transaction-right">
+                    <div class="transaction-amount ${hyphenClass}">${sign}${formatCurrency(transaction.amount)}</div>
+                    <button class="tx-delete-btn" aria-label="Delete" data-del="${transaction.id}"><span class="material-symbols-outlined icon-lg">delete</span></button>
                 </div>
-            </div>
-            `;
+            </div>`;
         }).join('');
     }
 }
@@ -318,18 +267,18 @@ function updateTransactionHistory() {
 function openCalculator() {
     isCalculatorOpen = true;
     calculatorOverlay.classList.add('active');
-    
+
     // Prevent scrolling on mobile
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.width = '100%';
-    
+
     // Set initial value if cashAmount exists
     if (cashAmount) {
         display = cashAmount;
         updateCalculatorDisplay();
     }
-    
+
     // Small delay to ensure smooth animation
     setTimeout(() => {
         // Ensure calculator is visible
@@ -343,12 +292,12 @@ function openCalculator() {
 function closeCalculatorHandler() {
     isCalculatorOpen = false;
     calculatorOverlay.classList.remove('active');
-    
+
     // Restore body scrolling
     document.body.style.overflow = '';
     document.body.style.position = '';
     document.body.style.width = '';
-    
+
     // When closing the calculator without performing Cash In/Out, store the current
     // calculation into the cash input so user can see what they entered.
     // If the display holds a numeric value, keep it in the cashInput; otherwise reset placeholder.
@@ -369,7 +318,7 @@ function openHistory() {
     isHistoryOpen = true;
     historySidebar.classList.add('active');
     historyOverlayBg.classList.add('active');
-    
+
     // Prevent scrolling on mobile
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
@@ -380,7 +329,7 @@ function closeHistoryHandler() {
     isHistoryOpen = false;
     historySidebar.classList.remove('active');
     historyOverlayBg.classList.remove('active');
-    
+
     // Restore body scrolling
     document.body.style.overflow = '';
     document.body.style.position = '';
@@ -388,11 +337,12 @@ function closeHistoryHandler() {
 }
 
 function handleCashIn() {
-    const amount = parseFloat(display);
+    // Evaluate full expression first
+    performCalculation();
+    const amount = evaluateExpression(expression);
     if (!isNaN(amount) && amount > 0) {
-        addTransaction('cash_in', amount);
+        addTransaction('cash_in', amount, expression);
         cashAmount = amount.toString();
-        // Clear calculator state and close. Reset cash input to placeholder.
         clearCalculator();
         cashInput.value = '';
         cashInput.placeholder = 'Enter cash amount';
@@ -401,11 +351,11 @@ function handleCashIn() {
 }
 
 function handleCashOut() {
-    const amount = parseFloat(display);
+    performCalculation();
+    const amount = evaluateExpression(expression);
     if (!isNaN(amount) && amount > 0) {
-        addTransaction('cash_out', amount);
+        addTransaction('cash_out', amount, expression);
         cashAmount = amount.toString();
-        // Clear calculator state and close. Reset cash input to placeholder.
         clearCalculator();
         cashInput.value = '';
         cashInput.placeholder = 'Enter cash amount';
@@ -448,40 +398,39 @@ quickBtns.forEach(btn => {
 // Calculator button event listeners
 // Handle clicks on calculator buttons. Use closest to allow clicking on inner icons/spans.
 document.addEventListener('click', (e) => {
-    const btn = e.target.closest && e.target.closest('.calc-btn');
-    if (!btn) return;
-
-    // Read dataset from the resolved button element
-    if (btn.dataset.number) {
-        inputNumber(btn.dataset.number);
-    } else if (btn.dataset.action) {
-        const action = btn.dataset.action;
-
-        switch (action) {
-            case 'clear':
-                clearCalculator();
-                break;
-            case 'plusminus':
-                if (display !== '0') {
-                    display = display.startsWith('-') 
-                        ? display.slice(1) 
-                        : '-' + display;
-                    updateCalculatorDisplay();
-                }
-                break;
-            case 'percent':
-                display = String(parseFloat(display) / 100);
-                updateCalculatorDisplay();
-                break;
-            case 'add':
-            case 'subtract':
-            case 'multiply':
-            case 'divide':
-                inputOperation(action);
-                break;
-            case 'equals':
-                performCalculation();
-                break;
+    // keypad buttons
+    const k = e.target.closest('.kp-btn');
+    if (k) {
+        if (k.dataset.number) {
+            inputNumber(k.dataset.number);
+        } else if (k.dataset.op) {
+            inputOperator(k.dataset.op);
+        } else if (k.dataset.action) {
+            const a = k.dataset.action;
+            if (a === 'allclear') clearCalculator();
+            else if (a === 'backspace') backspace();
+            else if (a === 'percent') percentAction();
+            else if (a === 'equals') performCalculation();
+            else if (a === 'downclose') closeCalculatorHandler();
+        }
+    }
+    // delete transaction
+    const delBtn = e.target.closest('[data-del]');
+    if (delBtn) {
+        const id = delBtn.dataset.del;
+        const idx = transactions.findIndex(t => t.id === id);
+        if (idx > -1) {
+            const el = transactionList.querySelector(`.transaction-item[data-id="${id}"]`);
+            if (el) {
+                el.classList.add('removing');
+                setTimeout(() => {
+                    transactions.splice(idx, 1);
+                    updateTransactionHistory();
+                    updateBalance();
+                }, 260);
+            } else {
+                transactions.splice(idx, 1); updateTransactionHistory(); updateBalance();
+            }
         }
     }
 });
@@ -489,34 +438,15 @@ document.addEventListener('click', (e) => {
 // Keyboard event listeners
 document.addEventListener('keydown', (e) => {
     if (!isCalculatorOpen) return;
-    
-    const key = e.key;
-    
-    if ('0123456789.'.includes(key)) {
-        inputNumber(key);
-    } else if (key === '+') {
-        inputOperation('add');
-    } else if (key === '-') {
-        inputOperation('subtract');
-    } else if (key === '*') {
-        inputOperation('multiply');
-    } else if (key === '/') {
-        e.preventDefault();
-        inputOperation('divide');
-    } else if (key === 'Enter' || key === '=') {
-        performCalculation();
-    } else if (key === 'Escape') {
-        closeCalculatorHandler();
-    } else if (key === 'Backspace') {
-        if (display.length > 1) {
-            display = display.slice(0, -1);
-        } else {
-            display = '0';
-        }
-        updateCalculatorDisplay();
-    } else if (key === 'c' || key === 'C') {
-        clearCalculator();
-    }
+    const k = e.key;
+    if ('0123456789'.includes(k)) inputNumber(k);
+    else if (k === '.') inputNumber('.');
+    else if (['+', '-', '*', '/'].includes(k)) inputOperator(k);
+    else if (k === '%') percentAction();
+    else if (k === 'Backspace') { backspace(); }
+    else if (k === 'Enter' || k === '=') { performCalculation(); }
+    else if (k === 'Escape') { closeCalculatorHandler(); }
+    else if (k.toLowerCase() === 'c') { clearCalculator(); }
 });
 
 // Prevent body scroll when overlays are open
@@ -533,22 +463,22 @@ function init() {
     updateBalance();
     updateCalculatorDisplay();
     renderCustomerBalanceList();
-    
+
     // Add touch event listeners for better mobile interaction
     if ('ontouchstart' in window) {
         // Prevent zoom on double tap for buttons
         const buttons = document.querySelectorAll('button, .calc-btn, .quick-btn, .cash-btn');
         buttons.forEach(button => {
-            button.addEventListener('touchstart', function(e) {
+            button.addEventListener('touchstart', function (e) {
                 e.target.style.transform = 'scale(0.95)';
             });
-            button.addEventListener('touchend', function(e) {
+            button.addEventListener('touchend', function (e) {
                 setTimeout(() => {
                     e.target.style.transform = '';
                 }, 100);
             });
         });
-        
+
         // Prevent viewport resize issues
         let lastHeight = window.innerHeight;
         window.addEventListener('resize', () => {
@@ -614,7 +544,7 @@ function openCbModal(editCustomerName = null) {
     }
     cbModalOverlay.classList.add('active');
     // slight defer to allow animation
-    setTimeout(()=>{ cbNameInput.focus(); }, 50);
+    setTimeout(() => { cbNameInput.focus(); }, 50);
 }
 
 function closeCbModalHandler() {
@@ -663,14 +593,14 @@ function renderCustomerBalanceList() {
         cbList.innerHTML = '<div class="cb-empty">' + (names.length === 0 ? 'No customers yet' : 'No matches') + '</div>';
         return;
     }
-    filtered.sort((a,b)=> a.localeCompare(b));
+    filtered.sort((a, b) => a.localeCompare(b));
     cbList.innerHTML = filtered.map(name => {
         const data = customerBalances[name];
         const amount = data.total;
-        const cls = amount >=0 ? 'positive' : 'negative';
+        const cls = amount >= 0 ? 'positive' : 'negative';
         return `<div class="cb-row" data-name="${encodeURIComponent(name)}">
             <span class="cb-row-name">${name}</span>
-            <span class="cb-row-amount ${cls}">${amount>=0?'+':''}${formatCurrency(amount)}</span>
+            <span class="cb-row-amount ${cls}">${amount >= 0 ? '+' : ''}${formatCurrency(amount)}</span>
         </div>`;
     }).join('');
 }
@@ -680,20 +610,20 @@ function renderCustomerHistory(customerName) {
     if (!data) { cbhHistoryList.innerHTML = '<div class="cb-empty">No history</div>'; return; }
     if (data.history.length === 0) { cbhHistoryList.innerHTML = '<div class="cb-empty">No history</div>'; return; }
     cbhHistoryList.innerHTML = data.history.map(h => {
-        const cls = h.amount >=0 ? 'positive' : 'negative';
-        const amt = (h.amount>=0?'+':'') + formatCurrency(h.amount);
+        const cls = h.amount >= 0 ? 'positive' : 'negative';
+        const amt = (h.amount >= 0 ? '+' : '') + formatCurrency(h.amount);
         return `<div class="cbh-entry">
             <div class="cbh-entry-line">
                 <span class="cbh-entry-amount ${cls}">${amt}</span>
                 <span class="cbh-entry-time">${formatTimeFull(h.timestamp)}</span>
             </div>
-            ${h.reason?`<div class="cbh-entry-reason">${escapeHtml(h.reason)}</div>`:''}
+            ${h.reason ? `<div class="cbh-entry-reason">${escapeHtml(h.reason)}</div>` : ''}
         </div>`;
     }).join('');
 }
 
 function escapeHtml(str) {
-    return str.replace(/[&<>"]|'/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]||c));
+    return str.replace(/[&<>"]|'/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c] || c));
 }
 
 // Long press detection on customer rows to open CBH modal
@@ -701,7 +631,7 @@ cbList.addEventListener('mousedown', (e) => {
     const row = e.target.closest('.cb-row');
     if (!row) return;
     const name = decodeURIComponent(row.dataset.name);
-    cbLongPressTimer = setTimeout(()=>{ openCbhModal(name); }, 600);
+    cbLongPressTimer = setTimeout(() => { openCbhModal(name); }, 600);
 });
 cbList.addEventListener('mouseup', () => { clearTimeout(cbLongPressTimer); });
 cbList.addEventListener('mouseleave', () => { clearTimeout(cbLongPressTimer); });
@@ -709,7 +639,7 @@ cbList.addEventListener('touchstart', (e) => {
     const row = e.target.closest('.cb-row');
     if (!row) return;
     const name = decodeURIComponent(row.dataset.name);
-    cbLongPressTimer = setTimeout(()=>{ openCbhModal(name); }, 600);
+    cbLongPressTimer = setTimeout(() => { openCbhModal(name); }, 600);
 });
 cbList.addEventListener('touchend', () => { clearTimeout(cbLongPressTimer); });
 cbList.addEventListener('touchmove', () => { clearTimeout(cbLongPressTimer); });
@@ -729,8 +659,8 @@ closeCbSidebar.addEventListener('click', closeCbSidebarHandler);
 cbOverlayBg.addEventListener('click', closeCbSidebarHandler);
 cbAddBtn.addEventListener('click', () => openCbModal(null));
 closeCbModal.addEventListener('click', closeCbModalHandler);
-cbModalOverlay.addEventListener('click', (e)=> { if (e.target === cbModalOverlay) closeCbModalHandler(); });
-cbhModalOverlay.addEventListener('click', (e)=> { if (e.target === cbhModalOverlay) closeCbhModalHandler(); });
+cbModalOverlay.addEventListener('click', (e) => { if (e.target === cbModalOverlay) closeCbModalHandler(); });
+cbhModalOverlay.addEventListener('click', (e) => { if (e.target === cbhModalOverlay) closeCbhModalHandler(); });
 closeCbhModal.addEventListener('click', closeCbhModalHandler);
 cbSearch.addEventListener('input', () => { cbSearchQuery = cbSearch.value; renderCustomerBalanceList(); });
 

@@ -58,4 +58,4 @@ CREATE TABLE customer_balance_history (
 
 -- Insert a new book
 INSERT INTO books (name, current_balance, logo_url) 
-VALUES ('Samad''s Store', 0.00, '/assest/store.svg');
+VALUES ('Samad''s Store', 0.00, './assest/store.svg');

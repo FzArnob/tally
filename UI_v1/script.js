@@ -57,10 +57,18 @@ const cbModal = document.getElementById('cbModal');
 const cbModalTitle = document.getElementById('cbModalTitle');
 const closeCbModal = document.getElementById('closeCbModal');
 const cbNameInput = document.getElementById('cbNameInput');
-const cbAmountInput = document.getElementById('cbAmountInput');
 const cbReasonInput = document.getElementById('cbReasonInput');
 const cbCurrentBalance = document.getElementById('cbCurrentBalance');
 const cbCurrentBalanceValue = document.getElementById('cbCurrentBalanceValue');
+// Embedded CB Calculator elements
+const cbCalcDisplay = document.getElementById('cbCalcDisplay');
+const cbCalcExpression = document.getElementById('cbCalcExpression');
+const cbKeypadGrid = document.getElementById('cbKeypadGrid');
+
+// Customer Balance Calculator State (separate from main)
+let cbExpression = '';
+let cbDisplay = '0';
+let cbLastEvaluated = 0;
 // CBH Modal
 const cbhModalOverlay = document.getElementById('cbhModalOverlay');
 const cbhModal = document.getElementById('cbhModal');
@@ -400,23 +408,34 @@ quickBtns.forEach(btn => {
 
 // Calculator button event listeners
 // Handle clicks on calculator buttons. Use closest to allow clicking on inner icons/spans.
-document.addEventListener('click', (e) => {
-    // keypad buttons
-    const k = e.target.closest('.kp-btn');
-    if (k) {
-        if (k.dataset.number) {
-            inputNumber(k.dataset.number);
-        } else if (k.dataset.op) {
-            inputOperator(k.dataset.op);
-        } else if (k.dataset.action) {
-            const a = k.dataset.action;
-            if (a === 'allclear') clearCalculator();
-            else if (a === 'backspace') backspace();
-            else if (a === 'percent') percentAction();
-            else if (a === 'equals') performCalculation();
-            else if (a === 'downclose') closeCalculatorHandler();
-        }
-    }
+ document.addEventListener('click', (e) => {
+     // MAIN calculator buttons (use original classes)
+     const mainBtn = e.target.closest('.kp-btn');
+     if (mainBtn && !e.target.closest('.cb-keypad-grid')) {
+         if (mainBtn.dataset.number) inputNumber(mainBtn.dataset.number);
+         else if (mainBtn.dataset.op) inputOperator(mainBtn.dataset.op);
+         else if (mainBtn.dataset.action) {
+             const a = mainBtn.dataset.action;
+             if (a === 'allclear') clearCalculator();
+             else if (a === 'backspace') backspace();
+             else if (a === 'percent') percentAction();
+             else if (a === 'equals') performCalculation();
+             else if (a === 'downclose') closeCalculatorHandler();
+         }
+     }
+     // CB calculator dedicated buttons
+     const cbBtn = e.target.closest('.cb-kp-btn');
+     if (cbBtn) {
+         if (cbBtn.dataset.number) cbInputNumber(cbBtn.dataset.number);
+         else if (cbBtn.dataset.op) cbInputOperator(cbBtn.dataset.op);
+         else if (cbBtn.dataset.action) {
+             const a = cbBtn.dataset.action;
+             if (a === 'allclear') cbClear();
+             else if (a === 'backspace') cbBackspace();
+             else if (a === 'percent') cbPercent();
+             else if (a === 'equals') performCbCalculation();
+         }
+     }
     // delete transaction
     const delBtn = e.target.closest('[data-del]');
     if (delBtn) {
@@ -433,6 +452,41 @@ document.addEventListener('click', (e) => {
                 }, 260);
             } else {
                 transactions.splice(idx, 1); updateTransactionHistory(); updateBalance();
+            }
+        }
+    }
+    // delete customer balance history entry
+    const cbhDel = e.target.closest('[data-cbh-del]');
+    if (cbhDel && cbEditingCustomer) {
+        const id = cbhDel.dataset.cbhDel;
+        const data = customerBalances[cbEditingCustomer];
+        if (data) {
+            const idx = data.history.findIndex(h => h.id === id);
+            if (idx > -1) {
+                const el = cbhHistoryList.querySelector(`.cbh-entry[data-cbh-id="${id}"]`);
+                if (el) {
+                    el.classList.add('removing');
+                    setTimeout(() => {
+                        data.history.splice(idx, 1);
+                        renderCustomerHistory(cbEditingCustomer);
+                        // Recompute total from history to keep integrity
+                        data.total = data.history.reduce((sum, h) => sum + h.amount, 0);
+                        cbCurrentBalanceValue.textContent = formatCurrency(data.total);
+                        if (data.total > 0) cbCurrentBalanceValue.style.color = 'var(--green-700)';
+                        else if (data.total < 0) cbCurrentBalanceValue.style.color = 'var(--red-700)';
+                        else cbCurrentBalanceValue.style.color = 'var(--muted-foreground)';
+                        renderCustomerBalanceList();
+                    }, 260);
+                } else {
+                    data.history.splice(idx, 1);
+                    renderCustomerHistory(cbEditingCustomer);
+                    data.total = data.history.reduce((sum, h) => sum + h.amount, 0);
+                    cbCurrentBalanceValue.textContent = formatCurrency(data.total);
+                    if (data.total > 0) cbCurrentBalanceValue.style.color = 'var(--green-700)';
+                    else if (data.total < 0) cbCurrentBalanceValue.style.color = 'var(--red-700)';
+                    else cbCurrentBalanceValue.style.color = 'var(--muted-foreground)';
+                    renderCustomerBalanceList();
+                }
             }
         }
     }
@@ -522,12 +576,17 @@ function closeCbSidebarHandler() {
 
 function openCbModal(editCustomerName = null) {
     cbEditingCustomer = editCustomerName;
+    // reset CB calc state
+    cbExpression = '';
+    cbDisplay = '0';
+    cbLastEvaluated = 0;
+    updateCbCalcDisplay();
+    renderCbExpression();
     if (editCustomerName) {
         // EDIT MODE
         cbModalTitle.textContent = 'Edit Customer';
         cbNameInput.value = editCustomerName;
-        cbNameInput.disabled = true;
-        cbAmountInput.value = '';
+    cbNameInput.disabled = true;
         cbReasonInput.value = '';
         const data = customerBalances[editCustomerName];
         if (data) {
@@ -548,8 +607,7 @@ function openCbModal(editCustomerName = null) {
         // ADD MODE
         cbModalTitle.textContent = 'Add Customer';
         cbNameInput.value = '';
-        cbNameInput.disabled = false;
-        cbAmountInput.value = '';
+    cbNameInput.disabled = false;
         cbReasonInput.value = '';
         cbCurrentBalance.style.display = 'none';
     }
@@ -580,7 +638,7 @@ function saveCustomerBalanceEntry() {
     const reason = cbReasonInput.value.trim();
     // Only used for ADD MODE now (cbEditingCustomer === null)
     if (cbEditingCustomer) return; // edit mode shouldn't trigger save
-    const initialAmount = parseFloat(cbAmountInput.value || '0');
+    const initialAmount = evaluateCbExpression(cbExpression);
     if (isNaN(initialAmount) || initialAmount === 0) return;
     const entry = { id: Date.now().toString(), amount: initialAmount, reason: reason || 'Initial entry', timestamp: new Date() };
     if (!customerBalances[name]) {
@@ -639,11 +697,14 @@ function renderCustomerHistory(customerName) {
     cbhHistoryList.innerHTML = data.history.map(h => {
         const cls = h.amount >= 0 ? 'positive' : 'negative';
         const amt = (h.amount >= 0 ? '+' : '') + formatCurrency(h.amount);
-        return `<div class="cbh-entry">
+        const exprHtml = h.expression ? `<div class="transaction-expression">${escapeHtml(formatDisplayExpression(h.expression))} = ${formatCurrency(Math.abs(h.amount))}</div>` : '';
+        return `<div class="cbh-entry" data-cbh-id="${h.id}">
             <div class="cbh-entry-line">
                 <span class="cbh-entry-amount ${cls}">${amt}</span>
                 <span class="cbh-entry-time">${formatTimeFull(h.timestamp)}</span>
+                <button class="tx-delete-btn" aria-label="Delete" data-cbh-del="${h.id}"><span class="material-symbols-outlined icon-lg">delete</span></button>
             </div>
+            ${exprHtml}
             ${h.reason ? `<div class="cbh-entry-reason">${escapeHtml(h.reason)}</div>` : ''}
         </div>`;
     }).join('');
@@ -691,11 +752,21 @@ cbhModalOverlay.addEventListener('click', (e) => { if (e.target === cbhModalOver
 closeCbhModal.addEventListener('click', closeCbhModalHandler);
 cbSearch.addEventListener('input', () => { cbSearchQuery = cbSearch.value; renderCustomerBalanceList(); });
 
-function applyCbDelta(sign) { // +1 Paid, -1 Unpaid
+function applyCbDelta(sign) { // +1 Paid, -1 Unpaid (self-contained like old input logic)
     const nameRaw = cbNameInput.value.trim();
     if (!nameRaw) return;
-    const entered = parseFloat(cbAmountInput.value || '0');
-    if (isNaN(entered) || entered === 0) return;
+    // Finalize expression locally (no need for external performCbCalculation)
+    if (/([+\-*/])$/.test(cbExpression)) {
+        cbExpression = cbExpression.slice(0, -1); // trim trailing operator
+    }
+    let entered = 0;
+    if (cbExpression) {
+        entered = evaluateCbExpression(cbExpression);
+    } else if (cbDisplay && cbDisplay !== '0') {
+        const rawNum = parseFloat(cbDisplay);
+        if (!isNaN(rawNum)) entered = rawNum;
+    }
+    if (isNaN(entered) || entered <= 0) return; // ignore zero / invalid
     const reason = cbReasonInput.value.trim();
     if (!customerBalances[nameRaw]) {
         customerBalances[nameRaw] = { total: 0, history: [] };
@@ -713,9 +784,15 @@ function applyCbDelta(sign) { // +1 Paid, -1 Unpaid
         id: Date.now().toString(),
         amount: delta,
         reason: reason || (sign > 0 ? 'Paid' : 'Unpaid'),
-        timestamp: new Date()
+        timestamp: new Date(),
+        expression: cbExpression || cbDisplay || ''
     });
-    cbAmountInput.value = '';
+    // reset cb calculator
+    cbExpression = '';
+    cbDisplay = '0';
+    cbLastEvaluated = 0;
+    updateCbCalcDisplay();
+    renderCbExpression();
     cbReasonInput.value = '';
     cbCurrentBalanceValue.textContent = formatCurrency(data.total);
     // dynamic color update
@@ -729,18 +806,84 @@ function applyCbDelta(sign) { // +1 Paid, -1 Unpaid
     renderCustomerBalanceList();
 }
 
+// ===== Embedded Customer Balance Calculator Functions =====
+function updateCbCalcDisplay() { if (cbCalcDisplay) cbCalcDisplay.textContent = cbDisplay || '0'; }
+function renderCbExpression() {
+    if (!cbCalcExpression) return;
+    if (!cbExpression) cbCalcExpression.textContent = '';
+    else cbCalcExpression.textContent = formatDisplayExpression(cbExpression);
+}
+function cbInputNumber(num) {
+    const endsWithOp = /[+\-*/]$/.test(cbExpression);
+    const lastToken = cbExpression.match(/([0-9]*\.?[0-9]*)$/)?.[0] || '';
+    if (num === '.' && lastToken.includes('.')) return;
+    cbExpression += num;
+    const m = cbExpression.match(/([0-9]*\.?[0-9]*)$/);
+    cbDisplay = (m && m[0]) ? m[0] : '0';
+    updateCbCalcDisplay();
+    renderCbExpression();
+}
+function cbInputOperator(op) {
+    if (!cbExpression && cbDisplay !== '0') cbExpression = cbDisplay;
+    if (/([+\-*/])$/.test(cbExpression)) cbExpression = cbExpression.slice(0, -1) + op; else cbExpression += op;
+    const provisional = evaluateCbExpression(cbExpression);
+    cbDisplay = String(provisional);
+    renderCbExpression();
+    updateCbCalcDisplay();
+}
+function cbPercent() {
+    const match = cbExpression.match(/([0-9]*\.?[0-9]*)$/);
+    if (match && match[0]) {
+        const numStr = match[0];
+        const num = parseFloat(numStr);
+        if (!isNaN(num)) {
+            const percentVal = num / 100;
+            cbExpression = cbExpression.slice(0, -numStr.length) + percentVal;
+            cbDisplay = String(percentVal);
+            updateCbCalcDisplay();
+            renderCbExpression();
+        }
+    }
+}
+function cbBackspace() {
+    if (!cbExpression) return;
+    cbExpression = cbExpression.slice(0, -1);
+    const m = cbExpression.match(/([0-9]*\.?[0-9]*)$/);
+    cbDisplay = m && m[0] ? m[0] : '0';
+    updateCbCalcDisplay();
+    renderCbExpression();
+}
+function cbClear() { cbExpression = ''; cbDisplay = '0'; cbLastEvaluated = 0; updateCbCalcDisplay(); renderCbExpression(); }
+function evaluateCbExpression(raw) { return evaluateExpression(raw); }
+function performCbCalculation() {
+    if (/([+\-*/])$/.test(cbExpression)) cbExpression = cbExpression.slice(0, -1);
+    const val = evaluateCbExpression(cbExpression);
+    cbLastEvaluated = val;
+    cbDisplay = String(val || 0);
+    updateCbCalcDisplay();
+}
+
 // Button handlers (new unified buttons)
 const cbPaidBtn = document.getElementById('cbPaidBtn');
 const cbUnpaidBtn = document.getElementById('cbUnpaidBtn');
-cbPaidBtn && cbPaidBtn.addEventListener('click', () => applyCbDelta(+1));
-cbUnpaidBtn && cbUnpaidBtn.addEventListener('click', () => applyCbDelta(-1));
+cbPaidBtn && cbPaidBtn.addEventListener('click', () => { applyCbDelta(+1); });
+cbUnpaidBtn && cbUnpaidBtn.addEventListener('click', () => { applyCbDelta(-1); });
 
-// Keyboard: Enter = Paid, Ctrl/Meta+Enter = Unpaid
-cbAmountInput && cbAmountInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        if (e.ctrlKey || e.metaKey) applyCbDelta(-1); else applyCbDelta(+1);
-    }
+// Keyboard for CB calc when modal active (Enter=Paid, Ctrl+Enter=Unpaid)
+document.addEventListener('keydown', (e) => {
+    if (!cbModalOverlay.classList.contains('active')) return;
+    // avoid interfering when typing name or reason
+    const active = document.activeElement;
+    const inText = active === cbNameInput || active === cbReasonInput;
+    if (inText) return;
+    const k = e.key;
+    if ('0123456789'.includes(k)) { cbInputNumber(k); }
+    else if (k === '.') { cbInputNumber('.'); }
+    else if (['+', '-', '*', '/'].includes(k)) { cbInputOperator(k); }
+    else if (k === '%') { cbPercent(); }
+    else if (k === 'Backspace') { cbBackspace(); }
+    else if (k === 'Enter' || k === '=') { e.preventDefault(); if (e.ctrlKey || e.metaKey) applyCbDelta(-1); else applyCbDelta(+1); }
+    else if (k.toLowerCase() === 'c') { cbClear(); }
 });
 
 // Removed save state logic.

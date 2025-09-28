@@ -374,7 +374,6 @@ body {
 .display-text {
   text-align: right;
   font-size: var(--fs-display);
-  min-height: 3rem;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1032,6 +1031,193 @@ body {
   gap: 1rem;
 }
 
+/* Embedded Customer Balance Calculator */
+
+
+.cb-calculator {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+/* Match main .calculator-display spacing */
+.cb-calculator-display {
+  background: rgba(236, 236, 240, 0.15);
+  border-radius: .5rem;
+  padding: 0 1rem ;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+
+.cb-display-text {
+  text-align: right;
+  font-size: var(--fs-display);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+}
+
+.cb-expression-text {
+  text-align: right;
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+  min-height: 1.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Grid identical to main keypad */
+.cb-keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-auto-rows: 3.25rem;
+  gap: .5rem;
+  align-items: stretch;
+}
+
+.cb-kp-btn {
+  border: none;
+  border-radius: .65rem;
+  font-size: 1.15rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  transition: background .15s ease, transform .15s ease;
+  padding: .25rem;
+}
+
+.cb-kp-btn:active {
+  transform: scale(.95);
+}
+
+.cb-kp-btn:hover {
+  filter: brightness(1.05);
+}
+
+/* Numeric mirrors .kp-num */
+.cb-kp-num {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+.cb-kp-num:hover {
+  background: var(--muted);
+}
+
+/* Operators mirror .kp-op */
+.cb-kp-op {
+  background: var(--accent);
+  color: var(--secondary-foreground);
+}
+
+.cb-kp-op:hover {
+  background: var(--muted-foreground);
+}
+
+.cb-kp-op svg,
+.cb-kp-plus-span svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  display: block;
+  pointer-events: none;
+}
+
+.cb-kp-plus-span svg {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+/* Clear + Plus mimic original orange */
+.cb-kp-clear {
+  background: #eb8634;
+  color: #fff;
+}
+
+.cb-kp-clear:hover {
+  filter: brightness(1.05);
+}
+
+.cb-kp-plus {
+  background: #eb8634;
+  color: #fff;
+}
+
+.cb-kp-plus:hover {
+  filter: brightness(1.05);
+}
+
+/* Backspace (func) */
+.cb-kp-func {
+  background: var(--accent);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Paid / Unpaid mirror Cash In/Out look */
+.cb-kp-unpaid {
+  grid-row: 1/2;
+  grid-column: 4/6;
+  font-size: .95rem;
+  padding: 0 .25rem;
+  white-space: nowrap;
+  background: var(--red-700);
+  color: #fff;
+}
+
+.cb-kp-unpaid:hover {
+  filter: brightness(1.05);
+}
+
+.cb-kp-paid {
+  grid-row: 2/3;
+  grid-column: 4/6;
+  font-size: .95rem;
+  padding: 0 .25rem;
+  white-space: nowrap;
+  background: var(--green-700);
+  color: #fff;
+}
+
+.cb-kp-paid:hover {
+  filter: brightness(1.05);
+}
+
+/* Equals styled like main's .kp-equals */
+.cb-keypad-grid button[data-action="equals"] {
+  background: var(--accent);
+  color: var(--secondary-foreground);
+  font-weight: 600;
+}
+
+.cb-keypad-grid button[data-action="equals"]:hover {
+  background: var(--muted-foreground);
+}
+
+/* Plus spanning */
+.cb-kp-plus-span {
+  grid-row: 4/6;
+  grid-column: 5/6;
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.cb-keypad-grid button[data-action="percent"] {
+  font-size: 1rem;
+}
+
+.cb-expression-text::-webkit-scrollbar,
+.cb-display-text::-webkit-scrollbar {
+  display: none;
+}
+
 .form-field {
   display: flex;
   flex-direction: column;
@@ -1073,8 +1259,8 @@ body {
 }
 
 .cb-current-balance {
-  margin-top: 0.5rem;
-  font-size: var(--fs-base); /* larger than before */
+  font-size: var(--fs-sm);
+  /* larger than before */
   color: var(--muted-foreground);
   display: flex;
   gap: .35rem;
@@ -1083,7 +1269,8 @@ body {
 }
 
 .cb-current-balance span {
-  font-size: var(--fs-heading-sm); /* emphasize numeric value */
+  font-size: var(--fs-heading-sm);
+  /* emphasize numeric value */
   font-weight: var(--font-weight-medium);
   color: var(--foreground);
 }
@@ -1337,7 +1524,7 @@ input:focus {
 .cb-totals {
   margin: .6rem 0 .4rem;
   padding: .55rem .75rem;
-  background: var(--muted);
+  background: var(--input-background);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   display: grid;
@@ -1345,11 +1532,30 @@ input:focus {
   gap: .75rem .5rem;
   font-size: var(--fs-xs);
 }
-.cb-total-item { display:flex; flex-direction:column; gap: .15rem; }
-.cb-total-label { color: var(--muted-foreground); font-size: var(--fs-sm); }
-.cb-total-value { font-weight: var(--font-weight-medium); font-size: var(--fs-base); }
-.cb-total-paid { color: var(--green-700); }
-.cb-total-unpaid { color: var(--red-700); }
+
+.cb-total-item {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+
+.cb-total-label {
+  color: var(--primary);
+  font-size: var(--fs-sm);
+}
+
+.cb-total-value {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--fs-base);
+}
+
+.cb-total-paid {
+  color: var(--green-700);
+}
+
+.cb-total-unpaid {
+  color: var(--red-700);
+}
 
 /* Quick Amount Buttons */
 .quick-amounts {
@@ -1458,7 +1664,6 @@ input:focus {
   text-align: right;
   font-size: 1.75rem;
   /* larger display text for all sizes */
-  min-height: 3rem;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1470,7 +1675,6 @@ input:focus {
   text-align: right;
   font-size: 0.9rem;
   color: var(--muted-foreground);
-  margin-top: 0.25rem;
   min-height: 1.25rem;
   white-space: nowrap;
   overflow: hidden;
@@ -1971,8 +2175,7 @@ input:focus {
 }
 
 .cb-current-balance {
-  margin-top: 0.5rem;
-  font-size: var(--fs-base);
+  font-size: var(--fs-sm);
   color: var(--muted-foreground);
   display: flex;
   gap: .35rem;
@@ -2207,7 +2410,6 @@ input:focus {
 
   .display-text {
     font-size: 1.75rem;
-    min-height: 3rem;
   }
 
   .calculator-grid {
@@ -2273,7 +2475,7 @@ input:focus {
 
   .calculator-display {
     margin-bottom: 0.75rem;
-    padding: 0.5rem;
+    padding: 0 1rem;
   }
 
   .calculator-grid {
@@ -2328,7 +2530,6 @@ input:focus {
 
   .display-text {
     font-size: 1.75rem;
-    min-height: 3rem;
   }
 
   .calculator-grid {
@@ -2398,7 +2599,6 @@ input:focus {
 @media (max-width: 380px) {
   .display-text {
     font-size: 1.75rem;
-    min-height: 3rem;
   }
 
   .calc-btn svg {

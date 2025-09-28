@@ -1,8 +1,8 @@
 -- Tally Application Database Schema
 -- Created for cash management and customer balance tracking
 
-CREATE DATABASE IF NOT EXISTS tally_app;
-USE tally_app;
+CREATE DATABASE IF NOT EXISTS tally;
+USE tally;
 
 -- Books table (stores like "Samad's store")
 CREATE TABLE books (
@@ -20,7 +20,7 @@ CREATE TABLE transactions (
     book_id INT NOT NULL,
     type ENUM('cash_in', 'cash_out') NOT NULL,
     amount DECIMAL(10, 2) NOT NULL,
-    expression TEXT DEFAULT '',
+    expression TEXT,
     timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -47,10 +47,15 @@ CREATE TABLE customer_balance_history (
     customer_name VARCHAR(255) NOT NULL,
     amount DECIMAL(10, 2) NOT NULL,
     type ENUM('paid', 'unpaid') NOT NULL,
-    reason TEXT DEFAULT '',
-    expression TEXT DEFAULT '',
+    reason TEXT,
+    expression TEXT,
     timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (book_id, customer_name) REFERENCES customers(book_id, name) ON DELETE CASCADE
 );
+
+
+-- Insert a new book
+INSERT INTO books (name, current_balance, logo_url) 
+VALUES ('Samad''s Store', 0.00, '/assest/store.svg');

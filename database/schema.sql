@@ -56,6 +56,22 @@ CREATE TABLE customer_balance_history (
 );
 
 
+-- Indexes for performance optimization
+
+-- Index on transactions table for frequent queries
+CREATE INDEX idx_transactions_book_id ON transactions(book_id);
+CREATE INDEX idx_transactions_timestamp ON transactions(timestamp DESC);
+CREATE INDEX idx_transactions_book_timestamp ON transactions(book_id, timestamp DESC);
+
+-- Index on customers table for lookups
+CREATE INDEX idx_customers_book_id ON customers(book_id);
+CREATE INDEX idx_customers_name ON customers(name);
+
+-- Index on customer_balance_history table for frequent queries
+CREATE INDEX idx_customer_history_book_customer ON customer_balance_history(book_id, customer_name);
+CREATE INDEX idx_customer_history_timestamp ON customer_balance_history(timestamp DESC);
+CREATE INDEX idx_customer_history_book_customer_timestamp ON customer_balance_history(book_id, customer_name, timestamp DESC);
+
 -- Insert a new book
 INSERT INTO books (name, current_balance, logo_url) 
 VALUES ('Samad''s Store', 0.00, './assest/store.svg');

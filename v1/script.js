@@ -3,6 +3,7 @@ let cashAmount = '';
 let isCalculatorOpen = false;
 let isHistoryOpen = false;
 let transactions = [];
+let currentBook = null; // Store current book details
 // Customer Balance State
 let customerBalances = {}; // { customerName: { total: number, history: [ { id, amount, reason, timestamp } ] } }
 let cbEditingCustomer = null; // name when editing existing
@@ -10,6 +11,10 @@ let cbLongPressTimer = null;
 let cbSearchQuery = '';
 // Customer Balance adjustment working state
 // (Removed old working delta state variables after refactor)
+
+// API Configuration
+const API_BASE = '../api/';
+const BOOK_ID = 1; // Default book ID (Samad's Store)
 
 // Calculator State
 let display = '0';
@@ -86,6 +91,19 @@ function formatCurrency(value) {
     return '৳ ' + num.toFixed(2);
 }
 
+function formatCurrentBalance(value) {
+    // Format current balance with proper minus sign placement
+    if (value === '' || value === null || value === undefined) return '';
+    const num = typeof value === 'number' ? value : parseFloat(value);
+    if (isNaN(num)) return value;
+    
+    if (num >= 0) {
+        return '৳ ' + num.toFixed(2);
+    } else {
+        return '-৳ ' + Math.abs(num).toFixed(2);
+    }
+}
+
 function formatTime(date) {
     return new Intl.DateTimeFormat('en-US', {
         hour: '2-digit',
@@ -100,6 +118,111 @@ function formatTimeFull(date) {
         hour: '2-digit', minute: '2-digit', second: '2-digit',
         month: 'short', day: 'numeric', year: 'numeric'
     }).format(date);
+}
+
+// API Functions
+async function fetchBookDetails(bookId = BOOK_ID) {
+    try {
+        const response = await fetch(`${API_BASE}get-book-details.php?book_id=${bookId}`);
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+    } catch (error) {
+        console.error('Error fetching book details:', error);
+        throw error;
+    }
+}
+
+async function fetchTransactionHistory(bookId = BOOK_ID) {
+    try {
+        const response = await fetch(`${API_BASE}get-book-transaction-history.php?book_id=${bookId}`);
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+    } catch (error) {
+        console.error('Error fetching transaction history:', error);
+        throw error;
+    }
+}
+
+async function fetchCustomers(bookId = BOOK_ID) {
+    try {
+        const response = await fetch(`${API_BASE}get-book-customers.php?book_id=${bookId}`);
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+    } catch (error) {
+        console.error('Error fetching customers:', error);
+        throw error;
+    }
+}
+
+async function fetchCustomerHistory(customerName, bookId = BOOK_ID) {
+    try {
+        const response = await fetch(`${API_BASE}get-book-customer-balance-history.php?book_id=${bookId}&customer_name=${encodeURIComponent(customerName)}`);
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+    } catch (error) {
+        console.error('Error fetching customer history:', error);
+        throw error;
+    }
+}
+
+async function createTransaction(type, amount, expression = null, timestamp = null) {
+    try {
+        const requestData = {
+            book_id: BOOK_ID,
+            type: type,
+            amount: amount,
+            expression: expression,
+            timestamp: timestamp || new Date().toISOString().slice(0, 19).replace('T', ' ')
+        };
+
+        const response = await fetch(`${API_BASE}transaction.php`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+    } catch (error) {
+        console.error('Error creating transaction:', error);
+        throw error;
+    }
+}
+
+async function createCustomerBalance(customerName, type, amount, reason = null, expression = null, timestamp = null) {
+    try {
+        const requestData = {
+            book_id: BOOK_ID,
+            customer_name: customerName,
+            type: type,
+            amount: amount,
+            reason: reason,
+            expression: expression,
+            timestamp: timestamp || new Date().toISOString().slice(0, 19).replace('T', ' ')
+        };
+
+        const response = await fetch(`${API_BASE}customer-balance.php`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestData)
+        });
+
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        return data;
+    } catch (error) {
+        console.error('Error creating customer balance:', error);
+        throw error;
+    }
 }
 
 // Calculator Functions
@@ -197,78 +320,93 @@ function formatDisplayExpression(expr) {
 }
 
 // Transaction Functions
-function addTransaction(type, amount, exprStr) {
-    const transaction = {
-        id: Date.now().toString(),
-        type: type,
-        amount: amount,
-        expression: exprStr || '',
-        timestamp: new Date()
-    };
-    transactions.unshift(transaction);
-    updateTransactionHistory();
-    updateBalance();
+async function addTransaction(type, amount, exprStr) {
+    try {
+        const result = await createTransaction(type, amount, exprStr);
+        
+        // Update local state
+        const transaction = {
+            id: result.transaction_id,
+            type: type,
+            amount: amount,
+            expression: exprStr || '',
+            timestamp: new Date()
+        };
+        transactions.unshift(transaction);
+        
+        // Update UI with new balance from server
+        currentBook.current_balance = result.new_balance;
+        updateBalance();
+        
+        // Note: We don't call updateTransactionHistory() here because it will be called 
+        // when the user clicks the history button, avoiding unnecessary API calls
+        
+        return result;
+    } catch (error) {
+        console.error('Failed to add transaction:', error);
+        alert('Failed to save transaction. Please try again.');
+        throw error;
+    }
 }
 
 function updateBalance() {
-    if (transactions.length > 0) {
-        const totalIn = transactions
-            .filter(t => t.type === 'cash_in')
-            .reduce((sum, t) => sum + t.amount, 0);
-        const totalOut = transactions
-            .filter(t => t.type === 'cash_out')
-            .reduce((sum, t) => sum + t.amount, 0);
-        const balance = totalIn - totalOut;
-
-        balanceAmount.textContent = formatCurrency(balance.toString());
+    if (currentBook && currentBook.current_balance !== undefined) {
+        balanceAmount.textContent = formatCurrency(currentBook.current_balance);
         balanceDisplay.style.display = 'block';
     } else {
         balanceDisplay.style.display = 'none';
     }
 }
 
-function updateTransactionHistory() {
-    // Update summary
-    const totalIn = transactions
-        .filter(t => t.type === 'cash_in')
-        .reduce((sum, t) => sum + t.amount, 0);
-    const totalOut = transactions
-        .filter(t => t.type === 'cash_out')
-        .reduce((sum, t) => sum + t.amount, 0);
-    const net = totalIn - totalOut;
+async function updateTransactionHistory() {
+    try {
+        const historyData = await fetchTransactionHistory();
+        
+        // Update local transactions array
+        transactions = historyData.transactions.map(t => ({
+            ...t,
+            timestamp: new Date(t.timestamp)
+        }));
+        
+        // Update summary
+        const summary = historyData.summary;
+        totalCashIn.textContent = formatCurrency(summary.total_cash_in);
+        totalCashOut.textContent = formatCurrency(summary.total_cash_out);
+        netAmount.textContent = formatCurrency(summary.net_amount);
+        netAmount.className = 'summary-value ' + (summary.net_amount >= 0 ? 'cash-in' : 'cash-out');
 
-    totalCashIn.textContent = formatCurrency(totalIn);
-    totalCashOut.textContent = formatCurrency(totalOut);
-    netAmount.textContent = formatCurrency(net);
-    netAmount.className = 'summary-value ' + (net >= 0 ? 'cash-in' : 'cash-out');
-
-    // Update transaction list
-    if (transactions.length === 0) {
-        emptyState.style.display = 'block';
-        transactionList.innerHTML = '<div class="empty-state">No transactions yet</div>';
-    } else {
-        emptyState.style.display = 'none';
-        // Ensure CSS classes match hyphenated style used in styles.css (cash-in / cash-out)
-        transactionList.innerHTML = transactions.map(transaction => {
-            const hyphenClass = transaction.type.replace('_', '-');
-            const label = transaction.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-            const sign = transaction.type === 'cash_in' ? '+' : '-';
-            return `
-            <div class="transaction-item" data-id="${transaction.id}">
-                <div class="transaction-info">
-                    <div class="transaction-type">
-                        <span class="type-indicator ${hyphenClass}"></span>
-                        <span>${label}</span>
+        // Update transaction list
+        if (transactions.length === 0) {
+            emptyState.style.display = 'block';
+            transactionList.innerHTML = '<div class="empty-state">No transactions yet</div>';
+        } else {
+            emptyState.style.display = 'none';
+            // Ensure CSS classes match hyphenated style used in styles.css (cash-in / cash-out)
+            transactionList.innerHTML = transactions.map(transaction => {
+                const hyphenClass = transaction.type.replace('_', '-');
+                const label = transaction.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const sign = transaction.type === 'cash_in' ? '+' : '-';
+                return `
+                <div class="transaction-item" data-id="${transaction.id}">
+                    <div class="transaction-info">
+                        <div class="transaction-type">
+                            <span class="type-indicator ${hyphenClass}"></span>
+                            <span>${label}</span>
+                        </div>
+                        <div class="transaction-time">${formatTime(transaction.timestamp)}</div>
+                        ${transaction.expression ? `<div class="transaction-expression">${escapeHtml(formatDisplayExpression(transaction.expression))} = ${formatCurrency(transaction.amount)}</div>` : ''}
                     </div>
-                    <div class="transaction-time">${formatTime(transaction.timestamp)}</div>
-                    ${transaction.expression ? `<div class="transaction-expression">${escapeHtml(formatDisplayExpression(transaction.expression))} = ${formatCurrency(transaction.amount)}</div>` : ''}
-                </div>
-                <div class="transaction-right">
-                    <div class="transaction-amount ${hyphenClass}">${sign}${formatCurrency(transaction.amount)}</div>
-                    <button class="tx-delete-btn" aria-label="Delete" data-del="${transaction.id}"><span class="material-symbols-outlined icon-lg">delete</span></button>
-                </div>
-            </div>`;
-        }).join('');
+                    <div class="transaction-right">
+                        <div class="transaction-amount ${hyphenClass}">${sign}${formatCurrency(transaction.amount)}</div>
+                        <button class="tx-delete-btn" aria-label="Delete" data-del="${transaction.id}"><span class="material-symbols-outlined icon-lg">delete</span></button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    } catch (error) {
+        console.error('Failed to update transaction history:', error);
+        // Show local data if available
+        transactionList.innerHTML = '<div class="empty-state">Failed to load transaction history</div>';
     }
 }
 
@@ -325,7 +463,7 @@ function closeCalculatorHandler() {
     // Do not clear calculator state on close so calculations are preserved if reopened
 }
 
-function openHistory() {
+async function openHistory() {
     isHistoryOpen = true;
     historySidebar.classList.add('active');
     historyOverlayBg.classList.add('active');
@@ -334,6 +472,9 @@ function openHistory() {
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.width = '100%';
+    
+    // Load transaction history from API
+    await updateTransactionHistory();
 }
 
 function closeHistoryHandler() {
@@ -347,30 +488,38 @@ function closeHistoryHandler() {
     document.body.style.width = '';
 }
 
-function handleCashIn() {
+async function handleCashIn() {
     // Evaluate full expression first
     performCalculation();
     const amount = evaluateExpression(expression);
     if (!isNaN(amount) && amount > 0) {
-        addTransaction('cash_in', amount, expression);
-        cashAmount = amount.toString();
-        clearCalculator();
-        cashInput.value = '';
-        cashInput.placeholder = 'Enter cash amount';
-        closeCalculatorHandler();
+        try {
+            await addTransaction('cash_in', amount, expression);
+            cashAmount = amount.toString();
+            clearCalculator();
+            cashInput.value = '';
+            cashInput.placeholder = 'Enter cash amount';
+            closeCalculatorHandler();
+        } catch (error) {
+            // Error is already handled in addTransaction
+        }
     }
 }
 
-function handleCashOut() {
+async function handleCashOut() {
     performCalculation();
     const amount = evaluateExpression(expression);
     if (!isNaN(amount) && amount > 0) {
-        addTransaction('cash_out', amount, expression);
-        cashAmount = amount.toString();
-        clearCalculator();
-        cashInput.value = '';
-        cashInput.placeholder = 'Enter cash amount';
-        closeCalculatorHandler();
+        try {
+            await addTransaction('cash_out', amount, expression);
+            cashAmount = amount.toString();
+            clearCalculator();
+            cashInput.value = '';
+            cashInput.placeholder = 'Enter cash amount';
+            closeCalculatorHandler();
+        } catch (error) {
+            // Error is already handled in addTransaction
+        }
     }
 }
 
@@ -471,7 +620,7 @@ quickBtns.forEach(btn => {
                         renderCustomerHistory(cbEditingCustomer);
                         // Recompute total from history to keep integrity
                         data.total = data.history.reduce((sum, h) => sum + h.amount, 0);
-                        cbCurrentBalanceValue.textContent = formatCurrency(data.total);
+                        cbCurrentBalanceValue.textContent = formatCurrentBalance(data.total);
                         if (data.total > 0) cbCurrentBalanceValue.style.color = 'var(--green-700)';
                         else if (data.total < 0) cbCurrentBalanceValue.style.color = 'var(--red-700)';
                         else cbCurrentBalanceValue.style.color = 'var(--muted-foreground)';
@@ -481,7 +630,7 @@ quickBtns.forEach(btn => {
                     data.history.splice(idx, 1);
                     renderCustomerHistory(cbEditingCustomer);
                     data.total = data.history.reduce((sum, h) => sum + h.amount, 0);
-                    cbCurrentBalanceValue.textContent = formatCurrency(data.total);
+                    cbCurrentBalanceValue.textContent = formatCurrentBalance(data.total);
                     if (data.total > 0) cbCurrentBalanceValue.style.color = 'var(--green-700)';
                     else if (data.total < 0) cbCurrentBalanceValue.style.color = 'var(--red-700)';
                     else cbCurrentBalanceValue.style.color = 'var(--muted-foreground)';
@@ -515,9 +664,32 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Initialize the app
-function init() {
-    updateTransactionHistory();
-    updateBalance();
+async function init() {
+    try {
+        // Load book details first
+        currentBook = await fetchBookDetails();
+        
+        // Update page title and logo
+        document.title = currentBook.name + ' - Tally';
+        document.querySelector('.logo-section h2').textContent = currentBook.name;
+        
+        // Update logo if available
+        if (currentBook.logo_url) {
+            const logoImg = document.querySelector('.store-logo');
+            if (logoImg) {
+                logoImg.src = currentBook.logo_url;
+            }
+        }
+        
+        // Update balance
+        updateBalance();
+        
+    } catch (error) {
+        console.error('Failed to load book details:', error);
+        // Continue with defaults
+        currentBook = { id: BOOK_ID, name: "Samad's Store", current_balance: 0, logo_url: '' };
+    }
+    
     updateCalculatorDisplay();
     renderCustomerBalanceList();
 
@@ -558,12 +730,15 @@ init();
 
 // ================= Customer Balance Feature =================
 
-function openCbSidebar() {
+async function openCbSidebar() {
     cbSidebar.classList.add('active');
     cbOverlayBg.classList.add('active');
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.width = '100%';
+    
+    // Load customers from API
+    await loadCustomersFromAPI();
 }
 
 function closeCbSidebarHandler() {
@@ -590,7 +765,7 @@ function openCbModal(editCustomerName = null) {
         cbReasonInput.value = '';
         const data = customerBalances[editCustomerName];
         if (data) {
-            cbCurrentBalanceValue.textContent = formatCurrency(data.total);
+            cbCurrentBalanceValue.textContent = formatCurrentBalance(data.total);
             cbCurrentBalance.style.display = 'block';
             // apply color by sign
             if (data.total > 0) {
@@ -621,9 +796,27 @@ function closeCbModalHandler() {
     cbEditingCustomer = null;
 }
 
-function openCbhModal(customerName) {
+async function openCbhModal(customerName) {
     cbhModalTitle.textContent = customerName + ' History';
-    renderCustomerHistory(customerName);
+    
+    // Load customer history from API
+    try {
+        const historyData = await fetchCustomerHistory(customerName);
+        
+        // Update local customer history
+        if (customerBalances[customerName]) {
+            customerBalances[customerName].history = historyData.history.map(h => ({
+                ...h,
+                timestamp: new Date(h.timestamp)
+            }));
+        }
+        
+        renderCustomerHistory(customerName);
+    } catch (error) {
+        console.error('Failed to load customer history:', error);
+        cbhHistoryList.innerHTML = '<div class="cb-empty">Failed to load history</div>';
+    }
+    
     cbhModalOverlay.classList.add('active');
 }
 
@@ -649,6 +842,33 @@ function saveCustomerBalanceEntry() {
     }
     closeCbModalHandler();
     renderCustomerBalanceList();
+}
+
+async function loadCustomersFromAPI() {
+    try {
+        const customersData = await fetchCustomers();
+        
+        // Update local customerBalances object
+        customerBalances = {};
+        customersData.customers.forEach(customer => {
+            customerBalances[customer.name] = {
+                total: customer.total_balance,
+                history: [] // Will be loaded when needed
+            };
+        });
+        
+        renderCustomerBalanceList();
+        
+        // Update totals
+        const totals = customersData.totals;
+        cbTotalPaid.textContent = formatCurrency(totals.total_paid);
+        cbTotalUnpaid.textContent = formatCurrency(totals.total_unpaid);
+        cbTotals.style.display = customersData.customers.length > 0 ? 'grid' : 'none';
+        
+    } catch (error) {
+        console.error('Failed to load customers:', error);
+        cbList.innerHTML = '<div class="cb-empty">Failed to load customers</div>';
+    }
 }
 
 function renderCustomerBalanceList() {
@@ -683,9 +903,12 @@ function renderCustomerBalanceList() {
         const data = customerBalances[name];
         const amount = data.total;
         const cls = amount >= 0 ? 'positive' : 'negative';
+        const displayAmount = amount >= 0 ? 
+            '+' + formatCurrency(amount) : 
+            '-' + formatCurrency(Math.abs(amount));
         return `<div class="cb-row" data-name="${encodeURIComponent(name)}">
             <span class="cb-row-name">${name}</span>
-            <span class="cb-row-amount ${cls}">${amount >= 0 ? '+' : ''}${formatCurrency(amount)}</span>
+            <span class="cb-row-amount ${cls}">${displayAmount}</span>
         </div>`;
     }).join('');
 }
@@ -695,9 +918,14 @@ function renderCustomerHistory(customerName) {
     if (!data) { cbhHistoryList.innerHTML = '<div class="cb-empty">No history</div>'; return; }
     if (data.history.length === 0) { cbhHistoryList.innerHTML = '<div class="cb-empty">No history</div>'; return; }
     cbhHistoryList.innerHTML = data.history.map(h => {
-        const cls = h.amount >= 0 ? 'positive' : 'negative';
-        const amt = (h.amount >= 0 ? '+' : '') + formatCurrency(h.amount);
-        const exprHtml = h.expression ? `<div class="transaction-expression">${escapeHtml(formatDisplayExpression(h.expression))} = ${formatCurrency(Math.abs(h.amount))}</div>` : '';
+        // Use type field to determine display: paid = positive (green), unpaid = negative (red)
+        const isPaid = h.type === 'paid' || (!h.type && h.amount >= 0); // fallback for old records
+        const cls = isPaid ? 'positive' : 'negative';
+        const displayAmount = Math.abs(h.amount); // Always use absolute value for display
+        const amt = isPaid ? 
+            '+' + formatCurrency(displayAmount) : 
+            '-' + formatCurrency(displayAmount);
+        const exprHtml = h.expression ? `<div class="transaction-expression">${escapeHtml(formatDisplayExpression(h.expression))} = ${formatCurrency(displayAmount)}</div>` : '';
         return `<div class="cbh-entry" data-cbh-id="${h.id}">
             <div class="cbh-entry-line">
                 <span class="cbh-entry-amount ${cls}">${amt}</span>
@@ -752,13 +980,15 @@ cbhModalOverlay.addEventListener('click', (e) => { if (e.target === cbhModalOver
 closeCbhModal.addEventListener('click', closeCbhModalHandler);
 cbSearch.addEventListener('input', () => { cbSearchQuery = cbSearch.value; renderCustomerBalanceList(); });
 
-function applyCbDelta(sign) { // +1 Paid, -1 Unpaid (self-contained like old input logic)
+async function applyCbDelta(sign) { // +1 Paid, -1 Unpaid (self-contained like old input logic)
     const nameRaw = cbNameInput.value.trim();
     if (!nameRaw) return;
+    
     // Finalize expression locally (no need for external performCbCalculation)
     if (/([+\-*/])$/.test(cbExpression)) {
         cbExpression = cbExpression.slice(0, -1); // trim trailing operator
     }
+    
     let entered = 0;
     if (cbExpression) {
         entered = evaluateCbExpression(cbExpression);
@@ -766,44 +996,72 @@ function applyCbDelta(sign) { // +1 Paid, -1 Unpaid (self-contained like old inp
         const rawNum = parseFloat(cbDisplay);
         if (!isNaN(rawNum)) entered = rawNum;
     }
+    
     if (isNaN(entered) || entered <= 0) return; // ignore zero / invalid
+    
     const reason = cbReasonInput.value.trim();
-    if (!customerBalances[nameRaw]) {
-        customerBalances[nameRaw] = { total: 0, history: [] };
+    const type = sign > 0 ? 'paid' : 'unpaid';
+    const expression = cbExpression || cbDisplay || '';
+    
+    try {
+        // Save to API
+        const result = await createCustomerBalance(
+            nameRaw, 
+            type, 
+            entered, 
+            reason || (sign > 0 ? 'Paid' : 'Unpaid'),
+            expression
+        );
+        
+        // Update local state
+        if (!customerBalances[nameRaw]) {
+            customerBalances[nameRaw] = { total: 0, history: [] };
+        }
+        
+        // Switch to edit mode if first time
+        if (!cbEditingCustomer) {
+            cbEditingCustomer = nameRaw;
+            cbNameInput.disabled = true;
+            cbCurrentBalance.style.display = 'block';
+        }
+        
+        const data = customerBalances[nameRaw];
+        data.total = result.new_balance; // Use server balance
+        
+        // Add to history
+        data.history.unshift({
+            id: result.history_id,
+            amount: sign * entered,
+            reason: reason || (sign > 0 ? 'Paid' : 'Unpaid'),
+            timestamp: new Date(),
+            expression: expression,
+            type: type
+        });
+        
+        // reset cb calculator
+        cbExpression = '';
+        cbDisplay = '0';
+        cbLastEvaluated = 0;
+        updateCbCalcDisplay();
+        renderCbExpression();
+        cbReasonInput.value = '';
+        cbCurrentBalanceValue.textContent = formatCurrentBalance(data.total);
+        
+        // dynamic color update
+        if (data.total > 0) {
+            cbCurrentBalanceValue.style.color = 'var(--green-700)';
+        } else if (data.total < 0) {
+            cbCurrentBalanceValue.style.color = 'var(--red-700)';
+        } else {
+            cbCurrentBalanceValue.style.color = 'var(--muted-foreground)';
+        }
+        
+        renderCustomerBalanceList();
+        
+    } catch (error) {
+        console.error('Failed to save customer balance:', error);
+        alert('Failed to save customer balance. Please try again.');
     }
-    // Switch to edit mode if first time
-    if (!cbEditingCustomer) {
-        cbEditingCustomer = nameRaw;
-        cbNameInput.disabled = true;
-        cbCurrentBalance.style.display = 'block';
-    }
-    const data = customerBalances[nameRaw];
-    const delta = sign * entered;
-    data.total += delta;
-    data.history.unshift({
-        id: Date.now().toString(),
-        amount: delta,
-        reason: reason || (sign > 0 ? 'Paid' : 'Unpaid'),
-        timestamp: new Date(),
-        expression: cbExpression || cbDisplay || ''
-    });
-    // reset cb calculator
-    cbExpression = '';
-    cbDisplay = '0';
-    cbLastEvaluated = 0;
-    updateCbCalcDisplay();
-    renderCbExpression();
-    cbReasonInput.value = '';
-    cbCurrentBalanceValue.textContent = formatCurrency(data.total);
-    // dynamic color update
-    if (data.total > 0) {
-        cbCurrentBalanceValue.style.color = 'var(--green-700)';
-    } else if (data.total < 0) {
-        cbCurrentBalanceValue.style.color = 'var(--red-700)';
-    } else {
-        cbCurrentBalanceValue.style.color = 'var(--muted-foreground)';
-    }
-    renderCustomerBalanceList();
 }
 
 // ===== Embedded Customer Balance Calculator Functions =====

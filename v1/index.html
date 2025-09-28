@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="icon" type="image/svg" href="assest/store.svg">
+    <title>Cash Entry - Tally</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Material Symbols Outlined -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+</head>
+
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="spacer"></div>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+                <button class="header-button" id="customerBalanceBtn" aria-label="Customer Balances">
+                    <span class="material-symbols-outlined icon-lg"
+                        style="position:relative; margin-left: -10px;">group<span class="icon-sm"
+                            style="position:absolute; top:-3px; color: var(--red-700); font-size: 0.5rem">৳</span></span>
+                </button>
+                <button class="header-button" id="historyBtn" aria-label="History">
+                    <span class="material-symbols-outlined icon-lg">history</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-container">
+                <!-- Logo/Icon Area -->
+                <div class="logo-section">
+                    <div class="icon-container">
+                        <img src="assest/store.svg" alt="Store Logo" class="money-emoji store-logo" />
+                    </div>
+                    <h2>Samad's Store</h2>
+                </div>
+
+                <!-- Cash Input -->
+                <div class="input-section">
+                    <div class="cash-input-container">
+                        <input type="text" id="cashInput" placeholder="Enter Amount" readonly class="cash-input">
+                    </div>
+
+                    <!-- Current Balance Display -->
+                    <div class="balance-display" id="balanceDisplay" style="display: none;">
+                        <div class="balance-label">Current Balance</div>
+                        <div class="balance-amount" id="balanceAmount">৳ 0.00</div>
+                    </div>
+                </div>
+
+                <!-- Quick Amount Buttons -->
+                <div class="quick-amounts">
+                    <button class="quick-btn" data-amount="5">৳ 5</button>
+                    <button class="quick-btn" data-amount="10">৳ 10</button>
+                    <button class="quick-btn" data-amount="20">৳ 20</button>
+                    <button class="quick-btn" data-amount="30">৳ 30</button>
+                    <button class="quick-btn" data-amount="40">৳ 40</button>
+                    <button class="quick-btn" data-amount="50">৳ 50</button>
+                    <button class="quick-btn" data-amount="100">৳ 100</button>
+                    <button class="quick-btn" data-amount="500">৳ 500</button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Calculator Overlay -->
+        <div class="calculator-overlay" id="calculatorOverlay">
+            <div class="overlay-bg" id="calculatorBg"></div>
+            <div class="calculator" id="calculator">
+                <!-- New Compact Calculator (no title, down button inside) -->
+                <div class="calculator-top">
+                    <button class="calc-dismiss-btn" id="closeCalculator" aria-label="Close calculator">
+                        <span class="material-symbols-outlined">expand_more</span>
+                    </button>
+                </div>
+                <div class="calculator-display">
+                    <div class="display-text" id="calculatorDisplay">0</div>
+                    <div class="expression-text" id="calculatorExpression" aria-live="polite"></div>
+                </div>
+
+                <!-- Redesigned Keypad -->
+                <div class="keypad-grid" id="keypadGrid">
+                    <!-- Row 1 -->
+                    <button class="kp-btn kp-clear" data-action="allclear">AC</button>
+                    <button class="kp-btn kp-func" data-action="backspace" aria-label="Backspace"><span
+                            class="material-symbols-outlined">backspace</span></button>
+                    <button class="kp-btn kp-op" data-action="percent" aria-label="Percent">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M288 192C288 139 245 96 192 96C139 96 96 139 96 192C96 245 139 288 192 288C245 288 288 245 288 192zM544 448C544 395 501 352 448 352C395 352 352 395 352 448C352 501 395 544 448 544C501 544 544 501 544 448zM534.6 150.6C547.1 138.1 547.1 117.8 534.6 105.3C522.1 92.8 501.8 92.8 489.3 105.3L105.3 489.3C92.8 501.8 92.8 522.1 105.3 534.6C117.8 547.1 138.1 547.1 150.6 534.6L534.6 150.6z" />
+                        </svg>
+                    </button>
+                    <button class="kp-btn kp-cash-out cash-out-btn" id="cashOutBtn">Cash Out</button>
+                    <!-- plus spans rows 4-5 column 5 -->
+
+                    <!-- Row 2 -->
+                    <button class="kp-btn kp-num" data-number="7">7</button>
+                    <button class="kp-btn kp-num" data-number="8">8</button>
+                    <button class="kp-btn kp-num" data-number="9">9</button>
+                    <button class="kp-btn kp-cash-in cash-in-btn" id="cashInBtn">Cash In</button>
+
+                    <!-- Row 3 -->
+                    <button class="kp-btn kp-num" data-number="4">4</button>
+                    <button class="kp-btn kp-num" data-number="5">5</button>
+                    <button class="kp-btn kp-num" data-number="6">6</button>
+                    <button class="kp-btn kp-op" data-op="*" aria-label="Multiply">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z" />
+                        </svg>
+                    </button>
+                    <button class="kp-btn kp-op" data-op="/" aria-label="Divide">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M320 112C350.9 112 376 137.1 376 168C376 198.9 350.9 224 320 224C289.1 224 264 198.9 264 168C264 137.1 289.1 112 320 112zM96 320C96 302.3 110.3 288 128 288L512 288C529.7 288 544 302.3 544 320C544 337.7 529.7 352 512 352L128 352C110.3 352 96 337.7 96 320zM264 472C264 441.1 289.1 416 320 416C350.9 416 376 441.1 376 472C376 502.9 350.9 528 320 528C289.1 528 264 502.9 264 472z" />
+                        </svg>
+                    </button>
+
+                    <!-- Row 4 -->
+                    <button class="kp-btn kp-num" data-number="1">1</button>
+                    <button class="kp-btn kp-num" data-number="2">2</button>
+                    <button class="kp-btn kp-num" data-number="3">3</button>
+                    <button class="kp-btn kp-op" data-op="-" aria-label="Minus">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M96 320C96 302.3 110.3 288 128 288L512 288C529.7 288 544 302.3 544 320C544 337.7 529.7 352 512 352L128 352C110.3 352 96 337.7 96 320z" />
+                        </svg>
+                    </button>
+                    <button class="kp-btn kp-plus kp-plus-span" data-op="+" aria-label="Plus">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M352 128C352 110.3 337.7 96 320 96C302.3 96 288 110.3 288 128L288 288L128 288C110.3 288 96 302.3 96 320C96 337.7 110.3 352 128 352L288 352L288 512C288 529.7 302.3 544 320 544C337.7 544 352 529.7 352 512L352 352L512 352C529.7 352 544 337.7 544 320C544 302.3 529.7 288 512 288L352 288L352 128z" />
+                        </svg>
+                    </button>
+
+                    <!-- Row 5 -->
+                    <button class="kp-btn kp-num" data-number=".">.</button>
+                    <button class="kp-btn kp-num" data-number="0">0</button>
+                    <button class="kp-btn kp-num" data-number="00">00</button>
+                    <button class="kp-btn kp-op" data-action="equals" aria-label="Equals">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
+                            focusable="false">
+                            <path fill="currentColor"
+                                d="M128 192C110.3 192 96 206.3 96 224C96 241.7 110.3 256 128 256L512 256C529.7 256 544 241.7 544 224C544 206.3 529.7 192 512 192L128 192zM128 384C110.3 384 96 398.3 96 416C96 433.7 110.3 448 128 448L512 448C529.7 448 544 433.7 544 416C544 398.3 529.7 384 512 384L128 384z" />
+                        </svg>
+                    </button>
+                    <!-- plus continues span -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction History Sidebar -->
+        <div class="history-sidebar" id="historySidebar">
+            <div class="history-header">
+                <h3>Transaction History</h3>
+                <button class="close-btn" id="closeHistory" aria-label="Close history">
+                    <span class="material-symbols-outlined icon-lg">close</span>
+                </button>
+            </div>
+
+            <!-- Summary -->
+            <div class="history-summary">
+                <div class="summary-row">
+                    <span class="summary-label">Cash In:</span>
+                    <span class="summary-value cash-in" id="totalCashIn">৳ 0.00</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Cash Out:</span>
+                    <span class="summary-value cash-out" id="totalCashOut">৳ 0.00</span>
+                </div>
+                <div class="summary-row total-row">
+                    <span class="summary-label">Net Amount:</span>
+                    <span class="summary-value" id="netAmount">৳ 0.00</span>
+                </div>
+            </div>
+
+            <!-- Transaction List -->
+            <div class="transaction-list" id="transactionList">
+                <div class="empty-state" id="emptyState">
+                    No transactions yet
+                </div>
+            </div>
+
+            <!-- history footer removed as requested -->
+        </div>
+
+        <!-- History Overlay Background -->
+        <div class="history-overlay-bg" id="historyOverlayBg"></div>
+
+        <!-- Customer Balance Sidebar -->
+        <div class="cb-sidebar" id="cbSidebar">
+            <div class="history-header"> <!-- reuse existing header styling -->
+                <h3>Customer Balances</h3>
+                <button class="close-btn" id="closeCbSidebar" aria-label="Close customer balances">
+                    <span class="material-symbols-outlined icon-lg">close</span>
+                </button>
+            </div>
+            <div class="cb-content">
+                <div class="cb-top-row">
+                    <input type="text" id="cbSearch" class="cb-search" placeholder="Search customers">
+                    <button class="cb-add-btn" id="cbAddBtn">Add</button>
+                </div>
+                <div class="cb-totals" id="cbTotals" style="display:none;">
+                    <div class="cb-total-item">
+                        <span class="cb-total-label">Total Paid:</span>
+                        <span class="cb-total-value cb-total-paid" id="cbTotalPaid">৳ 0.00</span>
+                    </div>
+                    <div class="cb-total-item" style="align-items: end;">
+                        <span class="cb-total-label">Total Unpaid:</span>
+                        <span class="cb-total-value cb-total-unpaid" id="cbTotalUnpaid">৳ 0.00</span>
+                    </div>
+                </div>
+                <div class="cb-list" id="cbList">
+                    <div class="cb-empty" id="cbEmptyState">No customers yet</div>
+                </div>
+            </div>
+        </div>
+        <div class="cb-overlay-bg" id="cbOverlayBg"></div>
+
+        <!-- Customer Balance Add/Edit Modal (CB modal) -->
+        <div class="cb-modal-overlay" id="cbModalOverlay">
+            <div class="cb-modal" id="cbModal">
+                <div class="cb-modal-header">
+                    <h3 id="cbModalTitle">Add Customer</h3>
+                    <button class="close-btn" id="closeCbModal" aria-label="Close">
+                        <span class="material-symbols-outlined icon-lg">close</span>
+                    </button>
+                </div>
+                <div class="cb-modal-body">
+                    <div class="form-field">
+                        <input type="text" id="cbNameInput" placeholder="Customer Name">
+                    </div>
+                    <div class="form-field">
+                        <textarea id="cbReasonInput" rows="2" placeholder="Order Details"></textarea>
+                        <!-- Current Balance moved here (after description) -->
+                        <div class="cb-current-balance" id="cbCurrentBalance" style="display:none;">Current Balance:
+                            <span id="cbCurrentBalanceValue">৳ 0.00</span>
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <!-- Embedded Customer Balance Calculator -->
+                        <div class="cb-calc" id="cbCalc">
+                            <div class="cb-calculator" id="cbCalculator">
+                                <div class="cb-calculator-display">
+                                    <div class="cb-display-text" id="cbCalcDisplay">0</div>
+                                    <div class="cb-expression-text" id="cbCalcExpression"></div>
+                                </div>
+                                <div class="cb-keypad-grid" id="cbKeypadGrid">
+                                    <!-- Row 1 (AC, Backspace, Percent, Unpaid) -->
+                                    <button class="cb-kp-btn cb-kp-clear" data-action="allclear">AC</button>
+                                    <button class="cb-kp-btn cb-kp-func" data-action="backspace" aria-label="Backspace"><span class="material-symbols-outlined">backspace</span></button>
+                                    <button class="cb-kp-btn cb-kp-op" data-action="percent" aria-label="Percent">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true" focusable="false"><path fill="currentColor" d="M288 192C288 139 245 96 192 96C139 96 96 139 96 192C96 245 139 288 192 288C245 288 288 245 288 192zM544 448C544 395 501 352 448 352C395 352 352 395 352 448C352 501 395 544 448 544C501 544 544 501 544 448zM534.6 150.6C547.1 138.1 547.1 117.8 534.6 105.3C522.1 92.8 501.8 92.8 489.3 105.3L105.3 489.3C92.8 501.8 92.8 522.1 105.3 534.6C117.8 547.1 138.1 547.1 150.6 534.6L534.6 150.6z"/></svg>
+                                    </button>
+                                    <button class="cb-kp-btn cb-kp-unpaid" id="cbUnpaidBtn" aria-label="Unpaid">Unpaid</button>
+                                    <!-- Row 2 (7 8 9 Paid) -->
+                                    <button class="cb-kp-btn cb-kp-num" data-number="7">7</button>
+                                    <button class="cb-kp-btn cb-kp-num" data-number="8">8</button>
+                                    <button class="cb-kp-btn cb-kp-num" data-number="9">9</button>
+                                    <button class="cb-kp-btn cb-kp-paid" id="cbPaidBtn" aria-label="Paid">Paid</button>
+                                    <!-- Row 3 (4 5 6 * /) -->
+                                    <button class="cb-kp-btn cb-kp-num" data-number="4">4</button>
+                                    <button class="cb-kp-btn cb-kp-num" data-number="5">5</button>
+                                    <button class="cb-kp-btn cb-kp-num" data-number="6">6</button>
+                                    <button class="cb-kp-btn cb-kp-op" data-op="*" aria-label="Multiply">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true" focusable="false"><path fill="currentColor" d="M183.1 137.4C170.6 124.9 150.3 124.9 137.8 137.4C125.3 149.9 125.3 170.2 137.8 182.7L275.2 320L137.9 457.4C125.4 469.9 125.4 490.2 137.9 502.7C150.4 515.2 170.7 515.2 183.2 502.7L320.5 365.3L457.9 502.6C470.4 515.1 490.7 515.1 503.2 502.6C515.7 490.1 515.7 469.8 503.2 457.3L365.8 320L503.1 182.6C515.6 170.1 515.6 149.8 503.1 137.3C490.6 124.8 470.3 124.8 457.8 137.3L320.5 274.7L183.1 137.4z"/></svg>
+                                    </button>
+                                    <button class="cb-kp-btn cb-kp-op" data-op="/" aria-label="Divide">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true" focusable="false"><path fill="currentColor" d="M320 112C350.9 112 376 137.1 376 168C376 198.9 350.9 224 320 224C289.1 224 264 198.9 264 168C264 137.1 289.1 112 320 112zM96 320C96 302.3 110.3 288 128 288L512 288C529.7 288 544 302.3 544 320C544 337.7 529.7 352 512 352L128 352C110.3 352 96 337.7 96 320zM264 472C264 441.1 289.1 416 320 416C350.9 416 376 441.1 376 472C376 502.9 350.9 528 320 528C289.1 528 264 502.9 264 472z"/></svg>
+                                    </button>
+                                    <!-- Row 4 (1 2 3 - plus spans rows 4-5) -->
+                                    <button class="cb-kp-btn cb-kp-num" data-number="1">1</button>
+                                    <button class="cb-kp-btn cb-kp-num" data-number="2">2</button>
+                                    <button class="cb-kp-btn cb-kp-num" data-number="3">3</button>
+                                    <button class="cb-kp-btn cb-kp-op" data-op="-" aria-label="Minus">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true" focusable="false"><path fill="currentColor" d="M96 320C96 302.3 110.3 288 128 288L512 288C529.7 288 544 302.3 544 320C544 337.7 529.7 352 512 352L128 352C110.3 352 96 337.7 96 320z"/></svg>
+                                    </button>
+                                    <button class="cb-kp-btn cb-kp-plus cb-kp-plus-span" data-op="+" aria-label="Plus">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true" focusable="false"><path fill="currentColor" d="M352 128C352 110.3 337.7 96 320 96C302.3 96 288 110.3 288 128L288 288L128 288C110.3 288 96 302.3 96 320C96 337.7 110.3 352 128 352L288 352L288 512C288 529.7 302.3 544 320 544C337.7 544 352 529.7 352 512L352 352L512 352C529.7 352 544 337.7 544 320C544 302.3 529.7 288 512 288L352 288L352 128z"/></svg>
+                                    </button>
+                                    <!-- Row 5 (. 0 00 equals) -->
+                                    <button class="cb-kp-btn cb-kp-num" data-number=".">.</button>
+                                    <button class="cb-kp-btn cb-kp-num" data-number="0">0</button>
+                                    <button class="cb-kp-btn cb-kp-num" data-number="00">00</button>
+                                    <button class="cb-kp-btn cb-kp-op" data-action="equals" aria-label="Equals">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true" focusable="false"><path fill="currentColor" d="M128 192C110.3 192 96 206.3 96 224C96 241.7 110.3 256 128 256L512 256C529.7 256 544 241.7 544 224C544 206.3 529.7 192 512 192L128 192zM128 384C110.3 384 96 398.3 96 416C96 433.7 110.3 448 128 448L512 448C529.7 448 544 433.7 544 416C544 398.3 529.7 384 512 384L128 384z"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Unified Actions: Unpaid (subtract) / Paid (add) -->
+                <!-- Action buttons moved into keypad (Unpaid/Paid) to mirror main calculator layout -->
+            </div>
+        </div>
+
+        <!-- Customer Balance History Modal (CBH modal) -->
+        <div class="cbh-modal-overlay" id="cbhModalOverlay">
+            <div class="cbh-modal" id="cbhModal">
+                <div class="cb-modal-header">
+                    <h3 id="cbhModalTitle">History</h3>
+                    <button class="close-btn" id="closeCbhModal" aria-label="Close">
+                        <span class="material-symbols-outlined icon-lg">close</span>
+                    </button>
+                </div>
+                <div class="cbh-history-list" id="cbhHistoryList">
+                    <!-- history entries injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

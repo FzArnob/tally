@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <link rel="icon" type="image/svg" href="assest/store.svg">
-    <title>Cash Entry - Tally</title>
+    <title data-i18n="pageTitle">Cash Entry - Tally</title>
     <link rel="stylesheet" href="styles.css">
     <!-- Material Symbols Outlined -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
@@ -19,12 +19,27 @@
         <header class="header">
             <div class="spacer"></div>
             <div style="display:flex; gap:0.5rem; align-items:center;">
-                <button class="header-button" id="customerBalanceBtn" aria-label="Customer Balances">
+                <div class="language-switcher" id="languageSwitcher">
+                    <button class="header-button" id="languageBtn" aria-label="Language" data-i18n-aria="language">
+                        <span class="material-symbols-outlined icon-lg">translate</span>
+                    </button>
+                    <div class="language-dropdown" id="languageDropdown">
+                        <div class="language-option" data-lang="en">
+                            <span class="lang-flag">🇺🇸</span>
+                            <span class="lang-name" data-i18n="english">English</span>
+                        </div>
+                        <div class="language-option" data-lang="bn">
+                            <span class="lang-flag">🇧🇩</span>
+                            <span class="lang-name" data-i18n="bangla">বাংলা</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="header-button" id="customerBalanceBtn" aria-label="Customer Balances" data-i18n-aria="customerBalances">
                     <span class="material-symbols-outlined icon-lg"
                         style="position:relative; margin-left: -10px;">group<span class="icon-sm"
                             style="position:absolute; top:-3px; color: var(--red-700); font-size: 0.5rem">৳</span></span>
                 </button>
-                <button class="header-button" id="historyBtn" aria-label="History">
+                <button class="header-button" id="historyBtn" aria-label="History" data-i18n-aria="history">
                     <span class="material-symbols-outlined icon-lg">history</span>
                 </button>
             </div>
@@ -38,18 +53,18 @@
                     <div class="icon-container">
                         <img src="assest/store.svg" alt="Store Logo" class="money-emoji store-logo" />
                     </div>
-                    <h2>Samad's Store</h2>
+                    <h2>Tally Store</h2>
                 </div>
 
                 <!-- Cash Input -->
                 <div class="input-section">
                     <div class="cash-input-container">
-                        <input type="text" id="cashInput" placeholder="Enter Amount" readonly class="cash-input">
+                        <input type="text" id="cashInput" placeholder="Enter Amount" data-i18n-placeholder="enterAmount" readonly class="cash-input">
                     </div>
 
                     <!-- Current Balance Display -->
                     <div class="balance-display" id="balanceDisplay" style="display: none;">
-                        <div class="balance-label">Current Balance</div>
+                        <div class="balance-label" data-i18n="currentBalance">Current Balance</div>
                         <div class="balance-amount" id="balanceAmount">৳ 0.00</div>
                     </div>
                 </div>
@@ -86,24 +101,24 @@
                 <!-- Redesigned Keypad -->
                 <div class="keypad-grid" id="keypadGrid">
                     <!-- Row 1 -->
-                    <button class="kp-btn kp-clear" data-action="allclear">AC</button>
-                    <button class="kp-btn kp-func" data-action="backspace" aria-label="Backspace"><span
+                    <button class="kp-btn kp-clear" data-action="allclear" data-i18n="allClear">AC</button>
+                    <button class="kp-btn kp-func" data-action="backspace" aria-label="Backspace" data-i18n-aria="backspace"><span
                             class="material-symbols-outlined">backspace</span></button>
-                    <button class="kp-btn kp-op" data-action="percent" aria-label="Percent">
+                    <button class="kp-btn kp-op" data-action="percent" aria-label="Percent" data-i18n-aria="percent">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" aria-hidden="true"
                             focusable="false">
                             <path fill="currentColor"
                                 d="M288 192C288 139 245 96 192 96C139 96 96 139 96 192C96 245 139 288 192 288C245 288 288 245 288 192zM544 448C544 395 501 352 448 352C395 352 352 395 352 448C352 501 395 544 448 544C501 544 544 501 544 448zM534.6 150.6C547.1 138.1 547.1 117.8 534.6 105.3C522.1 92.8 501.8 92.8 489.3 105.3L105.3 489.3C92.8 501.8 92.8 522.1 105.3 534.6C117.8 547.1 138.1 547.1 150.6 534.6L534.6 150.6z" />
                         </svg>
                     </button>
-                    <button class="kp-btn kp-cash-out cash-out-btn" id="cashOutBtn">Cash Out</button>
+                    <button class="kp-btn kp-cash-out cash-out-btn" id="cashOutBtn" data-i18n="cashOut">Cash Out</button>
                     <!-- plus spans rows 4-5 column 5 -->
 
                     <!-- Row 2 -->
                     <button class="kp-btn kp-num" data-number="7">7</button>
                     <button class="kp-btn kp-num" data-number="8">8</button>
                     <button class="kp-btn kp-num" data-number="9">9</button>
-                    <button class="kp-btn kp-cash-in cash-in-btn" id="cashInBtn">Cash In</button>
+                    <button class="kp-btn kp-cash-in cash-in-btn" id="cashInBtn" data-i18n="cashIn">Cash In</button>
 
                     <!-- Row 3 -->
                     <button class="kp-btn kp-num" data-number="4">4</button>
@@ -162,8 +177,8 @@
         <!-- Transaction History Sidebar -->
         <div class="history-sidebar" id="historySidebar">
             <div class="history-header">
-                <h3>Transaction History</h3>
-                <button class="close-btn" id="closeHistory" aria-label="Close history">
+                <h3 data-i18n="transactionHistory">Transaction History</h3>
+                <button class="close-btn" id="closeHistory" aria-label="Close history" data-i18n-aria="close">
                     <span class="material-symbols-outlined icon-lg">close</span>
                 </button>
             </div>
@@ -171,22 +186,22 @@
             <!-- Summary -->
             <div class="history-summary">
                 <div class="summary-row">
-                    <span class="summary-label">Cash In:</span>
+                    <span class="summary-label" data-i18n="cashInLabel">Cash In:</span>
                     <span class="summary-value cash-in" id="totalCashIn">৳ 0.00</span>
                 </div>
                 <div class="summary-row">
-                    <span class="summary-label">Cash Out:</span>
+                    <span class="summary-label" data-i18n="cashOutLabel">Cash Out:</span>
                     <span class="summary-value cash-out" id="totalCashOut">৳ 0.00</span>
                 </div>
                 <div class="summary-row total-row">
-                    <span class="summary-label">Net Amount:</span>
+                    <span class="summary-label" data-i18n="netAmount">Net Amount:</span>
                     <span class="summary-value" id="netAmount">৳ 0.00</span>
                 </div>
             </div>
 
             <!-- Transaction List -->
             <div class="transaction-list" id="transactionList">
-                <div class="empty-state" id="emptyState">
+                <div class="empty-state" id="emptyState" data-i18n="noTransactions">
                     No transactions yet
                 </div>
             </div>
@@ -200,28 +215,28 @@
         <!-- Customer Balance Sidebar -->
         <div class="cb-sidebar" id="cbSidebar">
             <div class="history-header"> <!-- reuse existing header styling -->
-                <h3>Customer Balances</h3>
-                <button class="close-btn" id="closeCbSidebar" aria-label="Close customer balances">
+                <h3 data-i18n="customerBalancesTitle">Customer Balances</h3>
+                <button class="close-btn" id="closeCbSidebar" aria-label="Close customer balances" data-i18n-aria="close">
                     <span class="material-symbols-outlined icon-lg">close</span>
                 </button>
             </div>
             <div class="cb-content">
                 <div class="cb-top-row">
-                    <input type="text" id="cbSearch" class="cb-search" placeholder="Search customers">
-                    <button class="cb-add-btn" id="cbAddBtn">Add</button>
+                    <input type="text" id="cbSearch" class="cb-search" placeholder="Search customers" data-i18n-placeholder="searchCustomers">
+                    <button class="cb-add-btn" id="cbAddBtn" data-i18n="add">Add</button>
                 </div>
                 <div class="cb-totals" id="cbTotals" style="display:none;">
                     <div class="cb-total-item">
-                        <span class="cb-total-label">Advance Paid:</span>
+                        <span class="cb-total-label" data-i18n="advancePaid">Advance Paid:</span>
                         <span class="cb-total-value cb-total-paid" id="cbTotalPaid">৳ 0.00</span>
                     </div>
                     <div class="cb-total-item" style="align-items: end;">
-                        <span class="cb-total-label">Total Unpaid:</span>
+                        <span class="cb-total-label" data-i18n="totalUnpaid">Total Unpaid:</span>
                         <span class="cb-total-value cb-total-unpaid" id="cbTotalUnpaid">৳ 0.00</span>
                     </div>
                 </div>
                 <div class="cb-list" id="cbList">
-                    <div class="cb-empty" id="cbEmptyState">No customers yet</div>
+                    <div class="cb-empty" id="cbEmptyState" data-i18n="noCustomers">No customers yet</div>
                 </div>
             </div>
         </div>
@@ -231,19 +246,19 @@
         <div class="cb-modal-overlay" id="cbModalOverlay">
             <div class="cb-modal" id="cbModal">
                 <div class="cb-modal-header">
-                    <h3 id="cbModalTitle">Add Customer</h3>
-                    <button class="close-btn" id="closeCbModal" aria-label="Close">
+                    <h3 id="cbModalTitle" data-i18n="addCustomer">Add Customer</h3>
+                    <button class="close-btn" id="closeCbModal" aria-label="Close" data-i18n-aria="close">
                         <span class="material-symbols-outlined icon-lg">close</span>
                     </button>
                 </div>
                 <div class="cb-modal-body">
                     <div class="form-field">
-                        <input type="text" id="cbNameInput" placeholder="Customer Name">
+                        <input type="text" id="cbNameInput" placeholder="Customer Name" data-i18n-placeholder="customerName">
                     </div>
                     <div class="form-field">
-                        <textarea id="cbReasonInput" rows="2" placeholder="Order Details"></textarea>
+                        <textarea id="cbReasonInput" rows="2" placeholder="Order Details" data-i18n-placeholder="orderDetails"></textarea>
                         <!-- Current Balance moved here (after description) -->
-                        <div class="cb-current-balance" id="cbCurrentBalance" style="display:none;">Current Balance:
+                        <div class="cb-current-balance" id="cbCurrentBalance" style="display:none;"><span data-i18n="currentBalanceLabel">Current Balance:</span>
                             <span id="cbCurrentBalanceValue">৳ 0.00</span>
                         </div>
                     </div>
@@ -269,12 +284,12 @@
                                         </svg>
                                     </button>
                                     <button class="cb-kp-btn cb-kp-unpaid" id="cbUnpaidBtn"
-                                        aria-label="Unpaid">Unpaid</button>
+                                        aria-label="Unpaid" data-i18n="unpaid" data-i18n-aria="unpaid">Unpaid</button>
                                     <!-- Row 2 (7 8 9 Paid) -->
                                     <button class="cb-kp-btn cb-kp-num" data-number="7">7</button>
                                     <button class="cb-kp-btn cb-kp-num" data-number="8">8</button>
                                     <button class="cb-kp-btn cb-kp-num" data-number="9">9</button>
-                                    <button class="cb-kp-btn cb-kp-paid" id="cbPaidBtn" aria-label="Paid">Paid</button>
+                                    <button class="cb-kp-btn cb-kp-paid" id="cbPaidBtn" aria-label="Paid" data-i18n="paid" data-i18n-aria="paid">Paid</button>
                                     <!-- Row 3 (4 5 6 * /) -->
                                     <button class="cb-kp-btn cb-kp-num" data-number="4">4</button>
                                     <button class="cb-kp-btn cb-kp-num" data-number="5">5</button>
@@ -336,8 +351,8 @@
         <div class="cbh-modal-overlay" id="cbhModalOverlay">
             <div class="cbh-modal" id="cbhModal">
                 <div class="cb-modal-header">
-                    <h3 id="cbhModalTitle">History</h3>
-                    <button class="close-btn" id="closeCbhModal" aria-label="Close">
+                    <h3 id="cbhModalTitle" data-i18n="historyTitle">History</h3>
+                    <button class="close-btn" id="closeCbhModal" aria-label="Close" data-i18n-aria="close">
                         <span class="material-symbols-outlined icon-lg">close</span>
                     </button>
                 </div>
@@ -348,6 +363,7 @@
         </div>
     </div>
 
+    <script src="../config/localization.js"></script>
     <script src="script.js"></script>
 </body>
 

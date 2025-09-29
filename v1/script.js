@@ -13,6 +13,10 @@ let cbSearchQuery = "";
 // Customer Balance adjustment working state
 // (Removed old working delta state variables after refactor)
 
+// Localization State
+let currentLanguage = 'en';
+let currentTranslations = {};
+
 // API Configuration
 const API_BASE = "../api/";
 const BOOK_ID = 1; // Default book ID (Samad's Store)
@@ -45,6 +49,9 @@ const emptyState = document.getElementById("emptyState");
 const totalCashIn = document.getElementById("totalCashIn");
 const totalCashOut = document.getElementById("totalCashOut");
 const netAmount = document.getElementById("netAmount");
+// Language Switcher DOM
+const languageBtn = document.getElementById("languageBtn");
+const languageDropdown = document.getElementById("languageDropdown");
 // Customer Balance DOM
 const customerBalanceBtn = document.getElementById("customerBalanceBtn");
 const cbSidebar = document.getElementById("cbSidebar");
@@ -88,8 +95,134 @@ function formatCurrency(value) {
   if (value === "" || value === null || value === undefined) return "";
   const num = typeof value === "number" ? value : parseFloat(value);
   if (isNaN(num)) return value;
-  // Format with two decimals
-  return "৳ " + num.toFixed(2);
+  
+  // Use localized number formatting with dynamic decimal places
+  const locale = currentTranslations.numberFormat || "en-US";
+  const formatter = new Intl.NumberFormat(locale, {
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 10 // Allow up to 10 decimal places if needed
+  });
+  
+  return "৳ " + formatter.format(num);
+}
+
+function formatNumber(value) {
+  // Format numbers for display (calculator, inputs, etc.) using locale
+  if (value === "" || value === null || value === undefined) return "";
+  const num = typeof value === "number" ? value : parseFloat(value);
+  if (isNaN(num)) return value;
+  
+  // Use localized number formatting
+  const locale = currentTranslations.numberFormat || "en-US";
+  const formatter = new Intl.NumberFormat(locale, {
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 10 // Allow up to 10 decimal places for calculations
+  });
+  
+  return formatter.format(num);
+}
+
+function parseLocalizedNumber(value) {
+  // Parse a localized number back to standard format for calculations
+  if (typeof value === 'number') return value;
+  if (!value || value === '') return 0;
+  
+  // Remove currency symbols and clean up
+  let cleanValue = value.toString().replace(/[৳$,\s]/g, '');
+  
+  // Handle different decimal separators
+  const locale = currentTranslations.numberFormat || "en-US";
+  if (locale === "bn-BD") {
+    // In Bangla locale, comma might be used as thousands separator
+    // Convert to standard format
+    cleanValue = cleanValue.replace(/,/g, '');
+  }
+  
+  const num = parseFloat(cleanValue);
+  return isNaN(num) ? 0 : num;
+}
+
+function localizeDigitsInExpression(expression) {
+  // Localize digits in mathematical expressions for display
+  if (!expression || expression === '') return expression;
+  
+  const locale = currentTranslations.numberFormat || "en-US";
+  
+  // For Bengali locale, convert digits to Bengali numerals
+  if (locale === "bn-BD") {
+    const englishToBengali = {
+      '0': '০', '1': '১', '2': '২', '3': '৩', '4': '৪',
+      '5': '৫', '6': '৬', '7': '৭', '8': '৮', '9': '৯'
+    };
+    
+    return expression.replace(/[0-9]/g, digit => englishToBengali[digit] || digit);
+  }
+  
+  // For English and other locales, return as-is
+  return expression;
+}
+
+function localizeDigit(digit) {
+  // Localize a single digit for button display
+  if (!digit || digit === '') return digit;
+  
+  const locale = currentTranslations.numberFormat || "en-US";
+  
+  // For Bengali locale, convert digit to Bengali numeral
+  if (locale === "bn-BD") {
+    const englishToBengali = {
+      '0': '০', '1': '১', '2': '২', '3': '৩', '4': '৪',
+      '5': '৫', '6': '৬', '7': '৭', '8': '৮', '9': '৯'
+    };
+    
+    return englishToBengali[digit] || digit;
+  }
+  
+  // For English and other locales, return as-is
+  return digit;
+}
+
+function updateCalculatorButtons() {
+  // Update main calculator digit buttons
+  document.querySelectorAll('.kp-btn[data-number]').forEach(button => {
+    const number = button.getAttribute('data-number');
+    if (number) {
+      if (/^[0-9]+$/.test(number)) {
+        // Localize each digit in the number (for 00, etc.)
+        button.textContent = number.split('').map(localizeDigit).join('');
+      } else if (number === '.') {
+        // Keep decimal point as is - it's universal
+        button.textContent = '.';
+      }
+    }
+  });
+  
+  // Update customer balance calculator digit buttons
+  document.querySelectorAll('.cb-kp-btn[data-number]').forEach(button => {
+    const number = button.getAttribute('data-number');
+    if (number) {
+      if (/^[0-9]+$/.test(number)) {
+        // Localize each digit in the number (for 00, etc.)
+        button.textContent = number.split('').map(localizeDigit).join('');
+      } else if (number === '.') {
+        // Keep decimal point as is - it's universal
+        button.textContent = '.';
+      }
+    }
+  });
+}
+
+function updateQuickAmountButtons() {
+  // Update quick amount buttons with localized currency and digits
+  document.querySelectorAll('.quick-btn[data-amount]').forEach(button => {
+    const amount = button.getAttribute('data-amount');
+    if (amount) {
+      // Format the amount with localized currency and digits
+      button.textContent = formatCurrency(amount);
+    }
+  });
 }
 
 function formatCurrentBalance(value) {
@@ -98,15 +231,24 @@ function formatCurrentBalance(value) {
   const num = typeof value === "number" ? value : parseFloat(value);
   if (isNaN(num)) return value;
 
+  // Use localized number formatting with dynamic decimal places
+  const locale = currentTranslations.numberFormat || "en-US";
+  const formatter = new Intl.NumberFormat(locale, {
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 10 // Allow up to 10 decimal places if needed
+  });
+
   if (num >= 0) {
-    return "৳ " + num.toFixed(2);
+    return "৳ " + formatter.format(num);
   } else {
-    return "-৳ " + Math.abs(num).toFixed(2);
+    return "-৳ " + formatter.format(Math.abs(num));
   }
 }
 
 function formatTime(date) {
-  return new Intl.DateTimeFormat("en-US", {
+  const locale = currentTranslations.timeFormat || "en-US";
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     month: "short",
@@ -115,7 +257,8 @@ function formatTime(date) {
 }
 
 function formatTimeFull(date) {
-  return new Intl.DateTimeFormat("en-US", {
+  const locale = currentTranslations.timeFormat || "en-US";
+  return new Intl.DateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -123,6 +266,131 @@ function formatTimeFull(date) {
     day: "numeric",
     year: "numeric",
   }).format(date);
+}
+
+// Cookie utility functions
+function setCookie(name, value, days = 365) {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+}
+
+function getCookie(name) {
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
+}
+
+// Localization Functions
+function loadLanguage(langCode) {
+  if (!window.translations || !window.translations[langCode]) {
+    console.error(`Language ${langCode} not found`);
+    return false;
+  }
+  
+  currentLanguage = langCode;
+  currentTranslations = window.translations[langCode];
+  
+  // Save to cookie
+  setCookie('selectedLanguage', langCode);
+  
+  // Apply translations
+  applyTranslations();
+  
+  // Update dropdown selection
+  updateLanguageDropdownSelection();
+  
+  return true;
+}
+
+function applyTranslations() {
+  // Update page title
+  document.title = currentTranslations.pageTitle || document.title;
+  
+  // Update elements with data-i18n attribute
+  document.querySelectorAll('[data-i18n]').forEach(element => {
+    const key = element.getAttribute('data-i18n');
+    if (currentTranslations[key]) {
+      element.textContent = currentTranslations[key];
+    }
+  });
+  
+  // Update placeholder attributes
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+    const key = element.getAttribute('data-i18n-placeholder');
+    if (currentTranslations[key]) {
+      element.placeholder = currentTranslations[key];
+    }
+  });
+  
+  // Update aria-label attributes
+  document.querySelectorAll('[data-i18n-aria]').forEach(element => {
+    const key = element.getAttribute('data-i18n-aria');
+    if (currentTranslations[key]) {
+      element.setAttribute('aria-label', currentTranslations[key]);
+    }
+  });
+  
+  // Update number displays
+  updateCalculatorDisplay();
+  updateCbCalcDisplay();
+  updateBalance();
+  
+  // Update calculator buttons and quick amounts
+  updateCalculatorButtons();
+  updateQuickAmountButtons();
+}
+
+function updateLanguageDropdownSelection() {
+  // Remove existing selected class
+  document.querySelectorAll('.language-option').forEach(option => {
+    option.classList.remove('selected');
+  });
+  
+  // Add selected class to current language
+  const currentOption = document.querySelector(`[data-lang="${currentLanguage}"]`);
+  if (currentOption) {
+    currentOption.classList.add('selected');
+  }
+}
+
+function initializeLanguage() {
+  // Get saved language from cookie or default to English
+  const savedLanguage = getCookie('selectedLanguage') || 'en';
+  loadLanguage(savedLanguage);
+}
+
+function switchLanguage(langCode) {
+  if (loadLanguage(langCode)) {
+    closeLanguageDropdown();
+    
+    // Re-render dynamic content with new language
+    renderCustomerBalanceList();
+    updateTransactionHistory();
+  }
+}
+
+// Cookie utility functions
+function setCookie(name, value, days = 365) {
+  const expires = new Date();
+  expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+}
+
+function getCookie(name) {
+  const nameEQ = name + "=";
+  const ca = document.cookie.split(';');
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+  }
+  return null;
 }
 
 // API Functions
@@ -344,7 +612,13 @@ function performCalculation() {
 }
 
 function updateCalculatorDisplay() {
-  calculatorDisplay.textContent = display || "0";
+  const displayValue = display || "0";
+  // For calculator display, show localized digits while keeping calculations in English
+  if (!isNaN(parseFloat(displayValue)) && displayValue.indexOf('.') === -1 && displayValue.length > 3) {
+    calculatorDisplay.textContent = localizeDigitsInExpression(formatNumber(displayValue));
+  } else {
+    calculatorDisplay.textContent = localizeDigitsInExpression(displayValue);
+  }
 }
 
 function renderExpression() {
@@ -352,8 +626,8 @@ function renderExpression() {
   if (!expression) {
     calculatorExpression.textContent = "";
   } else {
-    // Display-friendly expression: show × and ÷ instead of * and /
-    calculatorExpression.textContent = formatDisplayExpression(expression);
+    // Display-friendly expression: show × and ÷ instead of * and / with localized digits
+    calculatorExpression.textContent = localizeDigitsInExpression(formatDisplayExpression(expression));
   }
 }
 
@@ -424,16 +698,16 @@ async function updateTransactionHistory() {
     if (transactions.length === 0) {
       emptyState.style.display = "block";
       transactionList.innerHTML =
-        '<div class="empty-state">No transactions yet</div>';
+        `<div class="empty-state">${currentTranslations.noTransactions || 'No transactions yet'}</div>`;
     } else {
       emptyState.style.display = "none";
       // Ensure CSS classes match hyphenated style used in styles.css (cash-in / cash-out)
       transactionList.innerHTML = transactions
         .map((transaction) => {
           const hyphenClass = transaction.type.replace("_", "-");
-          const label = transaction.type
-            .replace("_", " ")
-            .replace(/\b\w/g, (l) => l.toUpperCase());
+          const label = transaction.type === "cash_in" ? 
+            (currentTranslations.cashInType || "Cash In") : 
+            (currentTranslations.cashOutType || "Cash Out");
           const sign = transaction.type === "cash_in" ? "+" : "-";
           return `
                 <div class="transaction-item" data-id="${transaction.id}">
@@ -448,7 +722,7 @@ async function updateTransactionHistory() {
                         ${
                           transaction.expression
                             ? `<div class="transaction-expression">${escapeHtml(
-                                formatDisplayExpression(transaction.expression)
+                                localizeDigitsInExpression(formatDisplayExpression(transaction.expression))
                               )} = ${formatCurrency(transaction.amount)}</div>`
                             : ""
                         }
@@ -596,7 +870,10 @@ historyBtn.addEventListener("click", openHistory);
 closeHistory.addEventListener("click", closeHistoryHandler);
 historyOverlayBg.addEventListener("click", closeHistoryHandler);
 
-// clear history button removed; no event listener necessary
+// Language switcher event listeners
+languageBtn.addEventListener("click", toggleLanguageDropdown);
+
+// Clear history button removed; no event listener necessary
 
 cashInBtn.addEventListener("click", handleCashIn);
 cashOutBtn.addEventListener("click", handleCashOut);
@@ -826,10 +1103,13 @@ async function handleDeleteCustomerBalanceHistory(historyId, customerName) {
 // Initialize the app
 async function init() {
   try {
+    // Initialize language system first
+    initializeLanguage();
+    
     // Load book details first
     currentBook = await fetchBookDetails();
 
-    // Update page title and logo
+    // Update page title and logo (will be overridden by localization)
     document.title = currentBook.name + " - Tally";
     document.querySelector(".logo-section h2").textContent = currentBook.name;
 
@@ -894,6 +1174,34 @@ async function init() {
 // Start the application
 init();
 
+// ================= Language Switcher Functions =================
+
+function toggleLanguageDropdown() {
+  languageDropdown.classList.toggle("active");
+}
+
+function closeLanguageDropdown() {
+  languageDropdown.classList.remove("active");
+}
+
+// Close dropdown when clicking outside
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".language-switcher")) {
+    closeLanguageDropdown();
+  }
+});
+
+// Language option click handler
+document.addEventListener("click", (e) => {
+  const langOption = e.target.closest(".language-option");
+  if (langOption) {
+    const selectedLang = langOption.getAttribute('data-lang');
+    if (selectedLang) {
+      switchLanguage(selectedLang);
+    }
+  }
+});
+
 // ================= Customer Balance Feature =================
 
 async function openCbSidebar() {
@@ -925,7 +1233,7 @@ function openCbModal(editCustomerName = null) {
   renderCbExpression();
   if (editCustomerName) {
     // EDIT MODE
-    cbModalTitle.textContent = "Edit Customer";
+    cbModalTitle.textContent = currentTranslations.editCustomer || "Edit Customer";
     cbNameInput.value = editCustomerName;
     cbNameInput.disabled = true;
     cbReasonInput.value = "";
@@ -946,7 +1254,7 @@ function openCbModal(editCustomerName = null) {
     }
   } else {
     // ADD MODE
-    cbModalTitle.textContent = "Add Customer";
+    cbModalTitle.textContent = currentTranslations.addCustomer || "Add Customer";
     cbNameInput.value = "";
     cbNameInput.disabled = false;
     cbReasonInput.value = "";
@@ -965,7 +1273,7 @@ function closeCbModalHandler() {
 }
 
 async function openCbhModal(customerName) {
-  cbhModalTitle.textContent = customerName + " History";
+  cbhModalTitle.textContent = customerName + " " + (currentTranslations.historyTitle || "History");
   cbHistoryCustomer = customerName;
 
   // Load customer history from API
@@ -1006,7 +1314,7 @@ function saveCustomerBalanceEntry() {
   const entry = {
     id: Date.now().toString(),
     amount: initialAmount,
-    reason: reason || "Initial entry",
+    reason: reason || (currentTranslations.initialEntry || "Initial entry"),
     timestamp: new Date(),
   };
   if (!customerBalances[name]) {
@@ -1117,7 +1425,7 @@ function renderCustomerHistory(customerName) {
         : "-" + formatCurrency(displayAmount);
       const exprHtml = h.expression
         ? `<div class="transaction-expression">${escapeHtml(
-            formatDisplayExpression(h.expression)
+            localizeDigitsInExpression(formatDisplayExpression(h.expression))
           )} = ${formatCurrency(displayAmount)}</div>`
         : "";
       return `<div class="cbh-entry" data-cbh-id="${h.id}">
@@ -1294,12 +1602,20 @@ async function applyCbDelta(sign) {
 
 // ===== Embedded Customer Balance Calculator Functions =====
 function updateCbCalcDisplay() {
-  if (cbCalcDisplay) cbCalcDisplay.textContent = cbDisplay || "0";
+  if (cbCalcDisplay) {
+    const displayValue = cbDisplay || "0";
+    // For calculator display, show localized digits while keeping calculations in English
+    if (!isNaN(parseFloat(displayValue)) && displayValue.indexOf('.') === -1 && displayValue.length > 3) {
+      cbCalcDisplay.textContent = localizeDigitsInExpression(formatNumber(displayValue));
+    } else {
+      cbCalcDisplay.textContent = localizeDigitsInExpression(displayValue);
+    }
+  }
 }
 function renderCbExpression() {
   if (!cbCalcExpression) return;
   if (!cbExpression) cbCalcExpression.textContent = "";
-  else cbCalcExpression.textContent = formatDisplayExpression(cbExpression);
+  else cbCalcExpression.textContent = localizeDigitsInExpression(formatDisplayExpression(cbExpression));
 }
 function cbInputNumber(num) {
   const endsWithOp = /[+\-*/]$/.test(cbExpression);

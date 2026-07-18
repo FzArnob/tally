@@ -1,8 +1,4 @@
 // Global State
-let cashAmount = "";
-let isCalculatorOpen = false;
-let isHistoryOpen = false;
-let transactions = [];
 let currentBook = null; // Store current book details
 // Customer Balance State
 let customerBalances = {}; // { customerName: { total: number, history: [ { id, amount, reason, timestamp } ] } }
@@ -10,8 +6,6 @@ let cbEditingCustomer = null; // name when editing existing
 let cbHistoryCustomer = null; // name when editing existing
 let cbLongPressTimer = null;
 let cbSearchQuery = "";
-// Customer Balance adjustment working state
-// (Removed old working delta state variables after refactor)
 
 // Localization State
 let currentLanguage = 'en';
@@ -21,34 +15,6 @@ let currentTranslations = {};
 const API_BASE = "../api/";
 const BOOK_ID = 1; // Default book ID (Samad's Store)
 
-// Calculator State
-let display = "0";
-// For new expression-first calculator; we keep a raw expression string.
-let expression = ""; // full expression user builds (e.g. "5+10*3")
-let lastEvaluatedValue = 0; // store last computed numeric value
-
-// DOM Elements
-const cashInput = document.getElementById("cashInput");
-const calculatorOverlay = document.getElementById("calculatorOverlay");
-const calculatorBg = document.getElementById("calculatorBg");
-const calculator = document.getElementById("calculator");
-const calculatorDisplay = document.getElementById("calculatorDisplay");
-const calculatorExpression = document.getElementById("calculatorExpression");
-const closeCalculator = document.getElementById("closeCalculator");
-const historyBtn = document.getElementById("historyBtn");
-const historySidebar = document.getElementById("historySidebar");
-const historyOverlayBg = document.getElementById("historyOverlayBg");
-const closeHistory = document.getElementById("closeHistory");
-const balanceDisplay = document.getElementById("balanceDisplay");
-const balanceAmount = document.getElementById("balanceAmount");
-const quickBtns = document.querySelectorAll(".quick-btn");
-const cashInBtn = document.getElementById("cashInBtn");
-const cashOutBtn = document.getElementById("cashOutBtn");
-const transactionList = document.getElementById("transactionList");
-const emptyState = document.getElementById("emptyState");
-const totalCashIn = document.getElementById("totalCashIn");
-const totalCashOut = document.getElementById("totalCashOut");
-const netAmount = document.getElementById("netAmount");
 // Language Switcher DOM
 const languageBtn = document.getElementById("languageBtn");
 const languageDropdown = document.getElementById("languageDropdown");
@@ -185,20 +151,6 @@ function localizeDigit(digit) {
 }
 
 function updateCalculatorButtons() {
-  // Update main calculator digit buttons
-  document.querySelectorAll('.kp-btn[data-number]').forEach(button => {
-    const number = button.getAttribute('data-number');
-    if (number) {
-      if (/^[0-9]+$/.test(number)) {
-        // Localize each digit in the number (for 00, etc.)
-        button.textContent = number.split('').map(localizeDigit).join('');
-      } else if (number === '.') {
-        // Keep decimal point as is - it's universal
-        button.textContent = '.';
-      }
-    }
-  });
-  
   // Update customer balance calculator digit buttons
   document.querySelectorAll('.cb-kp-btn[data-number]').forEach(button => {
     const number = button.getAttribute('data-number');
@@ -210,17 +162,6 @@ function updateCalculatorButtons() {
         // Keep decimal point as is - it's universal
         button.textContent = '.';
       }
-    }
-  });
-}
-
-function updateQuickAmountButtons() {
-  // Update quick amount buttons with localized currency and digits
-  document.querySelectorAll('.quick-btn[data-amount]').forEach(button => {
-    const amount = button.getAttribute('data-amount');
-    if (amount) {
-      // Format the amount with localized currency and digits
-      button.textContent = formatCurrency(amount);
     }
   });
 }
@@ -244,16 +185,6 @@ function formatCurrentBalance(value) {
   } else {
     return "-৳ " + formatter.format(Math.abs(num));
   }
-}
-
-function formatTime(date) {
-  const locale = currentTranslations.timeFormat || "en-US";
-  return new Intl.DateTimeFormat(locale, {
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "short",
-    day: "numeric",
-  }).format(date);
 }
 
 function formatTimeFull(date) {
@@ -337,13 +268,10 @@ function applyTranslations() {
   });
   
   // Update number displays
-  updateCalculatorDisplay();
   updateCbCalcDisplay();
-  updateBalance();
   
-  // Update calculator buttons and quick amounts
+  // Update calculator buttons
   updateCalculatorButtons();
-  updateQuickAmountButtons();
 }
 
 function updateLanguageDropdownSelection() {
@@ -371,26 +299,7 @@ function switchLanguage(langCode) {
     
     // Re-render dynamic content with new language
     renderCustomerBalanceList();
-    updateTransactionHistory();
   }
-}
-
-// Cookie utility functions
-function setCookie(name, value, days = 365) {
-  const expires = new Date();
-  expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-  document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
-}
-
-function getCookie(name) {
-  const nameEQ = name + "=";
-  const ca = document.cookie.split(';');
-  for (let i = 0; i < ca.length; i++) {
-    let c = ca[i];
-    while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-    if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
-  }
-  return null;
 }
 
 // API Functions
@@ -404,20 +313,6 @@ async function fetchBookDetails(bookId = BOOK_ID) {
     return data;
   } catch (error) {
     console.error("Error fetching book details:", error);
-    throw error;
-  }
-}
-
-async function fetchTransactionHistory(bookId = BOOK_ID) {
-  try {
-    const response = await fetch(
-      `${API_BASE}get-book-transaction-history.php?book_id=${bookId}`
-    );
-    const data = await response.json();
-    if (data.error) throw new Error(data.error);
-    return data;
-  } catch (error) {
-    console.error("Error fetching transaction history:", error);
     throw error;
   }
 }
@@ -448,39 +343,6 @@ async function fetchCustomerHistory(customerName, bookId = BOOK_ID) {
     return data;
   } catch (error) {
     console.error("Error fetching customer history:", error);
-    throw error;
-  }
-}
-
-async function createTransaction(
-  type,
-  amount,
-  expression = null,
-  timestamp = null
-) {
-  try {
-    const requestData = {
-      book_id: BOOK_ID,
-      type: type,
-      amount: amount,
-      expression: expression,
-      timestamp:
-        timestamp || new Date().toISOString().slice(0, 19).replace("T", " "),
-    };
-
-    const response = await fetch(`${API_BASE}transaction.php`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestData),
-    });
-
-    const data = await response.json();
-    if (data.error) throw new Error(data.error);
-    return data;
-  } catch (error) {
-    console.error("Error creating transaction:", error);
     throw error;
   }
 }
@@ -522,68 +384,6 @@ async function createCustomerBalance(
   }
 }
 
-// Calculator Functions
-function inputNumber(num) {
-  const endsWithOp = /[+\-*/]$/.test(expression);
-  const lastToken = expression.match(/([0-9]*\.?[0-9]*)$/)?.[0] || "";
-  if (num === "." && lastToken.includes(".")) return; // prevent double decimal in current operand
-
-  if (endsWithOp) {
-    // Start a fresh operand after an operator
-    display = num === "." ? "0." : num;
-    expression += num;
-  } else {
-    if (display === "0" && num !== ".") display = num;
-    else display += num;
-    expression += num;
-  }
-  updateCalculatorDisplay();
-  renderExpression();
-}
-function inputOperator(op) {
-  if (!expression && display !== "0") {
-    expression = display;
-  }
-  // replace trailing operator
-  if (/([+\-*/])$/.test(expression)) {
-    expression = expression.slice(0, -1) + op;
-  } else if (expression) {
-    expression += op;
-  }
-  // Show live evaluated value ignoring the trailing operator
-  const provisional = evaluateExpression(expression);
-  display = String(provisional);
-  renderExpression();
-  updateCalculatorDisplay();
-}
-function percentAction() {
-  // Apply percent to last number token
-  const match = expression.match(/([0-9]*\.?[0-9]*)$/);
-  if (match && match[0]) {
-    const num = parseFloat(match[0]);
-    const repl = (num / 100).toString();
-    expression = expression.slice(0, -match[0].length) + repl;
-    display = repl;
-    renderExpression();
-    updateCalculatorDisplay();
-  }
-}
-function backspace() {
-  if (!expression) return;
-  expression = expression.slice(0, -1);
-  // recompute display: last number token or 0
-  const m = expression.match(/([0-9]*\.?[0-9]*)$/);
-  display = m && m[0] ? m[0] : "0";
-  updateCalculatorDisplay();
-  renderExpression();
-}
-function clearCalculator() {
-  expression = "";
-  display = "0";
-  lastEvaluatedValue = 0;
-  updateCalculatorDisplay();
-  renderExpression();
-}
 function evaluateExpression(raw) {
   if (!raw) return 0;
   // sanitize: only digits . and operators
@@ -602,421 +402,11 @@ function evaluateExpression(raw) {
     return 0;
   }
 }
-function performCalculation() {
-  // Remove trailing operator if present
-  if (/([+\-*/])$/.test(expression)) expression = expression.slice(0, -1);
-  const val = evaluateExpression(expression);
-  lastEvaluatedValue = val;
-  display = String(val);
-  updateCalculatorDisplay();
-}
-
-function updateCalculatorDisplay() {
-  const displayValue = display || "0";
-  // For calculator display, show localized digits while keeping calculations in English
-  if (!isNaN(parseFloat(displayValue)) && displayValue.indexOf('.') === -1 && displayValue.length > 3) {
-    calculatorDisplay.textContent = localizeDigitsInExpression(formatNumber(displayValue));
-  } else {
-    calculatorDisplay.textContent = localizeDigitsInExpression(displayValue);
-  }
-}
-
-function renderExpression() {
-  if (!calculatorExpression) return;
-  if (!expression) {
-    calculatorExpression.textContent = "";
-  } else {
-    // Display-friendly expression: show × and ÷ instead of * and / with localized digits
-    calculatorExpression.textContent = localizeDigitsInExpression(formatDisplayExpression(expression));
-  }
-}
 
 // Convert raw expression (with * and /) to display form (× and ÷)
 function formatDisplayExpression(expr) {
   if (!expr) return "";
   return expr.replace(/\*/g, "×").replace(/\//g, "÷");
-}
-
-// Transaction Functions
-async function addTransaction(type, amount, exprStr) {
-  try {
-    const result = await createTransaction(type, amount, exprStr);
-
-    // Update local state
-    const transaction = {
-      id: result.transaction_id,
-      type: type,
-      amount: amount,
-      expression: exprStr || "",
-      timestamp: new Date(),
-    };
-    transactions.unshift(transaction);
-
-    // Update UI with new balance from server
-    currentBook.current_balance = result.new_balance;
-    updateBalance();
-
-    // Note: We don't call updateTransactionHistory() here because it will be called
-    // when the user clicks the history button, avoiding unnecessary API calls
-
-    return result;
-  } catch (error) {
-    console.error("Failed to add transaction:", error);
-    alert("Failed to save transaction. Please try again.");
-    throw error;
-  }
-}
-
-function updateBalance() {
-  if (currentBook && currentBook.current_balance !== undefined) {
-    balanceAmount.textContent = formatCurrency(currentBook.current_balance);
-    balanceDisplay.style.display = "block";
-  } else {
-    balanceDisplay.style.display = "none";
-  }
-}
-
-async function updateTransactionHistory() {
-  try {
-    const historyData = await fetchTransactionHistory();
-
-    // Update local transactions array
-    transactions = historyData.transactions.map((t) => ({
-      ...t,
-      timestamp: new Date(t.timestamp),
-    }));
-
-    // Update summary
-    const summary = historyData.summary;
-    totalCashIn.textContent = formatCurrency(summary.total_cash_in);
-    totalCashOut.textContent = formatCurrency(summary.total_cash_out);
-    netAmount.textContent = formatCurrency(summary.net_amount);
-    netAmount.className =
-      "summary-value " + (summary.net_amount >= 0 ? "cash-in" : "cash-out");
-
-    // Update transaction list
-    if (transactions.length === 0) {
-      emptyState.style.display = "block";
-      transactionList.innerHTML =
-        `<div class="empty-state">${currentTranslations.noTransactions || 'No transactions yet'}</div>`;
-    } else {
-      emptyState.style.display = "none";
-      // Ensure CSS classes match hyphenated style used in styles.css (cash-in / cash-out)
-      transactionList.innerHTML = transactions
-        .map((transaction) => {
-          const hyphenClass = transaction.type.replace("_", "-");
-          const label = transaction.type === "cash_in" ? 
-            (currentTranslations.cashInType || "Cash In") : 
-            (currentTranslations.cashOutType || "Cash Out");
-          const sign = transaction.type === "cash_in" ? "+" : "-";
-          return `
-                <div class="transaction-item" data-id="${transaction.id}">
-                    <div class="transaction-info">
-                        <div class="transaction-type">
-                            <span class="type-indicator ${hyphenClass}"></span>
-                            <span>${label}</span>
-                        </div>
-                        <div class="transaction-time">${formatTime(
-                          transaction.timestamp
-                        )}</div>
-                        ${
-                          transaction.expression
-                            ? `<div class="transaction-expression">${escapeHtml(
-                                localizeDigitsInExpression(formatDisplayExpression(transaction.expression))
-                              )} = ${formatCurrency(transaction.amount)}</div>`
-                            : ""
-                        }
-                    </div>
-                    <div class="transaction-right">
-                        <div class="transaction-amount ${hyphenClass}">${sign}${formatCurrency(
-            transaction.amount
-          )}</div>
-                        <button class="tx-delete-btn" aria-label="Delete" data-del="${
-                          transaction.id
-                        }"><span class="material-symbols-outlined icon-lg">delete</span></button>
-                    </div>
-                </div>`;
-        })
-        .join("");
-    }
-  } catch (error) {
-    console.error("Failed to update transaction history:", error);
-    // Show local data if available
-    transactionList.innerHTML =
-      '<div class="empty-state">Failed to load transaction history</div>';
-  }
-}
-
-// clearHistory removed per request — history can still be cleared programmatically if needed
-
-// UI Control Functions
-function openCalculator() {
-  isCalculatorOpen = true;
-  calculatorOverlay.classList.add("active");
-
-  // Prevent scrolling on mobile
-  document.body.style.overflow = "hidden";
-  document.body.style.position = "fixed";
-  document.body.style.width = "100%";
-
-  // Set initial value if cashAmount exists
-  if (cashAmount) {
-    display = cashAmount;
-    updateCalculatorDisplay();
-  }
-
-  // Small delay to ensure smooth animation
-  setTimeout(() => {
-    // Ensure calculator is visible
-    const calculatorElement = document.getElementById("calculator");
-    if (calculatorElement) {
-      calculatorElement.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
-  }, 100);
-}
-
-function closeCalculatorHandler() {
-  isCalculatorOpen = false;
-  calculatorOverlay.classList.remove("active");
-
-  // Restore body scrolling
-  document.body.style.overflow = "";
-  document.body.style.position = "";
-  document.body.style.width = "";
-
-  // When closing the calculator without performing Cash In/Out, store the current
-  // calculation into the cash input so user can see what they entered.
-  // If the display holds a numeric value, keep it in the cashInput; otherwise reset placeholder.
-  if (!isNaN(parseFloat(display)) && display !== "0") {
-    cashAmount = display;
-    cashInput.value = formatCurrency(display);
-  } else {
-    // Reset to placeholder
-    cashAmount = "";
-    cashInput.value = "";
-    cashInput.placeholder = "Enter cash amount";
-  }
-
-  // Do not clear calculator state on close so calculations are preserved if reopened
-}
-
-async function openHistory() {
-  isHistoryOpen = true;
-  historySidebar.classList.add("active");
-  historyOverlayBg.classList.add("active");
-
-  // Prevent scrolling on mobile
-  document.body.style.overflow = "hidden";
-  document.body.style.position = "fixed";
-  document.body.style.width = "100%";
-
-  // Load transaction history from API
-  await updateTransactionHistory();
-}
-
-function closeHistoryHandler() {
-  isHistoryOpen = false;
-  historySidebar.classList.remove("active");
-  historyOverlayBg.classList.remove("active");
-
-  // Restore body scrolling
-  document.body.style.overflow = "";
-  document.body.style.position = "";
-  document.body.style.width = "";
-}
-
-async function handleCashIn() {
-  // Evaluate full expression first
-  performCalculation();
-  const amount = evaluateExpression(expression);
-  if (!isNaN(amount) && amount > 0) {
-    try {
-      await addTransaction("cash_in", amount, expression);
-      cashAmount = amount.toString();
-      clearCalculator();
-      cashInput.value = "";
-      cashInput.placeholder = "Enter cash amount";
-      closeCalculatorHandler();
-    } catch (error) {
-      // Error is already handled in addTransaction
-    }
-  }
-}
-
-async function handleCashOut() {
-  performCalculation();
-  const amount = evaluateExpression(expression);
-  if (!isNaN(amount) && amount > 0) {
-    try {
-      await addTransaction("cash_out", amount, expression);
-      cashAmount = amount.toString();
-      clearCalculator();
-      cashInput.value = "";
-      cashInput.placeholder = "Enter cash amount";
-      closeCalculatorHandler();
-    } catch (error) {
-      // Error is already handled in addTransaction
-    }
-  }
-}
-
-// Event Listeners
-cashInput.addEventListener("click", openCalculator);
-
-closeCalculator.addEventListener("click", closeCalculatorHandler);
-calculatorBg.addEventListener("click", closeCalculatorHandler);
-
-historyBtn.addEventListener("click", openHistory);
-closeHistory.addEventListener("click", closeHistoryHandler);
-historyOverlayBg.addEventListener("click", closeHistoryHandler);
-
-// Language switcher event listeners
-languageBtn.addEventListener("click", toggleLanguageDropdown);
-
-// Clear history button removed; no event listener necessary
-
-cashInBtn.addEventListener("click", handleCashIn);
-cashOutBtn.addEventListener("click", handleCashOut);
-
-// Quick amount buttons
-quickBtns.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const amount = btn.dataset.amount;
-    // Set calculator display to the quick amount so user can immediately Cash In/Out
-    display = String(amount);
-    // Initialize expression to this amount so operators will append to it
-    expression = String(amount);
-    updateCalculatorDisplay();
-    renderExpression();
-    // Also update the cash input preview
-    cashAmount = amount;
-    cashInput.value = formatCurrency(amount);
-    openCalculator();
-  });
-});
-
-// Calculator button event listeners
-// Handle clicks on calculator buttons. Use closest to allow clicking on inner icons/spans.
-document.addEventListener("click", (e) => {
-  // MAIN calculator buttons (use original classes)
-  const mainBtn = e.target.closest(".kp-btn");
-  if (mainBtn && !e.target.closest(".cb-keypad-grid")) {
-    if (mainBtn.dataset.number) inputNumber(mainBtn.dataset.number);
-    else if (mainBtn.dataset.op) inputOperator(mainBtn.dataset.op);
-    else if (mainBtn.dataset.action) {
-      const a = mainBtn.dataset.action;
-      if (a === "allclear") clearCalculator();
-      else if (a === "backspace") backspace();
-      else if (a === "percent") percentAction();
-      else if (a === "equals") performCalculation();
-      else if (a === "downclose") closeCalculatorHandler();
-    }
-  }
-  // CB calculator dedicated buttons
-  const cbBtn = e.target.closest(".cb-kp-btn");
-  if (cbBtn) {
-    if (cbBtn.dataset.number) cbInputNumber(cbBtn.dataset.number);
-    else if (cbBtn.dataset.op) cbInputOperator(cbBtn.dataset.op);
-    else if (cbBtn.dataset.action) {
-      const a = cbBtn.dataset.action;
-      if (a === "allclear") cbClear();
-      else if (a === "backspace") cbBackspace();
-      else if (a === "percent") cbPercent();
-      else if (a === "equals") performCbCalculation();
-    }
-  }
-  // delete transaction
-  const delBtn = e.target.closest("[data-del]");
-  if (delBtn) {
-    const id = delBtn.dataset.del;
-    handleDeleteTransaction(id);
-  }
-  // delete customer balance history entry - check for tx-delete-btn with data-cbh-del
-  const cbhDelBtn = e.target.closest(".tx-delete-btn[data-cbh-del]");
-  if (cbhDelBtn && cbHistoryCustomer) {
-    e.preventDefault();
-    e.stopPropagation();
-    const id = cbhDelBtn.dataset.cbhDel;
-    handleDeleteCustomerBalanceHistory(id, cbHistoryCustomer);
-  }
-});
-
-// Keyboard event listeners
-document.addEventListener("keydown", (e) => {
-  if (!isCalculatorOpen) return;
-  const k = e.key;
-  if ("0123456789".includes(k)) inputNumber(k);
-  else if (k === ".") inputNumber(".");
-  else if (["+", "-", "*", "/"].includes(k)) inputOperator(k);
-  else if (k === "%") percentAction();
-  else if (k === "Backspace") {
-    backspace();
-  } else if (k === "Enter" || k === "=") {
-    performCalculation();
-  } else if (k === "Escape") {
-    closeCalculatorHandler();
-  } else if (k.toLowerCase() === "c") {
-    clearCalculator();
-  }
-});
-
-// Prevent body scroll when overlays are open
-document.addEventListener("keydown", (e) => {
-  if ((isCalculatorOpen || isHistoryOpen) && e.key === "Escape") {
-    if (isCalculatorOpen) closeCalculatorHandler();
-    if (isHistoryOpen) closeHistoryHandler();
-  }
-});
-
-// Delete Transaction Function
-async function handleDeleteTransaction(transactionId) {
-  try {
-    const response = await fetch(`${API_BASE}delete-transaction.php`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        transaction_id: transactionId,
-        book_id: BOOK_ID,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      // Update current book balance
-      if (currentBook) {
-        currentBook.current_balance = result.new_balance;
-      }
-
-      // Remove from local transactions array
-      const idx = transactions.findIndex((t) => t.id === transactionId);
-      if (idx > -1) {
-        const el = transactionList.querySelector(
-          `.transaction-item[data-id="${transactionId}"]`
-        );
-        if (el) {
-          el.classList.add("removing");
-          setTimeout(() => {
-            transactions.splice(idx, 1);
-            updateTransactionHistory();
-            updateBalance();
-          }, 260);
-        } else {
-          transactions.splice(idx, 1);
-          updateTransactionHistory();
-          updateBalance();
-        }
-      }
-    } else {
-      console.error("Failed to delete transaction:", result.error);
-      alert("Failed to delete transaction: " + result.error);
-    }
-  } catch (error) {
-    console.error("Error deleting transaction:", error);
-    alert("Error deleting transaction. Please try again.");
-  }
 }
 
 // Delete Customer Balance History Function
@@ -1120,29 +510,22 @@ async function init() {
         logoImg.src = currentBook.logo_url;
       }
     }
-
-    // Update balance
-    updateBalance();
   } catch (error) {
     console.error("Failed to load book details:", error);
     // Continue with defaults
     currentBook = {
       id: BOOK_ID,
       name: "Samad's Store",
-      current_balance: 0,
       logo_url: "",
     };
   }
 
-  updateCalculatorDisplay();
   renderCustomerBalanceList();
 
   // Add touch event listeners for better mobile interaction
   if ("ontouchstart" in window) {
     // Prevent zoom on double tap for buttons
-    const buttons = document.querySelectorAll(
-      "button, .calc-btn, .quick-btn, .cash-btn"
-    );
+    const buttons = document.querySelectorAll("button");
     buttons.forEach((button) => {
       button.addEventListener("touchstart", function (e) {
         e.target.style.transform = "scale(0.95)";
@@ -1152,21 +535,6 @@ async function init() {
           e.target.style.transform = "";
         }, 100);
       });
-    });
-
-    // Prevent viewport resize issues
-    let lastHeight = window.innerHeight;
-    window.addEventListener("resize", () => {
-      // Only handle height changes that might be keyboard related
-      if (Math.abs(window.innerHeight - lastHeight) > 150) {
-        if (isCalculatorOpen) {
-          const calculator = document.getElementById("calculator");
-          if (calculator) {
-            calculator.style.height = window.innerHeight * 0.9 + "px";
-          }
-        }
-      }
-      lastHeight = window.innerHeight;
     });
   }
 }
@@ -1183,6 +551,9 @@ function toggleLanguageDropdown() {
 function closeLanguageDropdown() {
   languageDropdown.classList.remove("active");
 }
+
+// Language switcher event listeners
+languageBtn.addEventListener("click", toggleLanguageDropdown);
 
 // Close dropdown when clicking outside
 document.addEventListener("click", (e) => {
@@ -1676,6 +1047,30 @@ function performCbCalculation() {
   cbDisplay = String(val || 0);
   updateCbCalcDisplay();
 }
+
+// CB calculator button click delegation (and CBH delete delegation)
+document.addEventListener("click", (e) => {
+  const cbBtn = e.target.closest(".cb-kp-btn");
+  if (cbBtn) {
+    if (cbBtn.dataset.number) cbInputNumber(cbBtn.dataset.number);
+    else if (cbBtn.dataset.op) cbInputOperator(cbBtn.dataset.op);
+    else if (cbBtn.dataset.action) {
+      const a = cbBtn.dataset.action;
+      if (a === "allclear") cbClear();
+      else if (a === "backspace") cbBackspace();
+      else if (a === "percent") cbPercent();
+      else if (a === "equals") performCbCalculation();
+    }
+  }
+  // delete customer balance history entry - check for tx-delete-btn with data-cbh-del
+  const cbhDelBtn = e.target.closest(".tx-delete-btn[data-cbh-del]");
+  if (cbhDelBtn && cbHistoryCustomer) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = cbhDelBtn.dataset.cbhDel;
+    handleDeleteCustomerBalanceHistory(id, cbHistoryCustomer);
+  }
+});
 
 // Button handlers (new unified buttons)
 const cbPaidBtn = document.getElementById("cbPaidBtn");

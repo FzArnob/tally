@@ -7,22 +7,6 @@ const translations = {
     // Header buttons
     customerBalances: "Customer Balances",
     language: "Language",
-    history: "History",
-    
-    // Main input section
-    enterAmount: "Enter Amount",
-    currentBalance: "Current Balance",
-    
-    // Calculator buttons
-    cashOut: "Cash Out",
-    cashIn: "Cash In",
-    
-    // Transaction History
-    transactionHistory: "Transaction History",
-    cashInLabel: "Cash In:",
-    cashOutLabel: "Cash Out:",
-    netAmount: "Net Amount:",
-    noTransactions: "No transactions yet",
     
     // Customer Balance section
     customerBalancesTitle: "Customer Balances",
@@ -58,12 +42,7 @@ const translations = {
     // Calculator labels
     allClear: "AC",
     
-    // Transaction types
-    cashInType: "Cash In",
-    cashOutType: "Cash Out",
-    
     // Error messages and confirmations
-    deleteConfirm: "Are you sure you want to delete this transaction?",
     deleteHistoryConfirm: "Are you sure you want to delete this entry?",
     
     // Time formatting
@@ -81,22 +60,6 @@ const translations = {
     // Header buttons
     customerBalances: "গ্রাহক ব্যালেন্স",
     language: "ভাষা",
-    history: "ইতিহাস",
-    
-    // Main input section
-    enterAmount: "পরিমাণ লিখুন",
-    currentBalance: "বর্তমান ব্যালেন্স",
-    
-    // Calculator buttons
-    cashOut: "খরচ",
-    cashIn: "নগদ জমা",
-    
-    // Transaction History
-    transactionHistory: "লেনদেনের ইতিহাস",
-    cashInLabel: "নগদ জমা:",
-    cashOutLabel: "খরচ:",
-    netAmount: "নিট পরিমাণ:",
-    noTransactions: "এখনো কোন লেনদেন নেই",
     
     // Customer Balance section
     customerBalancesTitle: "গ্রাহক ব্যালেন্স",
@@ -132,12 +95,7 @@ const translations = {
     // Calculator labels
     allClear: "AC",
     
-    // Transaction types
-    cashInType: "নগদ জমা",
-    cashOutType: "খরচ",
-    
     // Error messages and confirmations
-    deleteConfirm: "আপনি কি এই লেনদেনটি মুছে ফেলার বিষয়ে নিশ্চিত?",
     deleteHistoryConfirm: "আপনি কি এই এন্ট্রিটি মুছে ফেলার বিষয়ে নিশ্চিত?",
     
     // Time formatting

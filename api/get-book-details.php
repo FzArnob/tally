@@ -10,7 +10,7 @@ try {
     $bookId = isset($_GET['book_id']) ? (int)$_GET['book_id'] : 1;
     
     // Fetch book details
-    $stmt = $pdo->prepare("SELECT id, name, current_balance, logo_url FROM books WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, name, logo_url FROM books WHERE id = ?");
     $stmt->execute([$bookId]);
     $book = $stmt->fetch();
     
@@ -22,7 +22,6 @@ try {
     $response = [
         'id' => (int)$book['id'],
         'name' => $book['name'],
-        'current_balance' => (float)$book['current_balance'],
         'logo_url' => $book['logo_url']
     ];
     

@@ -1,0 +1,12 @@
+{
+    "chat.byokUtilityModelDefault": "mainAgent",
+    "chat.mcp.serverSampling": {
+        "tally/.vscode/mcp.json: shadcn": {
+            "allowedModels": [
+                "copilotcli/auto",
+                "copilot/auto",
+                "customendpoint/fz.is-best.net/qwen3.5-9b"
+            ]
+        }
+    }
+}

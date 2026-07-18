@@ -17,9 +17,15 @@
     <div class="app">
         <!-- Header -->
         <header class="header">
-            <div class="spacer"></div>
-            <div style="display:flex; gap:0.5rem; align-items:center;">
-                <div class="language-switcher" id="languageSwitcher">
+            <div class="header-left">
+                <div class="logo-section">
+                    <div class="icon-container">
+                        <img src="assest/store.svg" alt="Store Logo" class="money-emoji store-logo" />
+                    </div>
+                    <h2>Tally Store</h2>
+                </div>
+            </div>
+            <div class="header-right">
                     <button class="header-button" id="languageBtn" aria-label="Language" data-i18n-aria="language">
                         <span class="material-symbols-outlined icon-lg">translate</span>
                     </button>
@@ -33,7 +39,6 @@
                             <span class="lang-name" data-i18n="bangla">বাংলা</span>
                         </div>
                     </div>
-                </div>
                 <button class="header-button" id="customerBalanceBtn" aria-label="Customer Balances" data-i18n-aria="customerBalances">
                     <span class="material-symbols-outlined icon-lg"
                         style="position:relative; margin-left: -10px;">group<span class="icon-sm"
@@ -42,19 +47,13 @@
                 <button class="header-button" id="historyBtn" aria-label="History" data-i18n-aria="history">
                     <span class="material-symbols-outlined icon-lg">history</span>
                 </button>
+                </div>
             </div>
         </header>
 
         <!-- Main Content -->
         <main class="main-content">
             <div class="content-container">
-                <!-- Logo/Icon Area -->
-                <div class="logo-section">
-                    <div class="icon-container">
-                        <img src="assest/store.svg" alt="Store Logo" class="money-emoji store-logo" />
-                    </div>
-                    <h2>Tally Store</h2>
-                </div>
 
                 <!-- Cash Input -->
                 <div class="input-section">

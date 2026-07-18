@@ -4,6 +4,10 @@ $host = 'localhost';
 $dbname = 'tally';
 $username = 'root';
 $password = 'root';
+// $host = 'sql112.infinityfree.com';
+// $dbname = 'if0_34434817_tally';
+// $username = 'if0_34434817';
+// $password = 'sBvRopmB4I0QGkB';
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);

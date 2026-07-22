@@ -12,6 +12,7 @@ interface ProductActionModalProps {
   onClose: () => void;
   onSaved: () => void;
   onEditProduct: (product: Product) => void;
+  onDeleteProduct: (product: Product) => void;
 }
 
 export function ProductActionModal({
@@ -21,6 +22,7 @@ export function ProductActionModal({
   onClose,
   onSaved,
   onEditProduct,
+  onDeleteProduct,
 }: ProductActionModalProps) {
   const { t, formatCurrency, formatNumber } = useI18n();
   const [tab, setTab] = useState<TransactionType>('stock');
@@ -69,7 +71,7 @@ export function ProductActionModal({
       // Editing = insert the corrected entry, then remove the old one
       // (the PHP API has no update endpoint; this uses only existing endpoints).
       if (editTx) {
-        await deleteProductTransaction({ transactionId: editTx.id, productId: product.id });
+        await deleteProductTransaction(editTx.id);
       }
       onSaved();
       onClose();
@@ -82,14 +84,22 @@ export function ProductActionModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} labelledBy="actionTitle">
-      <div className={styles.body} style={{ gap: '1rem' }}>
-        <div className={styles.entryLine} style={{ alignItems: 'flex-start' }}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      labelledBy="actionTitle"
+      header={
+        <div className={styles.actionHeader}>
           <div className={styles.headerInfo}>
             {hasImage && <img className={styles.actionThumb} src={product.image_url as string} alt="" />}
             <div style={{ minWidth: 0 }}>
               <div className={styles.actionTitleRow}>
-                <h3 id="actionTitle" style={{ fontSize: 'var(--fs-heading-sm)', fontWeight: 600 }}>
+                <h3
+                  id="actionTitle"
+                  className={styles.actionName}
+                  title={product.name}
+                  style={{ fontSize: 'var(--fs-heading-sm)', fontWeight: 600 }}
+                >
                   {product.name}
                 </h3>
                 <button
@@ -99,9 +109,22 @@ export function ProductActionModal({
                 >
                   <span className="material-symbols-outlined icon-md">edit</span>
                 </button>
+                <button
+                  className="ghost-btn"
+                  aria-label={t.deleteProduct}
+                  onClick={() => onDeleteProduct(product)}
+                >
+                  <span className="material-symbols-outlined icon-md">delete</span>
+                </button>
               </div>
               <span className={styles.actionStock}>
                 {t.stock}: {formatNumber(product.current_stock || 0)} {product.quantity_type || 'piece'}
+                {product.last_purchase_price != null && (
+                  <> · {t.lastPurchase} {formatCurrency(product.last_purchase_price)}</>
+                )}
+                {product.last_sale_price != null && (
+                  <> · {t.lastSale} {formatCurrency(product.last_sale_price)}</>
+                )}
               </span>
             </div>
           </div>
@@ -109,7 +132,9 @@ export function ProductActionModal({
             <span className="material-symbols-outlined icon-lg">close</span>
           </button>
         </div>
-
+      }
+    >
+      <div className={styles.body} style={{ gap: '1rem' }}>
         {!editTx && (
           <div className={styles.tabSwitch}>
             <button

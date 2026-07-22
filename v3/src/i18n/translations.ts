@@ -41,6 +41,9 @@ export interface Translation {
   enterProductName: string;
   enterQuantityType: string;
   failedSaveProduct: string;
+  deleteProduct: string;
+  deleteProductConfirm: string;
+  failedDeleteProduct: string;
 
   // Action (stock/sale) modal
   stockIn: string;
@@ -90,6 +93,37 @@ export interface Translation {
   failedSaveBalance: string;
   failedDeleteHistory: string;
 
+  // Customer page / form (v3)
+  back: string;
+  nickname: string;
+  nicknamePlaceholder: string;
+  phone: string;
+  phonePlaceholder: string;
+  address: string;
+  addressPlaceholder: string;
+  optional: string;
+  nameRequired: string;
+  nameTooLong: string;
+  invalidPhone: string;
+  nicknameRequiredHint: string;
+  failedSaveCustomer: string;
+  duplicateCustomer: string;
+  updateBalance: string;
+  notePlaceholder: string;
+  enterAmount: string;
+  lastActivity: string;
+  noActivity: string;
+  deleteCustomer: string;
+  deleteCustomerConfirm: string;
+  failedDeleteCustomer: string;
+  saveCustomer: string;
+
+  // Products (v3)
+  inStock: string;
+  outOfStock: string;
+  lastPurchase: string;
+  lastSale: string;
+
   // Common
   close: string;
   allClear: string;
@@ -129,6 +163,9 @@ const en: Translation = {
   enterProductName: 'Please enter a product name.',
   enterQuantityType: 'Please enter a quantity type.',
   failedSaveProduct: 'Failed to save product. Please try again.',
+  deleteProduct: 'Delete Product',
+  deleteProductConfirm: 'Delete this product and all its stock/sale history? This cannot be undone.',
+  failedDeleteProduct: 'Failed to delete product. Please try again.',
 
   stockIn: 'Stock In',
   sale: 'Sale',
@@ -174,6 +211,35 @@ const en: Translation = {
   failedSaveBalance: 'Failed to save customer balance. Please try again.',
   failedDeleteHistory: 'Failed to delete history entry. Please try again.',
 
+  back: 'Back',
+  nickname: 'Nickname',
+  nicknamePlaceholder: 'e.g. Tailor, Uncle',
+  phone: 'Phone',
+  phonePlaceholder: 'e.g. 01700-000000',
+  address: 'Address',
+  addressPlaceholder: 'e.g. House 1, Road 2, Dhaka',
+  optional: 'optional',
+  nameRequired: 'Please enter a name.',
+  nameTooLong: 'Name is too long (max 100 characters).',
+  invalidPhone: 'Please enter a valid phone number.',
+  nicknameRequiredHint: 'This name already exists. Add a nickname to tell them apart.',
+  failedSaveCustomer: 'Failed to save customer. Please try again.',
+  duplicateCustomer: 'A customer with this name and nickname already exists.',
+  updateBalance: 'Update Balance',
+  notePlaceholder: 'Note (optional)',
+  enterAmount: 'Enter an amount first.',
+  lastActivity: 'Last activity',
+  noActivity: 'No activity yet',
+  deleteCustomer: 'Delete Customer',
+  deleteCustomerConfirm: 'Delete this customer and their entire balance history? This cannot be undone.',
+  failedDeleteCustomer: 'Failed to delete customer. Please try again.',
+  saveCustomer: 'Save',
+
+  inStock: 'In stock',
+  outOfStock: 'Out of stock',
+  lastPurchase: 'Last buy',
+  lastSale: 'Last sale',
+
   close: 'Close',
   allClear: 'AC',
 };
@@ -212,6 +278,9 @@ const bn: Translation = {
   enterProductName: 'অনুগ্রহ করে পণ্যের নাম লিখুন।',
   enterQuantityType: 'অনুগ্রহ করে পরিমাণের ধরন লিখুন।',
   failedSaveProduct: 'পণ্য সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+  deleteProduct: 'পণ্য মুছুন',
+  deleteProductConfirm: 'এই পণ্য ও তার সমস্ত স্টক/বিক্রয় ইতিহাস মুছে ফেলবেন? এটি ফেরানো যাবে না।',
+  failedDeleteProduct: 'পণ্য মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
 
   stockIn: 'স্টক ইন',
   sale: 'বিক্রয়',
@@ -256,6 +325,35 @@ const bn: Translation = {
   failedLoadCustomers: 'গ্রাহক লোড করা যায়নি',
   failedSaveBalance: 'গ্রাহক ব্যালেন্স সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
   failedDeleteHistory: 'ইতিহাস এন্ট্রি মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
+
+  back: 'পিছনে',
+  nickname: 'ডাকনাম',
+  nicknamePlaceholder: 'যেমন দর্জি, চাচা',
+  phone: 'ফোন',
+  phonePlaceholder: 'যেমন ০১৭০০-০০০০০০',
+  address: 'ঠিকানা',
+  addressPlaceholder: 'যেমন বাসা ১, রোড ২, ঢাকা',
+  optional: 'ঐচ্ছিক',
+  nameRequired: 'অনুগ্রহ করে একটি নাম লিখুন।',
+  nameTooLong: 'নাম খুব লম্বা (সর্বোচ্চ ১০০ অক্ষর)।',
+  invalidPhone: 'অনুগ্রহ করে একটি সঠিক ফোন নম্বর লিখুন।',
+  nicknameRequiredHint: 'এই নামটি ইতিমধ্যে আছে। আলাদা করতে একটি ডাকনাম যোগ করুন।',
+  failedSaveCustomer: 'গ্রাহক সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+  duplicateCustomer: 'এই নাম ও ডাকনামের একজন গ্রাহক ইতিমধ্যে আছে।',
+  updateBalance: 'ব্যালেন্স হালনাগাদ',
+  notePlaceholder: 'নোট (ঐচ্ছিক)',
+  enterAmount: 'প্রথমে একটি পরিমাণ লিখুন।',
+  lastActivity: 'সর্বশেষ কার্যকলাপ',
+  noActivity: 'এখনো কোন কার্যকলাপ নেই',
+  deleteCustomer: 'গ্রাহক মুছুন',
+  deleteCustomerConfirm: 'এই গ্রাহক ও তার সম্পূর্ণ ব্যালেন্স ইতিহাস মুছে ফেলবেন? এটি ফেরানো যাবে না।',
+  failedDeleteCustomer: 'গ্রাহক মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
+  saveCustomer: 'সংরক্ষণ',
+
+  inStock: 'স্টকে আছে',
+  outOfStock: 'স্টক শেষ',
+  lastPurchase: 'সর্বশেষ ক্রয়',
+  lastSale: 'সর্বশেষ বিক্রয়',
 
   close: 'বন্ধ',
   allClear: 'AC',

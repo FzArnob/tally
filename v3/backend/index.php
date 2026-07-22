@@ -1,0 +1,519 @@
+<?php
+// Tally v3 — single-file REST API (front controller).
+// All requests are routed here by .htaccess. Every calculative value is kept
+// denormalised on write (see recomputeCustomer/recomputeProduct) so reads are
+// plain SELECTs.
+
+declare(strict_types=1);
+
+require __DIR__ . '/config.php';
+
+// ---- CORS ------------------------------------------------------------------
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
+// ---- Resolve the route relative to this script's directory -----------------
+$method    = $_SERVER['REQUEST_METHOD'];
+$scriptDir = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+$path      = (string) parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+if ($scriptDir !== '' && strpos($path, $scriptDir) === 0) {
+    $path = substr($path, strlen($scriptDir));
+}
+$path = '/' . trim(rawurldecode($path), '/');
+
+// ---- Tiny router -----------------------------------------------------------
+$routes = [];
+function on(string $method, string $pattern, callable $handler): void
+{
+    global $routes;
+    // Turn "/customers/{id}/history" into a regex with named groups.
+    $regex = preg_replace('#\{([a-z_]+)\}#', '(?P<$1>[^/]+)', $pattern);
+    $routes[] = [$method, '#^' . $regex . '$#', $handler];
+}
+
+function dispatch(): void
+{
+    global $routes, $method, $path;
+    $pathMatched = false;
+    foreach ($routes as [$m, $regex, $handler]) {
+        if (preg_match($regex, $path, $params)) {
+            $pathMatched = true;
+            if ($m === $method) {
+                $args = array_filter($params, 'is_string', ARRAY_FILTER_USE_KEY);
+                $handler($args);
+                return;
+            }
+        }
+    }
+    if ($pathMatched) {
+        json_error('Method not allowed.', 405);
+    }
+    json_error('Not found.', 404);
+}
+
+// ===========================================================================
+// Shared recompute helpers (denormalisation lives here)
+// ===========================================================================
+
+/** Recompute a customer's total_balance, count, last time + per-row snapshots. */
+function recomputeCustomer(PDO $pdo, string $customerId): array
+{
+    $rows = $pdo->prepare(
+        'SELECT id, signed_amount, timestamp FROM customer_balance_history
+         WHERE customer_id = ? ORDER BY seq ASC'
+    );
+    $rows->execute([$customerId]);
+    $entries = $rows->fetchAll();
+
+    $running = 0.0;
+    $lastTime = null;
+    $update = $pdo->prepare('UPDATE customer_balance_history SET balance_after = ? WHERE id = ?');
+    foreach ($entries as $e) {
+        $running += (float) $e['signed_amount'];
+        $update->execute([$running, $e['id']]);
+        $lastTime = $e['timestamp'];
+    }
+
+    $pdo->prepare(
+        'UPDATE customers
+         SET total_balance = ?, transaction_count = ?, last_transaction_time = ?
+         WHERE id = ?'
+    )->execute([$running, count($entries), $lastTime, $customerId]);
+
+    return ['total_balance' => round($running, 2), 'transaction_count' => count($entries), 'last_transaction_time' => $lastTime];
+}
+
+/** Recompute a product's stock/totals/last prices + per-row running stock. */
+function recomputeProduct(PDO $pdo, int $productId): array
+{
+    $rows = $pdo->prepare(
+        'SELECT id, type, quantity, price_per_unit, created_at FROM product_transactions
+         WHERE product_id = ? ORDER BY id ASC'
+    );
+    $rows->execute([$productId]);
+    $entries = $rows->fetchAll();
+
+    $stock = 0.0; $in = 0.0; $out = 0.0;
+    $lastPurchase = null; $lastSale = null; $lastTime = null;
+    $update = $pdo->prepare('UPDATE product_transactions SET stock_after = ? WHERE id = ?');
+    foreach ($entries as $e) {
+        $qty = (float) $e['quantity'];
+        if ($e['type'] === 'stock') {
+            $stock += $qty; $in += $qty; $lastPurchase = (float) $e['price_per_unit'];
+        } else {
+            $stock -= $qty; $out += $qty; $lastSale = (float) $e['price_per_unit'];
+        }
+        $update->execute([$stock, $e['id']]);
+        $lastTime = $e['created_at'];
+    }
+
+    $pdo->prepare(
+        'UPDATE products SET current_stock = ?, total_stock_in = ?, total_stock_out = ?,
+             last_purchase_price = ?, last_sale_price = ?, transaction_count = ?, last_transaction_time = ?
+         WHERE id = ?'
+    )->execute([$stock, $in, $out, $lastPurchase, $lastSale, count($entries), $lastTime, $productId]);
+
+    return [
+        'current_stock' => round($stock, 3), 'total_stock_in' => round($in, 3),
+        'total_stock_out' => round($out, 3), 'transaction_count' => count($entries),
+    ];
+}
+
+// ---- Shaping helpers (cast SQL strings to clean JSON types) ----------------
+function shapeCustomer(array $c): array
+{
+    return [
+        'id'                    => $c['id'],
+        'book_id'               => (int) $c['book_id'],
+        'name'                  => $c['name'],
+        'nickname'              => $c['nickname'],
+        'phone'                 => $c['phone'],
+        'address'               => $c['address'],
+        'total_balance'         => (float) $c['total_balance'],
+        'transaction_count'     => (int) $c['transaction_count'],
+        'last_transaction_time' => $c['last_transaction_time'],
+    ];
+}
+
+function shapeProduct(array $p): array
+{
+    return [
+        'id'                    => (int) $p['id'],
+        'book_id'               => (int) $p['book_id'],
+        'name'                  => $p['name'],
+        'quantity_type'         => $p['quantity_type'],
+        'image_url'             => ($p['image_url'] ?? '') !== '' ? $p['image_url'] : null,
+        'current_stock'         => (float) $p['current_stock'],
+        'total_stock_in'        => (float) $p['total_stock_in'],
+        'total_stock_out'       => (float) $p['total_stock_out'],
+        'last_purchase_price'   => $p['last_purchase_price'] !== null ? (float) $p['last_purchase_price'] : null,
+        'last_sale_price'       => $p['last_sale_price'] !== null ? (float) $p['last_sale_price'] : null,
+        'transaction_count'     => (int) $p['transaction_count'],
+        'last_transaction_time' => $p['last_transaction_time'],
+    ];
+}
+
+function shapeTransaction(array $t): array
+{
+    return [
+        'id'             => (int) $t['id'],
+        'product_id'     => (int) $t['product_id'],
+        'type'           => $t['type'],
+        'quantity'       => (float) $t['quantity'],
+        'price_per_unit' => (float) $t['price_per_unit'],
+        'total_amount'   => (float) $t['total_amount'],
+        'stock_after'    => (float) $t['stock_after'],
+        'note'           => $t['note'],
+        'created_at'     => $t['created_at'],
+    ];
+}
+
+function shapeHistory(array $h): array
+{
+    return [
+        'id'            => $h['id'],
+        'customer_id'   => $h['customer_id'],
+        'amount'        => (float) $h['amount'],
+        'type'          => $h['type'],
+        'signed_amount' => (float) $h['signed_amount'],
+        'balance_after' => (float) $h['balance_after'],
+        'reason'        => $h['reason'],
+        'expression'    => $h['expression'],
+        'timestamp'     => $h['timestamp'],
+    ];
+}
+
+function findCustomer(PDO $pdo, string $id): array
+{
+    $stmt = $pdo->prepare('SELECT * FROM customers WHERE id = ?');
+    $stmt->execute([$id]);
+    $c = $stmt->fetch();
+    if (!$c) {
+        json_error('Customer not found.', 404, 'not_found');
+    }
+    return $c;
+}
+
+function findProduct(PDO $pdo, int $id): array
+{
+    $stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?');
+    $stmt->execute([$id]);
+    $p = $stmt->fetch();
+    if (!$p) {
+        json_error('Product not found.', 404, 'not_found');
+    }
+    return $p;
+}
+
+// ===========================================================================
+// Routes
+// ===========================================================================
+
+on('GET', '/', fn() => json_response(['name' => 'Tally v3 API', 'status' => 'ok']));
+
+// ---- Book ----
+on('GET', '/books/{id}', function ($a) {
+    $stmt = db()->prepare('SELECT id, name, logo_url FROM books WHERE id = ?');
+    $stmt->execute([(int) $a['id']]);
+    $book = $stmt->fetch();
+    if (!$book) {
+        json_error('Book not found.', 404, 'not_found');
+    }
+    $book['id'] = (int) $book['id'];
+    json_response($book);
+});
+
+// ---- Customers ----
+on('GET', '/books/{id}/customers', function ($a) {
+    $stmt = db()->prepare(
+        'SELECT * FROM customers WHERE book_id = ? ORDER BY name ASC, nickname ASC'
+    );
+    $stmt->execute([(int) $a['id']]);
+    $customers = array_map('shapeCustomer', $stmt->fetchAll());
+
+    $paid = 0.0; $unpaid = 0.0;
+    foreach ($customers as $c) {
+        if ($c['total_balance'] >= 0) $paid += $c['total_balance'];
+        else $unpaid += abs($c['total_balance']);
+    }
+    json_response([
+        'customers' => $customers,
+        'totals'    => ['total_paid' => round($paid, 2), 'total_unpaid' => round($unpaid, 2)],
+    ]);
+});
+
+on('POST', '/books/{id}/customers', function ($a) {
+    $pdo = db();
+    $bookId = (int) $a['id'];
+    $body = read_json_body();
+
+    $name     = v_string($body['name']     ?? '', 100, true,  'Name');
+    $nickname = v_string($body['nickname']  ?? '', 100, false, 'Nickname');
+    $phone    = v_phone($body['phone']      ?? '');
+    $address  = v_string($body['address']   ?? '', 255, false, 'Address');
+
+    // Same name allowed only with a distinct nickname.
+    $sameName = $pdo->prepare('SELECT COUNT(*) FROM customers WHERE book_id = ? AND name = ?');
+    $sameName->execute([$bookId, $name]);
+    if ((int) $sameName->fetchColumn() > 0 && $nickname === '') {
+        json_error('A customer named "' . $name . '" already exists. Add a nickname to tell them apart.', 409, 'nickname_required');
+    }
+
+    $exact = $pdo->prepare('SELECT COUNT(*) FROM customers WHERE book_id = ? AND name = ? AND nickname = ?');
+    $exact->execute([$bookId, $name, $nickname]);
+    if ((int) $exact->fetchColumn() > 0) {
+        json_error('A customer with this name and nickname already exists.', 409, 'duplicate');
+    }
+
+    $id = uuid4();
+    $pdo->prepare(
+        'INSERT INTO customers (id, book_id, name, nickname, phone, address) VALUES (?, ?, ?, ?, ?, ?)'
+    )->execute([$id, $bookId, $name, $nickname, $phone, $address]);
+
+    json_response(['success' => true, 'customer' => shapeCustomer(findCustomer($pdo, $id))], 201);
+});
+
+on('GET', '/customers/{id}', function ($a) {
+    json_response(['customer' => shapeCustomer(findCustomer(db(), $a['id']))]);
+});
+
+on('PUT', '/customers/{id}', function ($a) {
+    $pdo = db();
+    $existing = findCustomer($pdo, $a['id']);
+    $bookId = (int) $existing['book_id'];
+    $body = read_json_body();
+
+    $name     = v_string($body['name']     ?? '', 100, true,  'Name');
+    $nickname = v_string($body['nickname']  ?? '', 100, false, 'Nickname');
+    $phone    = v_phone($body['phone']      ?? '');
+    $address  = v_string($body['address']   ?? '', 255, false, 'Address');
+
+    $sameName = $pdo->prepare('SELECT COUNT(*) FROM customers WHERE book_id = ? AND name = ? AND id <> ?');
+    $sameName->execute([$bookId, $name, $existing['id']]);
+    if ((int) $sameName->fetchColumn() > 0 && $nickname === '') {
+        json_error('Another customer named "' . $name . '" exists. Add a nickname to tell them apart.', 409, 'nickname_required');
+    }
+
+    $exact = $pdo->prepare('SELECT COUNT(*) FROM customers WHERE book_id = ? AND name = ? AND nickname = ? AND id <> ?');
+    $exact->execute([$bookId, $name, $nickname, $existing['id']]);
+    if ((int) $exact->fetchColumn() > 0) {
+        json_error('A customer with this name and nickname already exists.', 409, 'duplicate');
+    }
+
+    $pdo->prepare(
+        'UPDATE customers SET name = ?, nickname = ?, phone = ?, address = ? WHERE id = ?'
+    )->execute([$name, $nickname, $phone, $address, $existing['id']]);
+
+    json_response(['success' => true, 'customer' => shapeCustomer(findCustomer($pdo, $existing['id']))]);
+});
+
+on('DELETE', '/customers/{id}', function ($a) {
+    $pdo = db();
+    findCustomer($pdo, $a['id']);
+    $pdo->prepare('DELETE FROM customers WHERE id = ?')->execute([$a['id']]);
+    json_response(['success' => true]);
+});
+
+on('GET', '/customers/{id}/history', function ($a) {
+    $pdo = db();
+    findCustomer($pdo, $a['id']);
+    $stmt = $pdo->prepare(
+        'SELECT * FROM customer_balance_history WHERE customer_id = ? ORDER BY seq DESC'
+    );
+    $stmt->execute([$a['id']]);
+    json_response([
+        'customer_id' => $a['id'],
+        'history'     => array_map('shapeHistory', $stmt->fetchAll()),
+    ]);
+});
+
+on('POST', '/customers/{id}/balance', function ($a) {
+    $pdo = db();
+    $customer = findCustomer($pdo, $a['id']);
+    $body = read_json_body();
+
+    $type = $body['type'] ?? '';
+    if (!in_array($type, ['paid', 'unpaid'], true)) {
+        json_error('Type must be "paid" or "unpaid".', 422, 'validation');
+    }
+    $amount     = v_amount($body['amount'] ?? null, 'Amount');
+    $reason     = v_string($body['reason']     ?? '', 255, false, 'Reason');
+    $expression = v_string($body['expression'] ?? '', 255, false, 'Expression');
+    $signed     = $type === 'paid' ? $amount : -$amount;
+    $timestamp  = date('Y-m-d H:i:s');
+
+    $pdo->beginTransaction();
+    try {
+        $historyId = uuid4();
+        $pdo->prepare(
+            'INSERT INTO customer_balance_history
+                (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'
+        )->execute([
+            $historyId, $customer['id'], (int) $customer['book_id'], $amount, $type, $signed,
+            $reason !== '' ? $reason : null, $expression !== '' ? $expression : null, $timestamp,
+        ]);
+        $totals = recomputeCustomer($pdo, $customer['id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save balance.', 500);
+    }
+
+    json_response([
+        'success'     => true,
+        'history_id'  => $historyId,
+        'customer_id' => $customer['id'],
+        'new_balance' => $totals['total_balance'],
+    ], 201);
+});
+
+on('DELETE', '/balance-history/{id}', function ($a) {
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT * FROM customer_balance_history WHERE id = ?');
+    $stmt->execute([$a['id']]);
+    $entry = $stmt->fetch();
+    if (!$entry) {
+        json_error('History entry not found.', 404, 'not_found');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM customer_balance_history WHERE id = ?')->execute([$a['id']]);
+        $totals = recomputeCustomer($pdo, $entry['customer_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to delete history entry.', 500);
+    }
+
+    json_response(['success' => true, 'new_balance' => $totals['total_balance']]);
+});
+
+// ---- Products ----
+on('GET', '/books/{id}/products', function ($a) {
+    $stmt = db()->prepare('SELECT * FROM products WHERE book_id = ? ORDER BY name ASC');
+    $stmt->execute([(int) $a['id']]);
+    json_response(['products' => array_map('shapeProduct', $stmt->fetchAll())]);
+});
+
+on('POST', '/books/{id}/products', function ($a) {
+    $pdo = db();
+    $body = read_json_body();
+    $name         = v_string($body['name'] ?? '', 100, true, 'Product name');
+    $quantityType = v_string($body['quantity_type'] ?? 'piece', 50, false, 'Quantity type') ?: 'piece';
+    $imageUrl     = isset($body['image_url']) && is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null;
+
+    $stmt = $pdo->prepare('INSERT INTO products (book_id, name, quantity_type, image_url) VALUES (?, ?, ?, ?)');
+    $stmt->execute([(int) $a['id'], $name, $quantityType, $imageUrl]);
+    $id = (int) $pdo->lastInsertId();
+
+    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, $id))], 201);
+});
+
+on('GET', '/products/{id}', function ($a) {
+    json_response(['product' => shapeProduct(findProduct(db(), (int) $a['id']))]);
+});
+
+on('PUT', '/products/{id}', function ($a) {
+    $pdo = db();
+    $product = findProduct($pdo, (int) $a['id']);
+    $body = read_json_body();
+    $name         = v_string($body['name'] ?? '', 100, true, 'Product name');
+    $quantityType = v_string($body['quantity_type'] ?? 'piece', 50, false, 'Quantity type') ?: 'piece';
+    $imageUrl     = array_key_exists('image_url', $body)
+        ? (is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null)
+        : $product['image_url'];
+
+    $pdo->prepare('UPDATE products SET name = ?, quantity_type = ?, image_url = ? WHERE id = ?')
+        ->execute([$name, $quantityType, $imageUrl, (int) $a['id']]);
+
+    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, (int) $a['id']))]);
+});
+
+on('DELETE', '/products/{id}', function ($a) {
+    $pdo = db();
+    findProduct($pdo, (int) $a['id']);
+    $pdo->prepare('DELETE FROM products WHERE id = ?')->execute([(int) $a['id']]);
+    json_response(['success' => true]);
+});
+
+on('GET', '/products/{id}/transactions', function ($a) {
+    $pdo = db();
+    findProduct($pdo, (int) $a['id']);
+    $stmt = $pdo->prepare('SELECT * FROM product_transactions WHERE product_id = ? ORDER BY id DESC');
+    $stmt->execute([(int) $a['id']]);
+    json_response([
+        'product_id'   => (int) $a['id'],
+        'transactions' => array_map('shapeTransaction', $stmt->fetchAll()),
+    ]);
+});
+
+on('POST', '/products/{id}/transactions', function ($a) {
+    $pdo = db();
+    $product = findProduct($pdo, (int) $a['id']);
+    $body = read_json_body();
+
+    $type = $body['type'] ?? '';
+    if (!in_array($type, ['stock', 'sale'], true)) {
+        json_error('Type must be "stock" or "sale".', 422, 'validation');
+    }
+    $quantity = v_amount($body['quantity'] ?? null, 'Quantity');
+    if (!isset($body['price_per_unit']) || !is_numeric($body['price_per_unit']) || (float) $body['price_per_unit'] < 0) {
+        json_error('Price per unit must be 0 or more.', 422, 'validation');
+    }
+    $price = round((float) $body['price_per_unit'], 2);
+    $note  = v_string($body['note'] ?? '', 255, false, 'Note');
+    $total = round($quantity * $price, 2);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, note)
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?)'
+        )->execute([$product['id'], (int) $product['book_id'], $type, $quantity, $price, $total, $note !== '' ? $note : null]);
+        $txId = (int) $pdo->lastInsertId();
+        recomputeProduct($pdo, (int) $product['id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save transaction.', 500);
+    }
+
+    $stmt = $pdo->prepare('SELECT * FROM product_transactions WHERE id = ?');
+    $stmt->execute([$txId]);
+    json_response([
+        'success'     => true,
+        'transaction' => shapeTransaction($stmt->fetch()),
+        'product'     => shapeProduct(findProduct($pdo, (int) $product['id'])),
+    ], 201);
+});
+
+on('DELETE', '/product-transactions/{id}', function ($a) {
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT * FROM product_transactions WHERE id = ?');
+    $stmt->execute([(int) $a['id']]);
+    $tx = $stmt->fetch();
+    if (!$tx) {
+        json_error('Transaction not found.', 404, 'not_found');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM product_transactions WHERE id = ?')->execute([(int) $a['id']]);
+        recomputeProduct($pdo, (int) $tx['product_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to delete transaction.', 500);
+    }
+
+    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, (int) $tx['product_id']))]);
+});
+
+dispatch();

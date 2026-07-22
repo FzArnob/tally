@@ -60,6 +60,16 @@ export function formatTimeFull(date: Date, locale: string): string {
   }).format(date);
 }
 
+/** Compact date/time label for list rows (e.g. "22 Jul, 4:06 PM"). */
+export function formatTimeShort(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 /** Turns raw operators (* /) into pretty display glyphs (× ÷). */
 export function formatDisplayExpression(expr: string): string {
   if (!expr) return '';

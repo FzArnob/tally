@@ -97,13 +97,19 @@ export function ProductFormModal({ open, product, onClose, onSaved }: ProductFor
   };
 
   return (
-    <Modal open={open} onClose={onClose} labelledBy="productFormTitle">
-      <ModalHeader
-        title={isEdit ? t.editProduct : t.addProduct}
-        titleId="productFormTitle"
-        onClose={onClose}
-        closeLabel={t.close}
-      />
+    <Modal
+      open={open}
+      onClose={onClose}
+      labelledBy="productFormTitle"
+      header={
+        <ModalHeader
+          title={isEdit ? t.editProduct : t.addProduct}
+          titleId="productFormTitle"
+          onClose={onClose}
+          closeLabel={t.close}
+        />
+      }
+    >
       <div className={styles.body}>
         <div className="field">
           <label>{t.productImage}</label>

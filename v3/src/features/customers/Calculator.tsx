@@ -6,41 +6,36 @@ import styles from './customers.module.css';
 interface CalculatorProps {
   state: CalcState;
   disabled?: boolean;
+  /** When set, shown in red on the display's expression line instead of the expression. */
+  error?: string | null;
   onNumber: (n: string) => void;
   onOperator: (op: string) => void;
   onPercent: () => void;
   onBackspace: () => void;
   onClear: () => void;
   onEquals: () => void;
-  onPaid: () => void;
-  onUnpaid: () => void;
 }
 
 export function Calculator({
   state,
   disabled,
+  error,
   onNumber,
   onOperator,
   onPercent,
   onBackspace,
   onClear,
   onEquals,
-  onPaid,
-  onUnpaid,
 }: CalculatorProps) {
   const { t, localizeDigits } = useI18n();
 
-  const num = (n: string) => (
-    <button
-      className={`${styles.key} ${styles.keyNum}`}
-      onClick={() => onNumber(n)}
-      disabled={disabled}
-    >
+  const Num = ({ n }: { n: string }) => (
+    <button className={`${styles.key} ${styles.keyNum}`} onClick={() => onNumber(n)} disabled={disabled}>
       {n === '.' ? '.' : localizeDigits(n)}
     </button>
   );
 
-  const op = (symbol: string, value: string) => (
+  const Op = ({ symbol, value }: { symbol: string; value: string }) => (
     <button
       className={`${styles.key} ${styles.keyOp}`}
       onClick={() => onOperator(value)}
@@ -52,74 +47,60 @@ export function Calculator({
   );
 
   return (
-    <div>
+    <div className={styles.calc}>
       <div className={styles.calcDisplay}>
-        <div className={styles.calcValue}>{localizeDigits(state.display || '0')}</div>
         <div className={styles.calcExpr}>
-          {localizeDigits(formatDisplayExpression(state.expression))}
+          {error ? (
+            <span className={styles.calcError}>{error}</span>
+          ) : (
+            localizeDigits(formatDisplayExpression(state.expression))
+          )}
         </div>
+        <div className={styles.calcValue}>{localizeDigits(state.display || '0')}</div>
       </div>
 
-      <div className={styles.keypad}>
+      <div className={styles.keys}>
         {/* Row 1 */}
-        <button className={`${styles.key} ${styles.keyClear}`} onClick={onClear} disabled={disabled}>
+        <button className={`${styles.key} ${styles.keyFn}`} onClick={onClear} disabled={disabled}>
           {t.allClear}
         </button>
         <button
-          className={`${styles.key} ${styles.keyFunc}`}
+          className={`${styles.key} ${styles.keyFn}`}
           onClick={onBackspace}
           disabled={disabled}
           aria-label="backspace"
         >
           <span className="material-symbols-outlined">backspace</span>
         </button>
-        <button
-          className={`${styles.key} ${styles.keyOp}`}
-          onClick={onPercent}
-          disabled={disabled}
-          aria-label="percent"
-        >
+        <button className={`${styles.key} ${styles.keyFn}`} onClick={onPercent} disabled={disabled} aria-label="percent">
           %
         </button>
-        <button className={`${styles.key} ${styles.keyUnpaid}`} onClick={onUnpaid} disabled={disabled}>
-          {t.unpaid}
-        </button>
+        <Op symbol="÷" value="/" />
 
         {/* Row 2 */}
-        {num('7')}
-        {num('8')}
-        {num('9')}
-        <button className={`${styles.key} ${styles.keyPaid}`} onClick={onPaid} disabled={disabled}>
-          {t.paid}
-        </button>
+        <Num n="7" />
+        <Num n="8" />
+        <Num n="9" />
+        <Op symbol="×" value="*" />
 
         {/* Row 3 */}
-        {num('4')}
-        {num('5')}
-        {num('6')}
-        {op('×', '*')}
-        {op('÷', '/')}
+        <Num n="4" />
+        <Num n="5" />
+        <Num n="6" />
+        <Op symbol="−" value="-" />
 
         {/* Row 4 */}
-        {num('1')}
-        {num('2')}
-        {num('3')}
-        {op('−', '-')}
-        <button
-          className={`${styles.key} ${styles.keyPlus}`}
-          onClick={() => onOperator('+')}
-          disabled={disabled}
-          aria-label="+"
-        >
-          +
-        </button>
+        <Num n="1" />
+        <Num n="2" />
+        <Num n="3" />
+        <Op symbol="+" value="+" />
 
         {/* Row 5 */}
-        {num('.')}
-        {num('0')}
-        {num('00')}
+        <Num n="00" />
+        <Num n="0" />
+        <Num n="." />
         <button
-          className={`${styles.key} ${styles.keyFunc}`}
+          className={`${styles.key} ${styles.keyEquals}`}
           onClick={onEquals}
           disabled={disabled}
           aria-label="equals"

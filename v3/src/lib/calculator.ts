@@ -28,10 +28,21 @@ const lastNumber = (expr: string): string => expr.match(/([0-9]*\.?[0-9]*)$/)?.[
 
 export function inputNumber(state: CalcState, num: string): CalcState {
   const token = lastNumber(state.expression);
-  if (num === '.' && token.includes('.')) return state;
-  const expression = state.expression + num;
-  const m = lastNumber(expression);
-  return { expression, display: m || '0' };
+
+  // Decimal point: at most one per number; start "0." when there's no digit yet.
+  if (num === '.') {
+    if (token.includes('.')) return state;
+    const expression = token === '' ? state.expression + '0.' : state.expression + '.';
+    return { expression, display: lastNumber(expression) || '0' };
+  }
+
+  // Append the digit(s), then strip redundant leading zeros from the current
+  // number token so "0010" -> "10" and "00"/"000" -> "0" automatically.
+  let expression = state.expression + num;
+  expression = expression
+    .replace(/(^|[+\-*/])0+(\d)/g, '$1$2') // drop leading zeros before a digit
+    .replace(/(^|[+\-*/])0{2,}(?![\d.])/g, '$10'); // collapse "00"/"000" to a single "0"
+  return { expression, display: lastNumber(expression) || '0' };
 }
 
 export function inputOperator(state: CalcState, op: string): CalcState {

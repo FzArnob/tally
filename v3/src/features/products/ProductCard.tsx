@@ -30,7 +30,9 @@ export function ProductCard({ product, index, onOpen, onHistory }: ProductCardPr
       ) : (
         <span className={`material-symbols-outlined icon-xl ${styles.cardIcon}`}>inventory_2</span>
       )}
-      <span className={styles.name}>{product.name}</span>
+      <span className={styles.name} title={product.name}>
+        {product.name}
+      </span>
       <span className={styles.stock}>{product.quantity_type || 'piece'}</span>
     </div>
   );

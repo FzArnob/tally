@@ -1,40 +1,45 @@
-// Typed wrappers around the existing PHP endpoints.
-// The API and database are unchanged — this only mirrors the v1 fetch calls.
+// Typed wrappers around the Tally v3 REST API (single-file PHP front controller
+// at /tally/v3/backend/, routed by .htaccess).
 
-import type {
-  Book,
-  CreateBalanceResponse,
-  CustomerHistoryResponse,
-  CustomersResponse,
-  DeleteBalanceResponse,
-  Product,
-  ProductTransactionsResponse,
-  ProductsResponse,
-  SaveProductResponse,
-  SaveTransactionResponse,
-  BalanceType,
-  TransactionType,
+import {
+  ApiError,
+  type Book,
+  type CreateBalanceResponse,
+  type Customer,
+  type CustomerHistoryResponse,
+  type CustomersResponse,
+  type DeleteBalanceResponse,
+  type ProductTransactionsResponse,
+  type ProductsResponse,
+  type SaveCustomerResponse,
+  type SaveProductResponse,
+  type SaveTransactionResponse,
+  type BalanceType,
+  type TransactionType,
 } from '../types';
 
 // Normalised to always end with a single trailing slash.
-const API_BASE = (import.meta.env.VITE_API_BASE || '/tally/api/').replace(/\/?$/, '/');
+const API_BASE = (import.meta.env.VITE_API_BASE || '/tally/v3/backend/').replace(/\/?$/, '/');
 
 export const BOOK_ID = 1; // Default book (Samad's Store)
 
-interface ApiError {
-  error?: string;
-}
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, init);
-  const data = (await response.json()) as T & ApiError;
-  if (data && typeof data === 'object' && 'error' in data && data.error) {
-    throw new Error(data.error);
+  let data: unknown = null;
+  try {
+    data = await response.json();
+  } catch {
+    // fall through to status-based error below
   }
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    const err = (data ?? {}) as { error?: string; code?: string };
+    throw new ApiError(
+      err.error || `Request failed with status ${response.status}`,
+      response.status,
+      err.code,
+    );
   }
-  return data;
+  return data as T;
 }
 
 const jsonInit = (method: string, body: unknown): RequestInit => ({
@@ -45,76 +50,76 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
 
 // ---- Book ----
 export function getBookDetails(bookId = BOOK_ID): Promise<Book> {
-  return request<Book>(`get-book-details.php?book_id=${bookId}`);
+  return request<Book>(`books/${bookId}`);
 }
 
 // ---- Customers ----
 export function getCustomers(bookId = BOOK_ID): Promise<CustomersResponse> {
-  return request<CustomersResponse>(`get-book-customers.php?book_id=${bookId}`);
+  return request<CustomersResponse>(`books/${bookId}/customers`);
 }
 
-export function getCustomerHistory(
-  customerName: string,
-  bookId = BOOK_ID,
-): Promise<CustomerHistoryResponse> {
-  const name = encodeURIComponent(customerName);
-  return request<CustomerHistoryResponse>(
-    `get-book-customer-balance-history.php?book_id=${bookId}&customer_name=${name}`,
+export function createCustomer(params: {
+  name: string;
+  nickname?: string;
+  phone?: string;
+  address?: string;
+  bookId?: number;
+}): Promise<SaveCustomerResponse> {
+  const { name, nickname = '', phone = '', address = '', bookId = BOOK_ID } = params;
+  return request<SaveCustomerResponse>(
+    `books/${bookId}/customers`,
+    jsonInit('POST', { name, nickname, phone, address }),
   );
 }
 
+export function updateCustomer(
+  id: string,
+  params: { name: string; nickname?: string; phone?: string; address?: string },
+): Promise<SaveCustomerResponse> {
+  const { name, nickname = '', phone = '', address = '' } = params;
+  return request<SaveCustomerResponse>(
+    `customers/${id}`,
+    jsonInit('PUT', { name, nickname, phone, address }),
+  );
+}
+
+export function deleteCustomer(id: string): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`customers/${id}`, { method: 'DELETE' });
+}
+
+export function getCustomer(id: string): Promise<{ customer: Customer }> {
+  return request<{ customer: Customer }>(`customers/${id}`);
+}
+
+export function getCustomerHistory(customerId: string): Promise<CustomerHistoryResponse> {
+  return request<CustomerHistoryResponse>(`customers/${customerId}/history`);
+}
+
 export function createCustomerBalance(params: {
-  customerName: string;
+  customerId: string;
   type: BalanceType;
   amount: number;
   reason?: string | null;
   expression?: string | null;
-  bookId?: number;
 }): Promise<CreateBalanceResponse> {
-  const { customerName, type, amount, reason = null, expression = null, bookId = BOOK_ID } = params;
+  const { customerId, type, amount, reason = null, expression = null } = params;
   return request<CreateBalanceResponse>(
-    'customer-balance.php',
-    jsonInit('POST', {
-      book_id: bookId,
-      customer_name: customerName,
-      type,
-      amount,
-      reason,
-      expression,
-      timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
-    }),
+    `customers/${customerId}/balance`,
+    jsonInit('POST', { type, amount, reason, expression }),
   );
 }
 
-export function deleteCustomerBalanceHistory(params: {
-  historyId: string;
-  customerName: string;
-  bookId?: number;
-}): Promise<DeleteBalanceResponse> {
-  const { historyId, customerName, bookId = BOOK_ID } = params;
-  return request<DeleteBalanceResponse>(
-    'delete-customer-balance-history.php',
-    jsonInit('DELETE', {
-      history_id: historyId,
-      book_id: bookId,
-      customer_name: customerName,
-    }),
-  );
+export function deleteCustomerBalanceHistory(historyId: string): Promise<DeleteBalanceResponse> {
+  return request<DeleteBalanceResponse>(`balance-history/${historyId}`, { method: 'DELETE' });
 }
 
 // ---- Products ----
-export function getProductsWithStock(bookId = BOOK_ID): Promise<ProductsResponse> {
-  return request<ProductsResponse>(`get-products-with-stock.php?book_id=${bookId}`);
-}
-
-export function getProduct(productId: number): Promise<Product> {
-  return request<Product>(`get-product.php?product_id=${productId}`);
+export function getProducts(bookId = BOOK_ID): Promise<ProductsResponse> {
+  return request<ProductsResponse>(`books/${bookId}/products`);
 }
 
 export function getProductTransactions(productId: number): Promise<ProductTransactionsResponse> {
-  return request<ProductTransactionsResponse>(
-    `get-product-transactions.php?product_id=${productId}`,
-  );
+  return request<ProductTransactionsResponse>(`products/${productId}/transactions`);
 }
 
 export function saveProduct(params: {
@@ -125,16 +130,14 @@ export function saveProduct(params: {
   bookId?: number;
 }): Promise<SaveProductResponse> {
   const { productId = null, name, quantityType, imageUrl = null, bookId = BOOK_ID } = params;
-  return request<SaveProductResponse>(
-    'save-product.php',
-    jsonInit('POST', {
-      book_id: bookId,
-      product_id: productId,
-      name,
-      quantity_type: quantityType,
-      image_url: imageUrl,
-    }),
-  );
+  const body = { name, quantity_type: quantityType, image_url: imageUrl };
+  return productId
+    ? request<SaveProductResponse>(`products/${productId}`, jsonInit('PUT', body))
+    : request<SaveProductResponse>(`books/${bookId}/products`, jsonInit('POST', body));
+}
+
+export function deleteProduct(id: number): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`products/${id}`, { method: 'DELETE' });
 }
 
 export function saveProductTransaction(params: {
@@ -142,29 +145,17 @@ export function saveProductTransaction(params: {
   type: TransactionType;
   quantity: number;
   pricePerUnit: number;
+  note?: string | null;
 }): Promise<SaveTransactionResponse> {
-  const { productId, type, quantity, pricePerUnit } = params;
+  const { productId, type, quantity, pricePerUnit, note = null } = params;
   return request<SaveTransactionResponse>(
-    'save-product-transaction.php',
-    jsonInit('POST', {
-      product_id: productId,
-      type,
-      quantity,
-      price_per_unit: pricePerUnit,
-    }),
+    `products/${productId}/transactions`,
+    jsonInit('POST', { type, quantity, price_per_unit: pricePerUnit, note }),
   );
 }
 
-export function deleteProductTransaction(params: {
-  transactionId: number;
-  productId: number;
-}): Promise<{ success: boolean }> {
-  const { transactionId, productId } = params;
-  return request<{ success: boolean }>(
-    'delete-product-transaction.php',
-    jsonInit('DELETE', {
-      transaction_id: transactionId,
-      product_id: productId,
-    }),
-  );
+export function deleteProductTransaction(transactionId: number): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`product-transactions/${transactionId}`, {
+    method: 'DELETE',
+  });
 }

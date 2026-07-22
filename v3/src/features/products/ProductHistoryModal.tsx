@@ -6,6 +6,8 @@ import styles from './products.module.css';
 interface ProductHistoryModalProps {
   open: boolean;
   product: Product | null;
+  transactions: ProductTransaction[];
+  loading: boolean;
   onClose: () => void;
   onEdit: (tx: ProductTransaction) => void;
   onDelete: (tx: ProductTransaction) => void;
@@ -14,27 +16,32 @@ interface ProductHistoryModalProps {
 export function ProductHistoryModal({
   open,
   product,
+  transactions,
+  loading,
   onClose,
   onEdit,
   onDelete,
 }: ProductHistoryModalProps) {
   const { t, formatCurrency, formatNumber, formatTimeFull, localizeDigits } = useI18n();
-
-  const transactions = [...(product?.transactions ?? [])].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  );
   const unit = product?.quantity_type || 'piece';
 
   return (
-    <Modal open={open} onClose={onClose} labelledBy="historyTitle">
-      <ModalHeader
-        title={product ? `${product.name} — ${t.history}` : t.history}
-        titleId="historyTitle"
-        onClose={onClose}
-        closeLabel={t.close}
-      />
+    <Modal
+      open={open}
+      onClose={onClose}
+      labelledBy="historyTitle"
+      header={
+        <ModalHeader
+          title={product ? `${product.name} — ${t.history}` : t.history}
+          titleId="historyTitle"
+          onClose={onClose}
+          closeLabel={t.close}
+        />
+      }
+    >
       <div className={styles.historyList}>
-        {transactions.length === 0 ? (
+        {loading && <div className="empty-state">…</div>}
+        {!loading && transactions.length === 0 ? (
           <div className="empty-state">{t.noEntries}</div>
         ) : (
           transactions.map((tx) => {
@@ -69,7 +76,12 @@ export function ProductHistoryModal({
                     {formatCurrency(tx.total_amount)}
                   </span>
                 </div>
-                <div className={styles.entryTime}>{formatTimeFull(new Date(tx.created_at))}</div>
+                <div className={styles.entryFoot}>
+                  <span>
+                    {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}
+                  </span>
+                  <span>{localizeDigits(formatTimeFull(new Date(tx.created_at.replace(' ', 'T'))))}</span>
+                </div>
               </div>
             );
           })

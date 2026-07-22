@@ -7,6 +7,7 @@ import {
   formatNumber as fmtNumber,
   formatSignedCurrency as fmtSigned,
   formatTimeFull as fmtTime,
+  formatTimeShort as fmtTimeShort,
   localizeDigits as locDigits,
 } from '../lib/format';
 
@@ -19,6 +20,7 @@ interface LanguageContextValue {
   formatSignedCurrency: (value: number) => string;
   formatNumber: (value: number | string | null | undefined) => string;
   formatTimeFull: (date: Date) => string;
+  formatTimeShort: (date: Date) => string;
   localizeDigits: (text: string) => string;
 }
 
@@ -58,6 +60,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       formatSignedCurrency: (v) => fmtSigned(v, locale),
       formatNumber: (v) => fmtNumber(v, locale),
       formatTimeFull: (d) => fmtTime(d, locale),
+      formatTimeShort: (d) => fmtTimeShort(d, locale),
       localizeDigits: (s) => locDigits(s, locale),
     }),
     [lang, setLang, t, locale],

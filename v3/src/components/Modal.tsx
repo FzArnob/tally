@@ -11,15 +11,29 @@ interface ModalProps {
   /** Extra class for the panel. */
   panelClassName?: string;
   labelledBy?: string;
+  /** Fixed header rendered above the scrollable body (bottom-sheet modals). */
+  header?: ReactNode;
+  /** Fixed footer pinned to the bottom of the sheet, below the scrollable body. */
+  footer?: ReactNode;
 }
 
 const EXIT_MS = 280;
 
 /**
  * Accessible overlay that animates in as a bottom sheet (or centered dialog).
+ * For bottom sheets the optional `header` stays fixed while the body scrolls.
  * Handles backdrop click, Escape, body scroll-lock and exit animation.
  */
-export function Modal({ open, onClose, children, centered, panelClassName, labelledBy }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  children,
+  centered,
+  panelClassName,
+  labelledBy,
+  header,
+  footer,
+}: ModalProps) {
   const [mounted, setMounted] = useState(open);
   const [entered, setEntered] = useState(false);
   const closeTimer = useRef<number | null>(null);
@@ -74,7 +88,15 @@ export function Modal({ open, onClose, children, centered, panelClassName, label
         aria-modal="true"
         aria-labelledby={labelledBy}
       >
-        {children}
+        {centered ? (
+          children
+        ) : (
+          <>
+            {header}
+            <div className={styles.scroll}>{children}</div>
+            {footer}
+          </>
+        )}
       </div>
     </div>
   );

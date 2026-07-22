@@ -1,149 +1,181 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
-import { createCustomerBalance } from '../../lib/api';
-import {
-  INITIAL_CALC,
-  backspace,
-  clear,
-  equals,
-  inputNumber,
-  inputOperator,
-  percent,
-  resolveAmount,
-  type CalcState,
-} from '../../lib/calculator';
-import type { Customer } from '../../types';
-import { Calculator } from './Calculator';
+import { createCustomer, updateCustomer } from '../../lib/api';
+import { ApiError, type Customer } from '../../types';
 import styles from './customers.module.css';
 
 interface CustomerFormModalProps {
   open: boolean;
-  customer: Customer | null;
+  customer: Customer | null; // null => add
+  bookId: number;
   onClose: () => void;
-  onChanged: () => void;
+  onSaved: () => void;
 }
 
-export function CustomerFormModal({ open, customer, onClose, onChanged }: CustomerFormModalProps) {
-  const { t, formatSignedCurrency } = useI18n();
+export function CustomerFormModal({
+  open,
+  customer,
+  bookId,
+  onClose,
+  onSaved,
+}: CustomerFormModalProps) {
+  const { t } = useI18n();
+  const editing = !!customer;
+
   const [name, setName] = useState('');
-  const [details, setDetails] = useState('');
-  const [editing, setEditing] = useState(false);
-  const [balance, setBalance] = useState<number | null>(null);
-  const [calc, setCalc] = useState<CalcState>(INITIAL_CALC);
+  const [nickname, setNickname] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [showNickname, setShowNickname] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const nicknameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     setName(customer?.name ?? '');
-    setDetails('');
-    setEditing(!!customer);
-    setBalance(customer ? customer.total_balance : null);
-    setCalc(INITIAL_CALC);
+    setNickname(customer?.nickname ?? '');
+    setPhone(customer?.phone ?? '');
+    setAddress(customer?.address ?? '');
+    setShowNickname(!!customer?.nickname);
+    setError(null);
+    setBusy(false);
   }, [open, customer]);
 
-  const applyDelta = useCallback(
-    async (sign: 1 | -1) => {
-      const trimmed = name.trim();
-      if (!trimmed || busy) return;
-      const amount = resolveAmount(calc);
-      if (isNaN(amount) || amount <= 0) return;
+  const nickVisible = editing || showNickname;
 
-      const type = sign > 0 ? 'paid' : 'unpaid';
-      const expression = calc.expression || calc.display || '';
-      const reason = details.trim() || (sign > 0 ? t.paid : t.unpaid);
+  const submit = async () => {
+    if (busy) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError(t.nameRequired);
+      return;
+    }
+    if (trimmedName.length > 100) {
+      setError(t.nameTooLong);
+      return;
+    }
+    if (phone.trim() && !/^[0-9+\-() ]{3,30}$/.test(phone.trim())) {
+      setError(t.invalidPhone);
+      return;
+    }
 
-      setBusy(true);
-      try {
-        const res = await createCustomerBalance({ customerName: trimmed, type, amount, reason, expression });
-        setBalance(res.new_balance);
-        setEditing(true);
-        setCalc(INITIAL_CALC);
-        setDetails('');
-        onChanged();
-      } catch (err) {
-        console.error('Failed to save customer balance:', err);
-        alert(t.failedSaveBalance);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [name, busy, calc, details, t, onChanged],
-  );
-
-  // Physical keyboard support while the modal is open.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      const el = document.activeElement;
-      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
-      const k = e.key;
-      if ('0123456789'.includes(k)) setCalc((c) => inputNumber(c, k));
-      else if (k === '.') setCalc((c) => inputNumber(c, '.'));
-      else if (['+', '-', '*', '/'].includes(k)) setCalc((c) => inputOperator(c, k));
-      else if (k === '%') setCalc((c) => percent(c));
-      else if (k === 'Backspace') setCalc((c) => backspace(c));
-      else if (k === 'Enter' || k === '=') {
-        e.preventDefault();
-        if (e.ctrlKey || e.metaKey) void applyDelta(-1);
-        else void applyDelta(1);
-      } else if (k.toLowerCase() === 'c') setCalc(clear());
+    setBusy(true);
+    setError(null);
+    const payload = {
+      name: trimmedName,
+      nickname: nickname.trim(),
+      phone: phone.trim(),
+      address: address.trim(),
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, applyDelta]);
-
-  const balanceColor =
-    balance == null || balance === 0 ? 'var(--muted-foreground)' : balance > 0 ? 'var(--green-700)' : 'var(--red-700)';
+    try {
+      if (editing && customer) {
+        await updateCustomer(customer.id, payload);
+      } else {
+        await createCustomer({ ...payload, bookId });
+      }
+      onSaved();
+      onClose();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'nickname_required') {
+        setShowNickname(true);
+        setError(t.nicknameRequiredHint);
+        setTimeout(() => nicknameRef.current?.focus(), 50);
+      } else if (err instanceof ApiError && err.code === 'duplicate') {
+        setError(t.duplicateCustomer);
+      } else if (err instanceof ApiError && err.code === 'validation') {
+        setError(err.message);
+      } else {
+        console.error('Failed to save customer:', err);
+        setError(t.failedSaveCustomer);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <Modal open={open} onClose={onClose} labelledBy="cbFormTitle">
-      <ModalHeader
-        title={editing ? t.editCustomer : t.addCustomer}
-        titleId="cbFormTitle"
-        onClose={onClose}
-        closeLabel={t.close}
-      />
-
-      <div className="field">
-        <input
-          className="input"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t.customerName}
-          disabled={editing}
+    <Modal
+      open={open}
+      onClose={onClose}
+      labelledBy="custFormTitle"
+      header={
+        <ModalHeader
+          title={editing ? t.editCustomer : t.addCustomer}
+          titleId="custFormTitle"
+          onClose={onClose}
+          closeLabel={t.close}
         />
-      </div>
+      }
+    >
+      <div className={styles.form}>
+        <div className="field">
+          <label htmlFor="custName">{t.customerName}</label>
+          <input
+            id="custName"
+            className="input"
+            value={name}
+            maxLength={100}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t.customerName}
+            autoFocus={!editing}
+          />
+        </div>
 
-      <div className="field" style={{ marginTop: '1rem' }}>
-        <textarea
-          className="textarea"
-          rows={2}
-          value={details}
-          onChange={(e) => setDetails(e.target.value)}
-          placeholder={t.orderDetails}
-        />
-        {editing && balance != null && (
-          <div className={styles.currentBalance}>
-            <span>{t.currentBalanceLabel}</span>
-            <strong style={{ color: balanceColor }}>{formatSignedCurrency(balance)}</strong>
+        {nickVisible && (
+          <div className="field">
+            <label htmlFor="custNick">
+              {t.nickname} <span className={styles.optional}>({t.optional})</span>
+            </label>
+            <input
+              id="custNick"
+              ref={nicknameRef}
+              className="input"
+              value={nickname}
+              maxLength={100}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder={t.nicknamePlaceholder}
+            />
           </div>
         )}
-      </div>
 
-      <div style={{ marginTop: '1rem' }}>
-        <Calculator
-          state={calc}
-          disabled={busy}
-          onNumber={(n) => setCalc((c) => inputNumber(c, n))}
-          onOperator={(op) => setCalc((c) => inputOperator(c, op))}
-          onPercent={() => setCalc((c) => percent(c))}
-          onBackspace={() => setCalc((c) => backspace(c))}
-          onClear={() => setCalc(clear())}
-          onEquals={() => setCalc((c) => equals(c))}
-          onPaid={() => void applyDelta(1)}
-          onUnpaid={() => void applyDelta(-1)}
-        />
+        <div className="field">
+          <label htmlFor="custPhone">
+            {t.phone} <span className={styles.optional}>({t.optional})</span>
+          </label>
+          <input
+            id="custPhone"
+            className="input"
+            type="tel"
+            inputMode="tel"
+            value={phone}
+            maxLength={30}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder={t.phonePlaceholder}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="custAddr">
+            {t.address} <span className={styles.optional}>({t.optional})</span>
+          </label>
+          <textarea
+            id="custAddr"
+            className="textarea"
+            rows={2}
+            value={address}
+            maxLength={255}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder={t.addressPlaceholder}
+          />
+        </div>
+
+        {error && <div className={styles.formError}>{error}</div>}
+
+        <button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>
+          {editing ? t.saveCustomer : t.addCustomer}
+        </button>
       </div>
     </Modal>
   );

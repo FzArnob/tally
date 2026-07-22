@@ -1,0 +1,12 @@
+# Tally v3 backend — route every request to the single-file API (index.php).
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Send OPTIONS (CORS preflight) and any non-file/non-dir request to index.php.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Never list the directory.
+Options -Indexes

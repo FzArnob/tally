@@ -1,16 +1,15 @@
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { Header } from './components/Header';
 import { ProductsSection } from './features/products/ProductsSection';
-import { CustomersSection } from './features/customers/CustomersSection';
+import { CustomersPage } from './features/customers/CustomersPage';
 import { useI18n } from './i18n/LanguageContext';
 import { getBookDetails, BOOK_ID } from './lib/api';
 import type { Book } from './types';
 
-export function App() {
-  const { t } = useI18n();
+/** Loads the current book once; falls back to a sensible default on error. */
+export function useBook(): Book {
   const [book, setBook] = useState<Book>({ id: BOOK_ID, name: '', logo_url: '' });
-  const [customersOpen, setCustomersOpen] = useState(false);
-
   useEffect(() => {
     getBookDetails()
       .then(setBook)
@@ -19,16 +18,32 @@ export function App() {
         setBook({ id: BOOK_ID, name: "Samad's Store", logo_url: '' });
       });
   }, []);
+  return book;
+}
+
+function HomePage() {
+  const { t } = useI18n();
+  const book = useBook();
+  const navigate = useNavigate();
 
   return (
     <>
       <Header
         storeName={book.name || t.appName}
         logoUrl={book.logo_url}
-        onOpenCustomers={() => setCustomersOpen(true)}
+        onOpenCustomers={() => navigate(`/${book.id}/customers`)}
       />
       <ProductsSection />
-      <CustomersSection open={customersOpen} onClose={() => setCustomersOpen(false)} />
     </>
+  );
+}
+
+export function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/:bookId/customers" element={<CustomersPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }

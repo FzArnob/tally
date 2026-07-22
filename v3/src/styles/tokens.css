@@ -1,0 +1,100 @@
+/* =========================================================
+   Design tokens & theme (ported from v1, extended)
+   ========================================================= */
+:root {
+  --font-size: 16px;
+
+  /* Color tokens */
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --primary: #030213;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f1f1;
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #e62737;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --ring: rgba(3, 2, 19, 0.35);
+  --radius: 0.625rem;
+
+  --green-600: #00b97b;
+  --green-700: #00a06a;
+  --red-600: #e62737;
+  --red-700: #cf1f2d;
+  --orange-600: #fca103;
+  --orange-700: #e08f00;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* Typography scale */
+  --fs-xs: 0.7rem;
+  --fs-sm: 0.8rem;
+  --fs-base: 0.95rem;
+  --fs-btn: 0.95rem;
+  --fs-amount: 1.05rem;
+  --fs-heading-sm: 1.2rem;
+  --fs-heading-md: 1.3rem;
+  --fs-display: 1.75rem;
+  --fs-key: 1.2rem;
+
+  /* Icon sizes */
+  --icon-sm: 1rem;
+  --icon-md: 1.25rem;
+  --icon-lg: 1.5rem;
+  --icon-xl: 1.75rem;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.14);
+  --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.18);
+
+  /* Motion */
+  --ease-emphasized: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 0.15s;
+  --dur-base: 0.28s;
+
+  /* Scrollbar colors */
+  --scrollbar-track: var(--muted);
+  --scrollbar-thumb: var(--switch-background);
+  --scrollbar-thumb-hover: var(--muted-foreground);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #1a1a1a;
+    --foreground: #ffffff;
+    --card: #232323;
+    --card-foreground: #ffffff;
+    --primary: #ffffff;
+    --primary-foreground: #1a1a1a;
+    --secondary: #333333;
+    --secondary-foreground: #ffffff;
+    --muted: #303030;
+    --muted-foreground: #a1a1aa;
+    --accent: #4a4a4a;
+    --accent-foreground: #ffffff;
+    --border: rgba(255, 255, 255, 0.12);
+    --input-background: #252525;
+    --ring: rgba(255, 255, 255, 0.35);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+    --shadow-sheet: 0 -8px 40px rgba(0, 0, 0, 0.6);
+
+    --scrollbar-track: var(--input-background);
+    --scrollbar-thumb: var(--secondary);
+    --scrollbar-thumb-hover: var(--accent);
+  }
+}

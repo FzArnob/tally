@@ -11,6 +11,11 @@ let cbSearchQuery = "";
 let currentLanguage = 'en';
 let currentTranslations = {};
 
+// Product-wise Cash Flow State
+let pcProducts = []; // Products loaded from API
+let pcNextProductId = null; // Will be set after loading
+let pcNextTxId = null; // Will be set after loading
+
 // API Configuration
 const API_BASE = "../api/";
 const BOOK_ID = 1; // Default book ID (Samad's Store)
@@ -1121,3 +1126,682 @@ document.addEventListener("keydown", (e) => {
     if (cbhModalOverlay.classList.contains("active")) closeCbhModalHandler();
   }
 });
+
+/* =========================================================
+   Product-wise Cash Flow (pc-*) — Now using API calls
+   ========================================================= */
+
+// ---- State ----
+let pcEditingProductId = null; // product being added/edited in product modal
+let pcActionProductId = null;  // product open in the stock/sale modal
+let pcActionTab = "stock";     // "stock" | "sale"
+let pcEditingTxId = null;      // transaction id being edited (null = new entry)
+let pcHistoryProductId = null; // product open in history modal
+let pcPendingDelete = null;    // { productId, txId }
+let pcLongPressTimer = null;
+let pcLongPressFired = false;
+let pcImageDataUrl = null;
+
+// ---- DOM refs ----
+const pcGrid = document.getElementById("pcGrid");
+const pcProductModalOverlay = document.getElementById("pcProductModalOverlay");
+const pcProductModalTitle = document.getElementById("pcProductModalTitle");
+const closePcProductModal = document.getElementById("closePcProductModal");
+const pcImageUpload = document.getElementById("pcImageUpload");
+const pcImageInput = document.getElementById("pcImageInput");
+const pcImagePreview = document.getElementById("pcImagePreview");
+const pcImagePlaceholder = document.getElementById("pcImagePlaceholder");
+const pcNameInput = document.getElementById("pcNameInput");
+const pcQuantityTypeSelect = document.getElementById("pcQuantityTypeSelect");
+const pcCustomTypeInput = document.getElementById("pcCustomTypeInput");
+const pcSaveProductBtn = document.getElementById("pcSaveProductBtn");
+
+const pcActionModalOverlay = document.getElementById("pcActionModalOverlay");
+const closePcActionModal = document.getElementById("closePcActionModal");
+const pcActionProductImg = document.getElementById("pcActionProductImg");
+const pcActionProductName = document.getElementById("pcActionProductName");
+const pcActionCurrentStock = document.getElementById("pcActionCurrentStock");
+const pcTabSwitch = document.getElementById("pcTabSwitch");
+const pcQtyLabel = document.getElementById("pcQtyLabel");
+const pcPriceLabel = document.getElementById("pcPriceLabel");
+const pcQtyInput = document.getElementById("pcQtyInput");
+const pcPriceInput = document.getElementById("pcPriceInput");
+const pcActionTotal = document.getElementById("pcActionTotal");
+const pcActionSaveBtn = document.getElementById("pcActionSaveBtn");
+
+const pcHistoryModalOverlay = document.getElementById("pcHistoryModalOverlay");
+const pcHistoryModalTitle = document.getElementById("pcHistoryModalTitle");
+const closePcHistoryModal = document.getElementById("closePcHistoryModal");
+const pcEditProductBtn = document.getElementById("pcEditProductBtn");
+const pcHistoryList = document.getElementById("pcHistoryList");
+
+const pcConfirmModalOverlay = document.getElementById("pcConfirmModalOverlay");
+const pcConfirmCancelBtn = document.getElementById("pcConfirmCancelBtn");
+const pcConfirmDeleteBtn = document.getElementById("pcConfirmDeleteBtn");
+
+const PC_KNOWN_TYPES = ["piece", "packet", "cartoon", "kg", "liter"];
+
+// ---- Helpers ----
+async function pcGetProduct(id) {
+  try {
+    const response = await fetch(`${API_BASE}get-product.php?product_id=${id}`);
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+  } catch (error) {
+    console.error('Failed to fetch product:', error);
+    return null;
+  }
+}
+
+async function pcGetStock(product) {
+  // Stock is computed on read from API, but if we have local data:
+  return product.transactions.reduce(
+    (sum, t) => sum + (t.type === "stock" ? t.quantity : -t.quantity),
+    0
+  );
+}
+
+// ---- Grid rendering ----
+async function pcRenderGrid() {
+  try {
+    const response = await fetch(`${API_BASE}get-products-with-stock.php?book_id=${BOOK_ID}`);
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    
+    pcProducts = data.products || [];
+    
+    // Set next IDs for new products
+    if (pcProducts.length > 0) {
+      pcNextProductId = Math.max(...pcProducts.map(p => p.id)) + 1;
+      // Collect all transaction IDs from transactions array if it exists
+      const allTxIds = pcProducts.flatMap(p => 
+        p.transactions && Array.isArray(p.transactions) ? p.transactions.map(t => t.id) : []
+      );
+      pcNextTxId = Math.max(...allTxIds, 0) + 1;
+    }
+    
+    pcGrid.innerHTML = "";
+
+    if (pcProducts.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "pc-empty-state";
+      empty.textContent = "No products yet. Tap + to add your first product.";
+      pcGrid.appendChild(empty);
+    } else {
+      pcProducts.forEach((product) => {
+        const stock = product.current_stock || 0;
+        const item = document.createElement("div");
+        item.className = "pc-item";
+        item.dataset.productId = product.id;
+        item.innerHTML = `
+          ${product.image_url && product.image_url !== 'null'
+            ? `<img class="pc-thumb" src="${product.image_url}" alt="${escapeHtml(product.name)}">`
+            : `<span class="material-symbols-outlined icon-xl pc-item-icon">inventory_2</span>`
+          }
+          <span class="pc-item-name">${escapeHtml(product.name)}</span>
+          <span class="pc-item-stock">${formatNumber(stock)} ${escapeHtml(product.quantity_type || 'piece')}</span>
+        `;
+        pcGrid.appendChild(item);
+      });
+    }
+
+    const addItem = document.createElement("div");
+    addItem.className = "pc-item pc-add";
+    addItem.id = "pcAddBtn";
+    addItem.setAttribute("aria-label", "Add product");
+    addItem.innerHTML = `<span class="material-symbols-outlined icon-xl">add</span>`;
+    pcGrid.appendChild(addItem);
+  } catch (error) {
+    console.error('Failed to load products:', error);
+    const empty = document.createElement("div");
+    empty.className = "pc-empty-state";
+    empty.textContent = "Failed to load products. Please refresh the page.";
+    pcGrid.appendChild(empty);
+  }
+}
+
+// ---- Long-press (history) vs click (open action modal) on grid items ----
+pcGrid.addEventListener("mousedown", (e) => pcHandlePressStart(e));
+pcGrid.addEventListener("touchstart", (e) => pcHandlePressStart(e), { passive: true });
+pcGrid.addEventListener("mouseup", pcHandlePressEnd);
+pcGrid.addEventListener("mouseleave", pcHandlePressEnd);
+pcGrid.addEventListener("touchend", pcHandlePressEnd);
+pcGrid.addEventListener("touchmove", pcHandlePressEnd);
+
+function pcHandlePressStart(e) {
+  const addBtn = e.target.closest("#pcAddBtn");
+  if (addBtn) return; // no long-press behavior on the add tile
+  const item = e.target.closest(".pc-item");
+  if (!item) return;
+  pcLongPressFired = false;
+  const productId = parseInt(item.dataset.productId, 10);
+  pcLongPressTimer = setTimeout(() => {
+    pcLongPressFired = true;
+    pcOpenHistoryModal(productId);
+  }, 600);
+}
+
+function pcHandlePressEnd() {
+  clearTimeout(pcLongPressTimer);
+}
+
+pcGrid.addEventListener("click", async (e) => {
+  clearTimeout(pcLongPressTimer);
+
+  const addBtn = e.target.closest("#pcAddBtn");
+  if (addBtn) {
+    pcOpenProductModal(null);
+    return;
+  }
+
+  const item = e.target.closest(".pc-item");
+  if (!item) return;
+  if (pcLongPressFired) {
+    pcLongPressFired = false;
+    return; // long-press already handled this tap
+  }
+  const productId = parseInt(item.dataset.productId, 10);
+  pcOpenActionModal(productId);
+});
+
+// ---- Product Add/Edit Modal ----
+async function pcOpenProductModal(productId) {
+  try {
+    let product = null;
+    if (productId) {
+      const response = await fetch(`${API_BASE}get-product.php?product_id=${productId}`);
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+      product = data;
+    }
+
+    pcEditingProductId = productId;
+    pcImageDataUrl = null;
+
+    pcProductModalTitle.textContent = product ? "Edit Product" : "Add Product";
+    pcNameInput.value = product ? product.name : "";
+    pcSaveProductBtn.textContent = product ? "Save Changes" : "Add Product";
+
+    if (product) {
+      const quantityType = product.quantity_type || 'piece';
+      if (!PC_KNOWN_TYPES.includes(quantityType)) {
+        pcQuantityTypeSelect.value = "custom";
+        pcCustomTypeInput.value = quantityType;
+        pcCustomTypeInput.classList.remove("hidden");
+      } else {
+        pcQuantityTypeSelect.value = quantityType;
+        pcCustomTypeInput.value = "";
+        pcCustomTypeInput.classList.add("hidden");
+      }
+
+      if (product.image_url && product.image_url !== 'null') {
+        pcImageDataUrl = product.image_url;
+        pcImagePreview.src = product.image_url;
+        pcImagePreview.classList.remove("hidden");
+        pcImagePlaceholder.classList.add("hidden");
+      } else {
+        pcImagePreview.classList.add("hidden");
+        pcImagePreview.src = "";
+        pcImagePlaceholder.classList.remove("hidden");
+      }
+    }
+
+    pcProductModalOverlay.classList.add("active");
+    setTimeout(() => pcNameInput.focus(), 50);
+  } catch (error) {
+    console.error('Failed to load product:', error);
+    alert('Failed to load product. Please try again.');
+  }
+}
+
+function pcCloseProductModal() {
+  pcProductModalOverlay.classList.remove("active");
+  pcEditingProductId = null;
+}
+
+pcQuantityTypeSelect.addEventListener("change", () => {
+  pcCustomTypeInput.classList.toggle("hidden", pcQuantityTypeSelect.value !== "custom");
+  if (pcQuantityTypeSelect.value === "custom") pcCustomTypeInput.focus();
+});
+
+// Toggle dropdown arrow on click
+pcQuantityTypeSelect.addEventListener("click", () => {
+  pcQuantityTypeSelect.setAttribute("data-open", "");
+});
+
+// Remove data-open when clicking outside
+window.addEventListener("click", (e) => {
+  if (!e.target.closest("#pcQuantityTypeSelect")) {
+    pcQuantityTypeSelect.removeAttribute("data-open");
+  }
+});
+
+pcImageUpload.addEventListener("click", () => pcImageInput.click());
+pcImageInput.addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    pcImageDataUrl = ev.target.result;
+    pcImagePreview.src = pcImageDataUrl;
+    pcImagePreview.classList.remove("hidden");
+    pcImagePlaceholder.classList.add("hidden");
+  };
+  reader.readAsDataURL(file);
+});
+
+function pcSaveProduct() {
+  const name = pcNameInput.value.trim();
+  if (!name) {
+    alert("Please enter a product name.");
+    return;
+  }
+  let quantityType = pcQuantityTypeSelect.value;
+  if (quantityType === "custom") {
+    quantityType = pcCustomTypeInput.value.trim();
+    if (!quantityType) {
+      alert("Please enter a quantity type.");
+      return;
+    }
+  }
+
+  const saveData = {
+    book_id: BOOK_ID,
+    product_id: pcEditingProductId || null,
+    name: name,
+    quantity_type: quantityType,
+    image_url: pcImageDataUrl || null
+  };
+
+  fetch(`${API_BASE}save-product.php`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(saveData)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      alert('Error: ' + data.error);
+      return;
+    }
+
+    pcCloseProductModal();
+    
+    // Reload products from API
+    pcRenderGrid();
+    
+    // Show success message
+    console.log('Product saved successfully:', data.product);
+  })
+  .catch(error => {
+    console.error('Failed to save product:', error);
+    alert('Failed to save product. Please try again.');
+  });
+}
+
+pcSaveProductBtn.addEventListener("click", pcSaveProduct);
+closePcProductModal.addEventListener("click", pcCloseProductModal);
+pcProductModalOverlay.addEventListener("click", (e) => {
+  if (e.target === pcProductModalOverlay) pcCloseProductModal();
+});
+
+// ---- Stock In / Sale Modal ----
+async function pcOpenActionModal(productId, editTxId = null) {
+  try {
+    const product = await pcGetProduct(productId);
+    if (!product || product.error) return;
+
+    pcActionProductId = productId;
+    pcEditingTxId = editTxId;
+
+    pcActionProductName.textContent = product.name;
+    pcActionCurrentStock.textContent = `Stock: ${formatNumber(product.current_stock || 0)} ${product.quantity_type || 'piece'}`;
+    
+    if (product.image_url && product.image_url !== 'null') {
+      pcActionProductImg.src = product.image_url;
+      pcActionProductImg.style.display = "block";
+    } else {
+      pcActionProductImg.style.display = "none";
+    }
+
+    let tab = "stock";
+    let qty = "";
+    let price = "";
+    if (editTxId) {
+      // Fetch specific transaction for editing
+      const response = await fetch(`${API_BASE}get-product-transactions.php?product_id=${productId}`);
+      const txData = await response.json();
+      if (txData.error) throw new Error(txData.error);
+      
+      const tx = txData.transactions.find((t) => t.id === editTxId);
+      if (tx) {
+        tab = tx.type;
+        qty = tx.quantity;
+        price = tx.price_per_unit;
+      }
+    }
+
+    pcTabSwitch.style.display = editTxId ? "none" : "flex"; // lock entry type while editing
+    pcSwitchTab(tab);
+    pcQtyInput.value = qty;
+    pcPriceInput.value = price;
+    pcUpdateActionTotal();
+
+    pcActionModalOverlay.classList.add("active");
+    setTimeout(() => pcQtyInput.focus(), 50);
+  } catch (error) {
+    console.error('Failed to load product:', error);
+    alert('Failed to load product. Please try again.');
+  }
+}
+
+function pcCloseActionModal() {
+  pcActionModalOverlay.classList.remove("active");
+  pcActionProductId = null;
+  pcEditingTxId = null;
+}
+
+function pcSwitchTab(tab) {
+  pcActionTab = tab;
+  document.querySelectorAll(".pc-tab-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === tab);
+  });
+  const isStock = tab === "stock";
+  pcPriceLabel.textContent = isStock ? "Buying Price / unit" : "Selling Price / unit";
+  pcActionSaveBtn.textContent = pcEditingTxId
+    ? "Update"
+    : "Save";
+  pcActionSaveBtn.classList.remove("pc-save-stock", "pc-save-sale");
+  pcActionSaveBtn.classList.add(isStock ? "pc-save-stock" : "pc-save-sale");
+}
+
+pcTabSwitch.addEventListener("click", (e) => {
+  const btn = e.target.closest(".pc-tab-btn");
+  if (!btn || pcEditingTxId) return; // type is locked when editing an existing entry
+  pcSwitchTab(btn.dataset.tab);
+});
+
+function pcUpdateActionTotal() {
+  const qty = parseFloat(pcQtyInput.value) || 0;
+  const price = parseFloat(pcPriceInput.value) || 0;
+  pcActionTotal.textContent = formatCurrency(qty * price);
+}
+pcQtyInput.addEventListener("input", pcUpdateActionTotal);
+pcPriceInput.addEventListener("input", pcUpdateActionTotal);
+
+function pcSaveAction() {
+  const qty = parseFloat(pcQtyInput.value);
+  const price = parseFloat(pcPriceInput.value);
+  if (!qty || qty <= 0) {
+    alert("Please enter a valid quantity.");
+    return;
+  }
+  if (isNaN(price) || price < 0) {
+    alert("Please enter a valid price.");
+    return;
+  }
+
+  const saveData = {
+    product_id: pcActionProductId,
+    type: pcActionTab,
+    quantity: qty,
+    price_per_unit: price
+  };
+
+  fetch(`${API_BASE}save-product-transaction.php`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(saveData)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.error) {
+      alert('Error: ' + data.error);
+      return;
+    }
+
+    pcCloseActionModal();
+    
+    // Reload product from API
+    const productId = pcActionProductId;
+    pcOpenProductModal(productId);
+    
+    // Show success message
+    console.log('Transaction saved successfully:', data.transaction);
+  })
+  .catch(error => {
+    console.error('Failed to save transaction:', error);
+    alert('Failed to save transaction. Please try again.');
+  });
+}
+
+pcActionSaveBtn.addEventListener("click", pcSaveAction);
+closePcActionModal.addEventListener("click", pcCloseActionModal);
+pcActionModalOverlay.addEventListener("click", (e) => {
+  if (e.target === pcActionModalOverlay) pcCloseActionModal();
+});
+
+// ---- History Modal ----
+async function pcOpenHistoryModal(productId) {
+  try {
+    const response = await fetch(`${API_BASE}get-product-transactions.php?product_id=${productId}`);
+    const data = await response.json();
+    if (data.error) throw new Error(data.error);
+    
+    const product = await pcGetProduct(productId);
+    if (!product || product.error) return;
+    
+    pcHistoryProductId = productId;
+    pcHistoryModalTitle.textContent = `${product.name} — History`;
+    pcRenderHistory(data.transactions);
+    pcHistoryModalOverlay.classList.add("active");
+  } catch (error) {
+    console.error('Failed to load product history:', error);
+    alert('Failed to load history. Please try again.');
+  }
+}
+
+function pcCloseHistoryModal() {
+  pcHistoryModalOverlay.classList.remove("active");
+  pcHistoryProductId = null;
+}
+
+async function pcRenderHistory(transactions = null) {
+  const productId = pcHistoryProductId;
+  
+  // Get product info once (needed for quantity_type)
+  let product = null;
+  if (!transactions) {
+    try {
+      product = await pcGetProduct(productId);
+      if (!product || product.error) {
+        pcHistoryList.innerHTML = `<div class="cb-empty">Failed to load product</div>`;
+        return;
+      }
+      transactions = product.transactions;
+    } catch (error) {
+      console.error('Failed to load product for history:', error);
+      pcHistoryList.innerHTML = `<div class="cb-empty">Failed to load history</div>`;
+      return;
+    }
+  }
+  
+  if (!transactions || !transactions.length) {
+    pcHistoryList.innerHTML = `<div class="cb-empty">No stock or sale entries yet</div>`;
+    return;
+  }
+
+  const sorted = [...transactions].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  
+  // Build HTML string without using await in map
+  let html = '';
+  for (const tx of sorted) {
+    const quantityType = product?.quantity_type || 'piece';
+    html += `
+    <div class="cbh-entry">
+      <div class="cbh-entry-line">
+        <span class="pc-hist-type ${tx.type}">${tx.type === "stock" ? "Stock In" : "Sale"}</span>
+        <div class="pc-hist-entry-actions">
+          <button class="tx-delete-btn" data-pc-edit="${tx.id}" aria-label="Edit entry">
+            <span class="material-symbols-outlined icon-sm">edit</span>
+          </button>
+          <button class="tx-delete-btn" data-pc-del="${tx.id}" aria-label="Delete entry">
+            <span class="material-symbols-outlined icon-sm">delete</span>
+          </button>
+        </div>
+      </div>
+      <div class="cbh-entry-line">
+        <span class="cbh-entry-reason">${formatNumber(tx.quantity)} ${escapeHtml(quantityType)} &times; ${formatCurrency(tx.price_per_unit)}</span>
+        <span class="cbh-entry-amount ${tx.type === "stock" ? "negative" : "positive"}">${formatCurrency(tx.total_amount)}</span>
+      </div>
+      <div class="cbh-entry-time">${formatTimeFull(new Date(tx.created_at))}</div>
+    </div>`;
+  }
+  
+  pcHistoryList.innerHTML = html;
+}
+
+closePcHistoryModal.addEventListener("click", pcCloseHistoryModal);
+pcHistoryModalOverlay.addEventListener("click", (e) => {
+  if (e.target === pcHistoryModalOverlay) pcCloseHistoryModal();
+});
+pcEditProductBtn.addEventListener("click", () => {
+  const productId = pcHistoryProductId;
+  pcCloseHistoryModal();
+  pcOpenProductModal(productId);
+});
+
+// Edit / Delete entry buttons inside history list (delegated)
+pcHistoryList.addEventListener("click", async (e) => {
+  const editBtn = e.target.closest("[data-pc-edit]");
+  if (editBtn && pcHistoryProductId) {
+    const txId = parseInt(editBtn.dataset.pcEdit, 10);
+    const productId = pcHistoryProductId;
+    pcCloseHistoryModal();
+    pcOpenActionModal(productId, txId);
+    return;
+  }
+  const delBtn = e.target.closest("[data-pc-del]");
+  if (delBtn && pcHistoryProductId) {
+    const txId = parseInt(delBtn.dataset.pcDel, 10);
+    pcRequestDelete(pcHistoryProductId, txId);
+  }
+});
+
+// ---- Delete confirmation ----
+async function pcRequestDelete(productId, txId) {
+  pcPendingDelete = { productId, txId };
+  pcConfirmModalOverlay.classList.add("active");
+}
+
+function pcCloseConfirmModal() {
+  pcConfirmModalOverlay.classList.remove("active");
+  pcPendingDelete = null;
+}
+
+async function pcConfirmDelete() {
+  if (!pcPendingDelete) return;
+  
+  const deleteData = {
+    transaction_id: pcPendingDelete.txId,
+    product_id: pcPendingDelete.productId
+  };
+
+  try {
+    const response = await fetch(`${API_BASE}delete-product-transaction.php`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(deleteData)
+    });
+    
+    const data = await response.json();
+    
+    if (data.error) {
+      alert('Error: ' + data.error);
+      pcCloseConfirmModal();
+      return;
+    }
+
+    pcCloseConfirmModal();
+    
+    // Reload product from API
+    const productId = pcPendingDelete.productId;
+    pcOpenProductModal(productId);
+    
+    // Show success message
+    console.log('Transaction deleted successfully:', data);
+  } catch (error) {
+    console.error('Failed to delete transaction:', error);
+    alert('Failed to delete transaction. Please try again.');
+    pcCloseConfirmModal();
+  }
+}
+
+pcConfirmCancelBtn.addEventListener("click", pcCloseConfirmModal);
+pcConfirmDeleteBtn.addEventListener("click", pcConfirmDelete);
+pcConfirmModalOverlay.addEventListener("click", (e) => {
+  if (e.target === pcConfirmModalOverlay) pcCloseConfirmModal();
+});
+
+// ---- Escape key handling ----
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (pcConfirmModalOverlay.classList.contains("active")) pcCloseConfirmModal();
+  else if (pcActionModalOverlay.classList.contains("active")) pcCloseActionModal();
+  else if (pcHistoryModalOverlay.classList.contains("active")) pcCloseHistoryModal();
+  else if (pcProductModalOverlay.classList.contains("active")) pcCloseProductModal();
+});
+
+// ---- Init ----
+async function init() {
+  try {
+    // Initialize language system first
+    initializeLanguage();
+    
+    // Load book details first
+    currentBook = await fetchBookDetails();
+
+    // Update page title and logo (will be overridden by localization)
+    document.title = currentBook.name + " - Tally";
+    document.querySelector(".logo-section h2").textContent = currentBook.name;
+
+    // Update logo if available
+    if (currentBook.logo_url) {
+      const logoImg = document.querySelector(".store-logo");
+      if (logoImg) {
+        logoImg.src = currentBook.logo_url;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to load book details:", error);
+    // Continue with defaults
+    currentBook = {
+      id: BOOK_ID,
+      name: "Samad's Store",
+      logo_url: "",
+    };
+  }
+
+  // Load products from API
+  await pcRenderGrid();
+
+  // Add touch event listeners for better mobile interaction
+  if ("ontouchstart" in window) {
+    // Prevent zoom on double tap for buttons
+    const buttons = document.querySelectorAll("button");
+    buttons.forEach((button) => {
+      button.addEventListener("touchstart", function (e) {
+        e.target.style.transform = "scale(0.95)";
+      });
+      button.addEventListener("touchend", function (e) {
+        setTimeout(() => {
+          e.target.style.transform = "";
+        }, 100);
+      });
+    });
+  }
+}
+
+// Start the application
+init();

@@ -1,0 +1,79 @@
+{
+  "@@locale": "en",
+  "appTitle": "Tally",
+
+  "language": "Language",
+  "english": "English",
+  "bangla": "বাংলা",
+  "close": "Close",
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "edit": "Edit",
+
+  "products": "Products",
+  "noProducts": "No products yet. Tap + to add your first product.",
+  "failedToLoadProducts": "Failed to load products. Pull to refresh.",
+  "addProduct": "Add Product",
+  "editProduct": "Edit Product",
+  "saveChanges": "Save Changes",
+  "productName": "Product Name",
+  "productNameHint": "e.g. Rice",
+  "productImage": "Product Image",
+  "quantityType": "Quantity Type",
+  "unitPiece": "Piece",
+  "unitPacket": "Packet",
+  "unitCartoon": "Cartoon",
+  "unitKg": "Kg",
+  "unitLiter": "Liter",
+  "unitCustom": "Custom…",
+  "customUnitHint": "Enter custom unit name",
+  "enterProductName": "Please enter a product name.",
+  "enterQuantityType": "Please enter a quantity type.",
+
+  "stockIn": "Stock In",
+  "sale": "Sale",
+  "stockLabel": "Stock: {value} {unit}",
+  "@stockLabel": {
+    "placeholders": {
+      "value": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "quantity": "Quantity",
+  "buyingPricePerUnit": "Buying Price / unit",
+  "sellingPricePerUnit": "Selling Price / unit",
+  "total": "Total",
+  "update": "Update",
+  "enterValidQuantity": "Please enter a valid quantity.",
+  "enterValidPrice": "Please enter a valid price.",
+
+  "history": "History",
+  "productHistoryTitle": "{name} — History",
+  "@productHistoryTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "noStockOrSaleEntries": "No stock or sale entries yet",
+  "deleteEntry": "Delete Entry",
+  "deleteEntryConfirm": "Are you sure you want to delete this entry? This action cannot be undone.",
+
+  "customerBalances": "Customer Balances",
+  "searchCustomers": "Search customers",
+  "add": "Add",
+  "addCustomer": "Add Customer",
+  "editCustomer": "Edit Customer",
+  "customerName": "Customer Name",
+  "orderDetails": "Order Details",
+  "currentBalance": "Current Balance:",
+  "advancePaid": "Advance Paid:",
+  "totalUnpaid": "Total Unpaid:",
+  "noCustomers": "No customers yet",
+  "noMatches": "No matches",
+  "paid": "Paid",
+  "unpaid": "Unpaid",
+  "noHistory": "No history",
+  "deleteHistoryConfirm": "Are you sure you want to delete this entry?",
+
+  "allClear": "AC",
+  "genericError": "Something went wrong. Please try again."
+}

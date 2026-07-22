@@ -1,0 +1,79 @@
+{
+  "@@locale": "bn",
+  "appTitle": "ট্যালি",
+
+  "language": "ভাষা",
+  "english": "English",
+  "bangla": "বাংলা",
+  "close": "বন্ধ",
+  "cancel": "বাতিল",
+  "save": "সংরক্ষণ",
+  "delete": "মুছুন",
+  "edit": "সম্পাদনা",
+
+  "products": "পণ্য",
+  "noProducts": "এখনো কোনো পণ্য নেই। প্রথম পণ্য যোগ করতে + চাপুন।",
+  "failedToLoadProducts": "পণ্য লোড করা যায়নি। রিফ্রেশ করতে টানুন।",
+  "addProduct": "পণ্য যোগ করুন",
+  "editProduct": "পণ্য সম্পাদনা",
+  "saveChanges": "পরিবর্তন সংরক্ষণ",
+  "productName": "পণ্যের নাম",
+  "productNameHint": "যেমন চাল",
+  "productImage": "পণ্যের ছবি",
+  "quantityType": "পরিমাপের একক",
+  "unitPiece": "পিস",
+  "unitPacket": "প্যাকেট",
+  "unitCartoon": "কার্টন",
+  "unitKg": "কেজি",
+  "unitLiter": "লিটার",
+  "unitCustom": "কাস্টম…",
+  "customUnitHint": "কাস্টম এককের নাম লিখুন",
+  "enterProductName": "অনুগ্রহ করে পণ্যের নাম লিখুন।",
+  "enterQuantityType": "অনুগ্রহ করে একক লিখুন।",
+
+  "stockIn": "স্টক ইন",
+  "sale": "বিক্রয়",
+  "stockLabel": "স্টক: {value} {unit}",
+  "@stockLabel": {
+    "placeholders": {
+      "value": { "type": "String" },
+      "unit": { "type": "String" }
+    }
+  },
+  "quantity": "পরিমাণ",
+  "buyingPricePerUnit": "ক্রয়মূল্য / একক",
+  "sellingPricePerUnit": "বিক্রয়মূল্য / একক",
+  "total": "মোট",
+  "update": "আপডেট",
+  "enterValidQuantity": "অনুগ্রহ করে সঠিক পরিমাণ লিখুন।",
+  "enterValidPrice": "অনুগ্রহ করে সঠিক মূল্য লিখুন।",
+
+  "history": "ইতিহাস",
+  "productHistoryTitle": "{name} — ইতিহাস",
+  "@productHistoryTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "noStockOrSaleEntries": "এখনো কোনো স্টক বা বিক্রয় এন্ট্রি নেই",
+  "deleteEntry": "এন্ট্রি মুছুন",
+  "deleteEntryConfirm": "আপনি কি এই এন্ট্রিটি মুছে ফেলতে চান? এই কাজটি ফিরিয়ে আনা যাবে না।",
+
+  "customerBalances": "গ্রাহক ব্যালেন্স",
+  "searchCustomers": "গ্রাহক খুঁজুন",
+  "add": "যোগ",
+  "addCustomer": "গ্রাহক যোগ করুন",
+  "editCustomer": "গ্রাহক সম্পাদনা",
+  "customerName": "গ্রাহকের নাম",
+  "orderDetails": "অর্ডারের বিবরণ",
+  "currentBalance": "বর্তমান ব্যালেন্স:",
+  "advancePaid": "অগ্রিম পরিশোধিত:",
+  "totalUnpaid": "মোট বকেয়া:",
+  "noCustomers": "এখনো কোনো গ্রাহক নেই",
+  "noMatches": "কোনো মিল নেই",
+  "paid": "পরিশোধিত",
+  "unpaid": "বকেয়া",
+  "noHistory": "কোনো ইতিহাস নেই",
+  "deleteHistoryConfirm": "আপনি কি এই এন্ট্রিটি মুছে ফেলার বিষয়ে নিশ্চিত?",
+
+  "allClear": "AC",
+  "genericError": "কিছু ভুল হয়েছে। আবার চেষ্টা করুন।"
+}

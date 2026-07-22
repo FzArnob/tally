@@ -30,6 +30,8 @@
   --green-700: #00b97b;
   --red-600: #e62737;
   --red-700: #e62737;
+  --orange-600: #fca103;
+  --orange-700: #fca103;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
   /* Typography scale */
@@ -501,11 +503,80 @@ body {
 }
 
 .cb-row-amount.positive {
-  color: var(--green-600);
+  color: var(--green-700);
 }
 
 .cb-row-amount.negative {
-  color: var(--red-600);
+  color: var(--red-700);
+}
+
+/* Select dropdown styling */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  padding: 0.6rem 2.5rem 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-background);
+  color: var(--foreground);
+  font-size: var(--fs-base);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+select:focus {
+  outline: none;
+  background: var(--muted);
+  border-color: var(--ring);
+}
+
+select:hover {
+  background: var(--muted);
+}
+
+/* Hide default dropdown arrow */
+select::-ms-expand {
+  display: none;
+}
+
+select option {
+  padding: 0.5rem;
+  font-size: var(--fs-base);
+  color: var(--foreground);
+  background: var(--background);
+}
+
+/* Firefox specific */
+select option:hover {
+  background: var(--muted);
+}
+
+/* Custom dropdown arrow using pseudo-element */
+select::after {
+  content: '';
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-left: 0.5rem solid transparent;
+  border-right: 0.5rem solid transparent;
+  border-top: 0.5rem solid var(--muted-foreground);
+  pointer-events: none;
+}
+
+select:focus::after {
+  border-top-color: var(--foreground);
+}
+
+select[data-open]::after {
+  border-top: 0.5rem solid transparent;
+  border-bottom: 0.5rem solid var(--foreground);
+  transform: translateY(-50%) rotate(180deg);
 }
 
 .cb-modal-overlay,
@@ -830,23 +901,23 @@ body {
 }
 
 .cb-inc-btn.cb-inc {
-  background: var(--green-600);
+  background: var(--green-700);
   color: #fff;
   border: none;
 }
 
 .cb-inc-btn.cb-dec {
-  background: var(--red-600);
+  background: var(--red-700);
   color: #fff;
   border: none;
 }
 
 .cb-inc-btn.cb-inc:hover {
-  background: var(--green-700);
+  filter: brightness(1.05);
 }
 
 .cb-inc-btn.cb-dec:hover {
-  background: var(--red-700);
+  filter: brightness(1.05);
 }
 
 .cb-inc-btn:hover {
@@ -855,22 +926,6 @@ body {
 
 .cb-inc-btn:active {
   transform: scale(0.94);
-}
-
-.cb-save-btn {
-  background: #eb8634 !important;
-  color: #fff !important;
-  border: none;
-}
-
-.cb-save-btn:hover:not([disabled]) {
-  background: #d97428 !important;
-}
-
-.cb-save-btn[disabled] {
-  opacity: 0.55;
-  cursor: not-allowed;
-  filter: grayscale(10%);
 }
 
 .hidden {
@@ -1020,11 +1075,11 @@ input:focus {
 }
 
 .cb-total-paid {
-  color: var(--green-700);
+  color: var(--green-600);
 }
 
 .cb-total-unpaid {
-  color: var(--red-700);
+  color: var(--red-600);
 }
 
 .close-btn {
@@ -1195,11 +1250,11 @@ input:focus {
 }
 
 .cb-row-amount.positive {
-  color: var(--green-600);
+  color: var(--green-700);
 }
 
 .cb-row-amount.negative {
-  color: var(--red-600);
+  color: var(--red-700);
 }
 
 /* Modals (reuse look & feel) */
@@ -1354,15 +1409,26 @@ input:focus {
   transform: scale(0.94);
 }
 
+.hidden {
+  display: none !important;
+}
+
 /* Save button custom color */
 .cb-save-btn {
-  background: #eb8634 !important;
+  background: var(--green-600) !important;
   color: #fff !important;
   border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--fs-btn);
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+  min-width: 100px;
 }
 
 .cb-save-btn:hover:not([disabled]) {
-  background: #d97428 !important;
+  background: var(--green-700) !important;
 }
 
 .cb-save-btn[disabled] {
@@ -1418,11 +1484,11 @@ input:focus {
 }
 
 .cbh-entry-amount.positive {
-  color: var(--green-600);
+  color: var(--green-700);
 }
 
 .cbh-entry-amount.negative {
-  color: var(--red-600);
+  color: var(--red-700);
 }
 
 .cbh-entry-reason {
@@ -1550,3 +1616,274 @@ input:focus {
 }
 
 /* === End of removal of right-side shade === */
+
+/* =========================================================
+   Product-wise Cash Flow (pc-*)
+   ========================================================= */
+.pc-main {
+  padding: 0 1.5rem 2rem;
+}
+
+.pc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 0.9rem;
+}
+
+.pc-item {
+  aspect-ratio: 1 / 1;
+  border-radius: 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.6rem 0.4rem;
+  text-align: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.12s ease;
+}
+
+.pc-item:active {
+  transform: scale(0.95);
+}
+
+.pc-thumb {
+  width: 2.75rem;
+  height: 2.75rem;
+  object-fit: cover;
+  border-radius: 0.6rem;
+  background: var(--muted);
+}
+
+.pc-item-icon {
+  color: var(--muted-foreground);
+}
+
+.pc-item-name {
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.pc-item-stock {
+  font-size: 0.65rem;
+  color: var(--muted-foreground);
+}
+
+.pc-add {
+  border: 2px dashed var(--border);
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.pc-add:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.pc-empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--muted-foreground);
+  padding: 2rem 0;
+}
+
+/* Product image upload control */
+.pc-image-upload {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 0.85rem;
+  border: 1px dashed var(--border);
+  background: var(--input-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  overflow: hidden;
+  color: var(--muted-foreground);
+}
+
+.pc-image-upload:hover {
+  background: var(--muted);
+}
+
+.pc-image-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Stock In / Sale tab switch */
+.pc-tab-switch {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pc-tab-btn {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--fs-sm);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.pc-tab-btn.active[data-tab="stock"] {
+  background: var(--orange-600);
+  border-color: transparent;
+  color: #fff;
+}
+
+.pc-tab-btn.active[data-tab="sale"] {
+  background: var(--green-600);
+  border-color: transparent;
+  color: #fff;
+}
+
+.pc-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--fs-amount);
+  padding: 0.25rem 0.1rem;
+}
+
+.pc-action-header-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pc-action-thumb {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.6rem;
+  object-fit: cover;
+  background: var(--muted);
+}
+
+.pc-action-header-info h3 {
+  font-size: var(--fs-heading-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.pc-action-stock {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+
+/* Save button mode tints (Stock In = green, Sale = red) */
+.pc-save-stock {
+  background: var(--orange-600) !important;
+}
+
+.pc-save-stock:hover {
+  background: var(--orange-700) !important;
+  color: #fff !important;
+}
+
+.pc-save-sale {
+  background: var(--green-600) !important;
+}
+
+.pc-save-sale:hover {
+  background: var(--green-700) !important;
+  color: #fff !important;
+}
+
+/* History list additions */
+.pc-history-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.pc-hist-type {
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+}
+
+.pc-hist-type.stock {
+  background: rgba(207, 152, 1, 0.12);
+  color: var(--orange-700);
+}
+
+.pc-hist-type.sale {
+  background: rgba(0, 185, 123, 0.12);
+  color: var(--green-700);
+}
+
+.pc-hist-entry-actions {
+  display: flex;
+  gap: 0.15rem;
+}
+
+/* Delete confirmation modal */
+.pc-confirm-modal {
+  max-width: 26rem;
+  margin: 0 auto;
+}
+
+.pc-confirm-text {
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+  padding: 0.25rem 0 1rem;
+}
+
+.pc-confirm-cancel,
+.pc-confirm-delete {
+  flex: 1;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  font-size: var(--fs-btn);
+}
+
+.pc-confirm-cancel {
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+.pc-confirm-cancel:hover {
+  background: var(--muted);
+}
+
+.pc-confirm-delete {
+  border: none;
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}
+
+.pc-confirm-delete:hover {
+  background: #c81f2d;
+}
+
+@media (max-width: 640px) {
+  .pc-main {
+    padding: 0 1rem 1.5rem;
+  }
+
+  .pc-grid {
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    gap: 0.65rem;
+  }
+}

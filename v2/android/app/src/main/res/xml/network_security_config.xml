@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEV convenience: the Tally PHP API is served over plain HTTP (XAMPP), which
+  Android blocks by default on API 28+. This allows cleartext to localhost and
+  private LAN ranges so a device/emulator can reach your machine.
+
+  Referenced from AndroidManifest.xml:
+    <application ... android:networkSecurityConfig="@xml/network_security_config">
+
+  For a production deployment, serve the API over HTTPS and remove this file.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>       <!-- Android emulator → host -->
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">192.168.0.0</domain>    <!-- adjust to your LAN -->
+        <domain includeSubdomains="true">192.168.1.0</domain>
+    </domain-config>
+</network-security-config>

@@ -317,7 +317,7 @@
 .key {
   border: 1px solid var(--border);
   border-radius: 0.7rem;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 1.7 / 1;
   width: 100%;
   font-size: var(--fs-key);
   font-weight: var(--font-weight-medium);
@@ -374,6 +374,7 @@
 
 /* ---- Sticky footer: Paid / Unpaid commit buttons ---- */
 .commit {
+  padding: 0 1.25rem 1.25rem 1.25rem;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.65rem;

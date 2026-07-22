@@ -41,7 +41,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 1.25rem 1.25rem 1.75rem;
+  padding: 1.25rem 1.25rem 1.25rem;
 }
 
 /* Fixed footer pinned to the bottom of the sheet (e.g. Paid/Unpaid actions).

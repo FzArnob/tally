@@ -98,10 +98,12 @@ CREATE TABLE products (
     last_transaction_time DATETIME      NULL,
     created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_products_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+    CONSTRAINT fk_products_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+    -- A product name is unique within a book. (Also serves book_id+name lookups
+    -- and the "ORDER BY name" listing, so no separate index is needed.)
+    CONSTRAINT uq_product_identity UNIQUE (book_id, name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE INDEX idx_products_book_name     ON products(book_id, name);
 CREATE INDEX idx_products_book_last_txn ON products(book_id, last_transaction_time DESC);
 
 -- ---------------------------------------------------------------------------

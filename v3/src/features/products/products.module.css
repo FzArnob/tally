@@ -239,6 +239,15 @@
   gap: 1rem;
 }
 
+.formError {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.75rem;
+  font-size: var(--fs-sm);
+}
+
 /* ---- Action (stock/sale) modal ---- */
 .actionHeader {
   flex-shrink: 0;

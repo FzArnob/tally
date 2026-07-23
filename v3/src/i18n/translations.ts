@@ -50,6 +50,7 @@ export interface Translation {
   deleteProduct: string;
   deleteProductConfirm: string;
   failedDeleteProduct: string;
+  duplicateProduct: string;
 
   // Action (stock/sale) modal
   stockIn: string;
@@ -178,6 +179,7 @@ const en: Translation = {
   deleteProduct: 'Delete Product',
   deleteProductConfirm: 'Delete this product and all its stock/sale history? This cannot be undone.',
   failedDeleteProduct: 'Failed to delete product. Please try again.',
+  duplicateProduct: 'A product with this name already exists in this book.',
 
   stockIn: 'Stock In',
   sale: 'Sale',
@@ -299,6 +301,7 @@ const bn: Translation = {
   deleteProduct: 'পণ্য মুছুন',
   deleteProductConfirm: 'এই পণ্য ও তার সমস্ত স্টক/বিক্রয় ইতিহাস মুছে ফেলবেন? এটি ফেরানো যাবে না।',
   failedDeleteProduct: 'পণ্য মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
+  duplicateProduct: 'এই বইয়ে এই নামের একটি পণ্য ইতিমধ্যে আছে।',
 
   stockIn: 'স্টক ইন',
   sale: 'বিক্রয়',

@@ -404,13 +404,21 @@ on('GET', '/books/{id}/products', function ($a) {
 
 on('POST', '/books/{id}/products', function ($a) {
     $pdo = db();
+    $bookId = (int) $a['id'];
     $body = read_json_body();
     $name         = v_string($body['name'] ?? '', 100, true, 'Product name');
     $quantityType = v_string($body['quantity_type'] ?? 'piece', 50, false, 'Quantity type') ?: 'piece';
     $imageUrl     = isset($body['image_url']) && is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null;
 
+    // Product names are unique within a book.
+    $dup = $pdo->prepare('SELECT COUNT(*) FROM products WHERE book_id = ? AND name = ?');
+    $dup->execute([$bookId, $name]);
+    if ((int) $dup->fetchColumn() > 0) {
+        json_error('A product named "' . $name . '" already exists.', 409, 'duplicate');
+    }
+
     $stmt = $pdo->prepare('INSERT INTO products (book_id, name, quantity_type, image_url) VALUES (?, ?, ?, ?)');
-    $stmt->execute([(int) $a['id'], $name, $quantityType, $imageUrl]);
+    $stmt->execute([$bookId, $name, $quantityType, $imageUrl]);
     $id = (int) $pdo->lastInsertId();
 
     json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, $id))], 201);
@@ -429,6 +437,13 @@ on('PUT', '/products/{id}', function ($a) {
     $imageUrl     = array_key_exists('image_url', $body)
         ? (is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null)
         : $product['image_url'];
+
+    // Product names are unique within a book (excluding this product itself).
+    $dup = $pdo->prepare('SELECT COUNT(*) FROM products WHERE book_id = ? AND name = ? AND id <> ?');
+    $dup->execute([(int) $product['book_id'], $name, (int) $a['id']]);
+    if ((int) $dup->fetchColumn() > 0) {
+        json_error('Another product named "' . $name . '" already exists.', 409, 'duplicate');
+    }
 
     $pdo->prepare('UPDATE products SET name = ?, quantity_type = ?, image_url = ? WHERE id = ?')
         ->execute([$name, $quantityType, $imageUrl, (int) $a['id']]);

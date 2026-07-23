@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
 import { saveProduct } from '../../lib/api';
-import type { Product } from '../../types';
+import { ApiError, type Product } from '../../types';
 import type { Translation } from '../../i18n/translations';
 import styles from './products.module.css';
 
@@ -30,6 +30,7 @@ export function ProductFormModal({ open, product, onClose, onSaved }: ProductFor
   const [customType, setCustomType] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const isEdit = !!product;
@@ -37,6 +38,7 @@ export function ProductFormModal({ open, product, onClose, onSaved }: ProductFor
   // Sync form when opening.
   useEffect(() => {
     if (!open) return;
+    setError(null);
     if (product) {
       setName(product.name);
       const qt = product.quantity_type || 'piece';
@@ -67,18 +69,19 @@ export function ProductFormModal({ open, product, onClose, onSaved }: ProductFor
   const submit = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      alert(t.enterProductName);
+      setError(t.enterProductName);
       return;
     }
     let quantityType = type;
     if (type === 'custom') {
       quantityType = customType.trim();
       if (!quantityType) {
-        alert(t.enterQuantityType);
+        setError(t.enterQuantityType);
         return;
       }
     }
     setSaving(true);
+    setError(null);
     try {
       await saveProduct({
         productId: product?.id ?? null,
@@ -89,8 +92,14 @@ export function ProductFormModal({ open, product, onClose, onSaved }: ProductFor
       onSaved();
       onClose();
     } catch (err) {
-      console.error('Failed to save product:', err);
-      alert(t.failedSaveProduct);
+      if (err instanceof ApiError && err.code === 'duplicate') {
+        setError(t.duplicateProduct);
+      } else if (err instanceof ApiError && err.code === 'validation') {
+        setError(err.message);
+      } else {
+        console.error('Failed to save product:', err);
+        setError(t.failedSaveProduct);
+      }
     } finally {
       setSaving(false);
     }
@@ -170,6 +179,8 @@ export function ProductFormModal({ open, product, onClose, onSaved }: ProductFor
             />
           )}
         </div>
+
+        {error && <div className={styles.formError}>{error}</div>}
 
         <button className="btn btn-primary btn-block" onClick={submit} disabled={saving}>
           {isEdit ? t.saveChanges : t.addProduct}

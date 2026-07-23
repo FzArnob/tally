@@ -97,6 +97,9 @@ export interface Translation {
   addProduct: string;
   editProduct: string;
   productImage: string;
+  adjustPhoto: string;
+  zoom: string;
+  usePhoto: string;
   productName: string;
   productNamePlaceholder: string;
   quantityType: string;
@@ -290,6 +293,9 @@ const en: Translation = {
   addProduct: 'Add Product',
   editProduct: 'Edit Product',
   productImage: 'Product Image',
+  adjustPhoto: 'Adjust Photo',
+  zoom: 'Zoom',
+  usePhoto: 'Use Photo',
   productName: 'Product Name',
   productNamePlaceholder: 'e.g. Rice',
   quantityType: 'Quantity Type',
@@ -476,6 +482,9 @@ const bn: Translation = {
   addProduct: 'পণ্য যোগ করুন',
   editProduct: 'পণ্য সম্পাদনা',
   productImage: 'পণ্যের ছবি',
+  adjustPhoto: 'ছবি সমন্বয় করুন',
+  zoom: 'জুম',
+  usePhoto: 'ছবি ব্যবহার করুন',
   productName: 'পণ্যের নাম',
   productNamePlaceholder: 'যেমন চাল',
   quantityType: 'পরিমাণের ধরন',

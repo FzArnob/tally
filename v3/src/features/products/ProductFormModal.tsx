@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n/LanguageContext';
 import { saveProduct } from '../../lib/api';
 import { ApiError, type Product } from '../../types';
 import type { Translation } from '../../i18n/translations';
+import { ImageCropperModal } from './ImageCropperModal';
 import styles from './products.module.css';
 
 const KNOWN_TYPES = ['piece', 'packet', 'cartoon', 'kg', 'liter'] as const;
@@ -36,6 +37,7 @@ export function ProductFormModal({
   const [type, setType] = useState<string>('piece');
   const [customType, setCustomType] = useState('');
   const [image, setImage] = useState<string | null>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -67,9 +69,12 @@ export function ProductFormModal({
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // Reset so picking the same file again still fires onChange.
+    e.target.value = '';
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setImage(ev.target?.result as string);
+    // Open the cropper with the raw picture; it returns the optimized thumbnail.
+    reader.onload = (ev) => setCropSrc(ev.target?.result as string);
     reader.readAsDataURL(file);
   };
 
@@ -194,6 +199,16 @@ export function ProductFormModal({
           {isEdit ? t.saveChanges : t.addProduct}
         </button>
       </div>
+
+      <ImageCropperModal
+        open={cropSrc !== null}
+        src={cropSrc}
+        onCancel={() => setCropSrc(null)}
+        onConfirm={(dataUrl) => {
+          setImage(dataUrl);
+          setCropSrc(null);
+        }}
+      />
     </Modal>
   );
 }

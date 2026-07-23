@@ -14,6 +14,10 @@ const DB_HOST = '127.0.0.1';
 const DB_NAME = 'tally_v3';
 const DB_USER = 'root';
 const DB_PASS = 'root';
+// const DB_HOST = 'sql306.infinityfree.com';
+// const DB_NAME = 'if0_42478972_tally';
+// const DB_USER = 'if0_42478972';
+// const DB_PASS = 'Ovy2hs68U9akx';
 
 /**
  * Lazily-opened shared PDO connection.

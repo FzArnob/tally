@@ -1,13 +1,12 @@
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Header, CustomersButton } from './components/Header';
-import { ThemeToggle } from './components/ThemeToggle';
-import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { ProductsSection } from './features/products/ProductsSection';
 import { CustomersPage } from './features/customers/CustomersPage';
 import { TransactionsPage } from './features/transactions/TransactionsPage';
 import { CategoriesPage } from './features/categories/CategoriesPage';
 import { useI18n } from './i18n/LanguageContext';
 import { useBooks } from './books/BooksContext';
+import { UserMenu } from './auth/UserMenu';
 import { BookSwitcher } from './books/BookSwitcher';
 import { WelcomeScreen } from './books/WelcomeScreen';
 import { bookHomePath } from './books/book';
@@ -63,12 +62,11 @@ function StoreProductsPage() {
         leading={<BookSwitcher current={book} />}
         actions={
           <>
-            <ThemeToggle />
-            <LanguageSwitcher />
             <CustomersButton
               label={t.customerBalances}
               onClick={() => navigate(`/${book.id}/customers`)}
             />
+            <UserMenu />
           </>
         }
       />

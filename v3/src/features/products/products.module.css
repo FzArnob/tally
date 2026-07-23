@@ -438,6 +438,145 @@
   text-align: right;
 }
 
+/* ---- Product type (segmented) + cost template ---- */
+.fieldHint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+
+.segmented {
+  display: flex;
+  gap: 0.3rem;
+  background: var(--input-background);
+  padding: 0.3rem;
+  border-radius: var(--radius);
+}
+
+.segBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.6rem 0.4rem;
+  border: none;
+  border-radius: calc(var(--radius) - 0.2rem);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.segBtn.segActive {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+}
+
+.costEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.costEditRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.costEditRow .input {
+  flex: 1;
+}
+
+.addCostBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: flex-start;
+  padding: 0.4rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+.addCostBtn:hover {
+  color: var(--foreground);
+  border-color: var(--muted-foreground);
+}
+
+/* ---- Manufacture stock-in cost breakdown (action modal) ---- */
+.costList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.costLineRow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.costLineName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+  color: var(--foreground);
+}
+
+.costLineInput {
+  width: 8rem;
+  flex: none;
+  text-align: right;
+}
+
+.perUnitRow {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.6rem;
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+/* ---- Cost breakdown in history ---- */
+.costBreakdown {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.65rem;
+  background: var(--input-background);
+  border-radius: calc(var(--radius) - 0.2rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.costBreakdown li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+
+.costBreakName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (max-width: 640px) {
   .list {
     padding: 0.85rem 0.9rem 2rem;

@@ -35,12 +35,18 @@
 USE tally_v3;
 SET time_zone = '+00:00';
 
--- Re-runnable: drop previous demo books (FK cascades remove all their children).
-DELETE FROM books WHERE name IN ('Samad General Store', 'Personal Finance');
+-- Demo owner — every seeded book belongs to this user (fixed id so re-runs reuse it).
+SET @demo_user = '00000000-0000-4000-8000-000000000000';
+INSERT INTO users (id, google_id, email, name)
+VALUES (@demo_user, 'demo-google-id', 'demo@example.com', 'Demo User')
+ON DUPLICATE KEY UPDATE email = VALUES(email);
 
-INSERT INTO books (name, type) VALUES ('Samad General Store', 'store');
+-- Re-runnable: drop previous demo books (FK cascades remove all their children).
+DELETE FROM books WHERE user_id = @demo_user AND name IN ('Samad General Store', 'Personal Finance');
+
+INSERT INTO books (user_id, name, type) VALUES (@demo_user, 'Samad General Store', 'store');
 SET @store_book = LAST_INSERT_ID();
-INSERT INTO books (name, type) VALUES ('Personal Finance', 'personal');
+INSERT INTO books (user_id, name, type) VALUES (@demo_user, 'Personal Finance', 'personal');
 SET @personal_book = LAST_INSERT_ID();
 
 DROP PROCEDURE IF EXISTS seed_store;

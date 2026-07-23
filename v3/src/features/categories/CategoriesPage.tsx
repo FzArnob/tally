@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n/LanguageContext';
 import { Header, HeaderBackButton } from '../../components/Header';
-import { ThemeToggle } from '../../components/ThemeToggle';
-import { LanguageSwitcher } from '../../components/LanguageSwitcher';
+import { UserMenu } from '../../auth/UserMenu';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { deleteCategory, getCategories } from '../../lib/api';
 import type { Book, CashflowType, Category } from '../../types';
@@ -161,12 +160,7 @@ export function CategoriesPage({ book }: { book: Book }) {
           <HeaderBackButton label={t.back} onClick={() => navigate(`/${bookId}/transactions`)} />
         }
         title={t.categoriesTitle}
-        actions={
-          <>
-            <ThemeToggle />
-            <LanguageSwitcher />
-          </>
-        }
+        actions={<UserMenu />}
       />
 
       <div className={styles.page}>

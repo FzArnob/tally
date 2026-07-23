@@ -19,6 +19,15 @@ const DB_PASS = 'root';
 // const DB_USER = 'if0_42478972';
 // const DB_PASS = 'Ovy2hs68U9akx';
 
+// ---- Google Sign-In --------------------------------------------------------
+// OAuth 2.0 "Web application" client ID — the SAME value the frontend uses
+// (VITE_GOOGLE_CLIENT_ID). Login is refused until this is set. The client
+// secret is not needed for the ID-token flow; it's kept here for future use.
+const GOOGLE_CLIENT_ID     = '';
+const GOOGLE_CLIENT_SECRET = '';
+// How long a login session stays valid, in seconds (default: 30 days).
+const SESSION_TTL = 2592000;
+
 /**
  * Lazily-opened shared PDO connection.
  */
@@ -138,4 +147,29 @@ function v_amount($value, string $field = 'Amount'): float
         json_error("$field is too large.", 422, 'validation');
     }
     return round($n, 3);
+}
+
+// ---- Auth helpers ----------------------------------------------------------
+
+/** Decode a base64url string (JWT segments) to raw bytes. */
+function b64url_decode(string $s): string
+{
+    $pad = strlen($s) % 4;
+    if ($pad) {
+        $s .= str_repeat('=', 4 - $pad);
+    }
+    return (string) base64_decode(strtr($s, '-_', '+/'));
+}
+
+/**
+ * The bearer token from the Authorization header, or null. Apache can hide the
+ * header, so .htaccess re-exposes it as REDIRECT_HTTP_AUTHORIZATION as a fallback.
+ */
+function bearer_token(): ?string
+{
+    $h = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
+    if (is_string($h) && preg_match('/Bearer\s+(\S+)/i', $h, $m)) {
+        return $m[1];
+    }
+    return null;
 }

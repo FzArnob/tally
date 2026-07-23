@@ -3,6 +3,8 @@
 
 import {
   ApiError,
+  type AuthResponse,
+  type MeResponse,
   type Book,
   type BookType,
   type BooksResponse,
@@ -23,6 +25,8 @@ import {
   type SavePersonalTxResponse,
   type TransactionsResponse,
   type BalanceType,
+  type ProductType,
+  type TransactionCost,
   type TransactionType,
 } from '../types';
 
@@ -31,8 +35,27 @@ const API_BASE = (import.meta.env.VITE_API_BASE || '/tally/v3/backend/').replace
 
 export const BOOK_ID = 1; // Default book (Samad's Store)
 
+// ---- Auth token wiring -----------------------------------------------------
+// The session token (set by the auth layer after login) is attached to every
+// request as a Bearer credential. A 401 anywhere means the session is gone, so
+// we notify a registered handler (the AuthProvider) to sign the user out.
+let authToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, init);
+  const headers = new Headers(init?.headers);
+  if (authToken) {
+    headers.set('Authorization', `Bearer ${authToken}`);
+  }
+  const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
   let data: unknown = null;
   try {
     data = await response.json();
@@ -41,6 +64,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!response.ok) {
     const err = (data ?? {}) as { error?: string; code?: string };
+    // Session expired/revoked — let the app drop back to the login screen.
+    if (response.status === 401 && onUnauthorized) {
+      onUnauthorized();
+    }
     throw new ApiError(
       err.error || `Request failed with status ${response.status}`,
       response.status,
@@ -55,6 +82,22 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 });
+
+// ---- Auth ----
+/** Exchange a Google ID token (credential) for our own session token + user. */
+export function googleLogin(idToken: string): Promise<AuthResponse> {
+  return request<AuthResponse>('auth/google', jsonInit('POST', { id_token: idToken }));
+}
+
+/** Validate the stored token and fetch the current user. */
+export function getMe(): Promise<MeResponse> {
+  return request<MeResponse>('auth/me');
+}
+
+/** Revoke the current session server-side. */
+export function logout(): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>('auth/logout', { method: 'POST' });
+}
 
 // ---- Books ----
 export function getBooks(): Promise<BooksResponse> {
@@ -155,11 +198,28 @@ export function saveProduct(params: {
   productId?: number | null;
   name: string;
   quantityType: string;
+  productType?: ProductType;
+  /** Cost-line labels for a manufacture product (ignored for ready-made). */
+  costItems?: string[];
   imageUrl?: string | null;
   bookId?: number;
 }): Promise<SaveProductResponse> {
-  const { productId = null, name, quantityType, imageUrl = null, bookId = BOOK_ID } = params;
-  const body = { name, quantity_type: quantityType, image_url: imageUrl };
+  const {
+    productId = null,
+    name,
+    quantityType,
+    productType = 'ready_made',
+    costItems = [],
+    imageUrl = null,
+    bookId = BOOK_ID,
+  } = params;
+  const body = {
+    name,
+    quantity_type: quantityType,
+    product_type: productType,
+    cost_items: costItems,
+    image_url: imageUrl,
+  };
   return productId
     ? request<SaveProductResponse>(`products/${productId}`, jsonInit('PUT', body))
     : request<SaveProductResponse>(`books/${bookId}/products`, jsonInit('POST', body));
@@ -174,14 +234,16 @@ export function saveProductTransaction(params: {
   type: TransactionType;
   quantity: number;
   pricePerUnit: number;
+  /** Per-line cost breakdown for a manufacture stock-in (price is derived from it server-side). */
+  costs?: TransactionCost[];
   note?: string | null;
   /** When editing, the id of the transaction this one replaces (insert+delete atomically). */
   replaces?: number | null;
 }): Promise<SaveTransactionResponse> {
-  const { productId, type, quantity, pricePerUnit, note = null, replaces = null } = params;
+  const { productId, type, quantity, pricePerUnit, costs = [], note = null, replaces = null } = params;
   return request<SaveTransactionResponse>(
     `products/${productId}/transactions`,
-    jsonInit('POST', { type, quantity, price_per_unit: pricePerUnit, note, replaces }),
+    jsonInit('POST', { type, quantity, price_per_unit: pricePerUnit, costs, note, replaces }),
   );
 }
 

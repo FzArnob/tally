@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../i18n/LanguageContext';
-import { ThemeToggle } from '../components/ThemeToggle';
-import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { UserMenu } from '../auth/UserMenu';
 import { useBooks } from './BooksContext';
 import { bookHomePath } from './book';
 import { BookFormModal } from './BookFormModal';
@@ -25,8 +24,7 @@ export function WelcomeScreen() {
   return (
     <>
       <div className={styles.topControls}>
-        <ThemeToggle />
-        <LanguageSwitcher />
+        <UserMenu />
       </div>
 
       <div className={styles.screen}>

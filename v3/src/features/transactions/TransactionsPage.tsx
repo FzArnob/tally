@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n/LanguageContext';
 import { Header, CategoriesButton } from '../../components/Header';
-import { ThemeToggle } from '../../components/ThemeToggle';
-import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 import { BookSwitcher } from '../../books/BookSwitcher';
+import { UserMenu } from '../../auth/UserMenu';
 import { Toolbar } from '../../components/Toolbar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { deletePersonalTransaction, getCategories, getTransactions } from '../../lib/api';
@@ -127,12 +126,11 @@ export function TransactionsPage({ book }: { book: Book }) {
         leading={<BookSwitcher current={book} />}
         actions={
           <>
-            <ThemeToggle />
-            <LanguageSwitcher />
             <CategoriesButton
               label={t.categories}
               onClick={() => navigate(`/${bookId}/categories`)}
             />
+            <UserMenu />
           </>
         }
       />

@@ -11,7 +11,7 @@ require __DIR__ . '/config.php';
 // ---- CORS ------------------------------------------------------------------
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
@@ -44,6 +44,11 @@ function dispatch(): void
         if (preg_match($regex, $path, $params)) {
             $pathMatched = true;
             if ($m === $method) {
+                // Every route except the API banner and the login endpoint needs a
+                // valid session; the resolved user is stashed for authUser().
+                if (!($path === '/' || ($path === '/auth/google' && $method === 'POST'))) {
+                    $GLOBALS['AUTH_USER'] = requireAuth(db());
+                }
                 $args = array_filter($params, 'is_string', ARRAY_FILTER_USE_KEY);
                 $handler($args);
                 return;
@@ -54,6 +59,119 @@ function dispatch(): void
         json_error('Method not allowed.', 405);
     }
     json_error('Not found.', 404);
+}
+
+// ===========================================================================
+// Authentication (Google Sign-In → server-issued session token)
+// ===========================================================================
+
+/** Resolve the caller from their bearer token + an unexpired session, or null. */
+function currentUser(PDO $pdo): ?array
+{
+    $token = bearer_token();
+    if ($token === null) {
+        return null;
+    }
+    $stmt = $pdo->prepare(
+        'SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
+         WHERE s.token = ? AND s.expires_at > UTC_TIMESTAMP()'
+    );
+    $stmt->execute([$token]);
+    return $stmt->fetch() ?: null;
+}
+
+/** Like currentUser() but 401s when there is no valid session. */
+function requireAuth(PDO $pdo): array
+{
+    $u = currentUser($pdo);
+    if (!$u) {
+        json_error('Please sign in to continue.', 401, 'unauthenticated');
+    }
+    return $u;
+}
+
+/** The user resolved for this request by dispatch() (guaranteed on all guarded routes). */
+function authUser(): array
+{
+    if (empty($GLOBALS['AUTH_USER'])) {
+        json_error('Please sign in to continue.', 401, 'unauthenticated');
+    }
+    return $GLOBALS['AUTH_USER'];
+}
+
+/** Fetch the book only if it belongs to the caller; 404 otherwise. */
+function requireOwnedBook(PDO $pdo, int $bookId): array
+{
+    $stmt = $pdo->prepare('SELECT id, user_id, name, type FROM books WHERE id = ? AND user_id = ?');
+    $stmt->execute([$bookId, authUser()['id']]);
+    $b = $stmt->fetch();
+    if (!$b) {
+        json_error('Book not found.', 404, 'not_found');
+    }
+    return $b;
+}
+
+/** Google's active signing certificates (PEM keyed by `kid`), cached ~1h on disk. */
+function googleSigningCert(string $kid): ?string
+{
+    static $certs = null;
+    if ($certs === null) {
+        $cacheFile = sys_get_temp_dir() . '/tally_google_certs.json';
+        $raw = false;
+        if (is_file($cacheFile) && (time() - filemtime($cacheFile)) < 3600) {
+            $raw = file_get_contents($cacheFile);
+        }
+        if ($raw === false) {
+            $raw = @file_get_contents('https://www.googleapis.com/oauth2/v1/certs');
+            if ($raw !== false) {
+                @file_put_contents($cacheFile, $raw);
+            }
+        }
+        $certs = is_string($raw) ? (json_decode($raw, true) ?: []) : [];
+    }
+    return $certs[$kid] ?? null;
+}
+
+/**
+ * Verify a Google ID token locally (RS256 against Google's certs) and return its
+ * claims. Any failure ends the request with a 401. This is the whole trust anchor
+ * for login, so every check (signature, issuer, audience, expiry) is enforced.
+ */
+function verifyGoogleIdToken(string $jwt): array
+{
+    if (GOOGLE_CLIENT_ID === '') {
+        json_error('Google sign-in is not configured on the server.', 500, 'not_configured');
+    }
+    $parts = explode('.', $jwt);
+    if (count($parts) !== 3) {
+        json_error('Invalid sign-in token.', 401, 'auth_failed');
+    }
+    [$h64, $p64, $s64] = $parts;
+    $header  = json_decode(b64url_decode($h64), true);
+    $payload = json_decode(b64url_decode($p64), true);
+    if (!is_array($header) || !is_array($payload)) {
+        json_error('Invalid sign-in token.', 401, 'auth_failed');
+    }
+    if (($header['alg'] ?? '') !== 'RS256' || ($header['kid'] ?? '') === '') {
+        json_error('Unsupported sign-in token.', 401, 'auth_failed');
+    }
+    $pem = googleSigningCert((string) $header['kid']);
+    if ($pem === null || openssl_verify("$h64.$p64", b64url_decode($s64), $pem, OPENSSL_ALGO_SHA256) !== 1) {
+        json_error('Could not verify sign-in token.', 401, 'auth_failed');
+    }
+    if (!in_array($payload['iss'] ?? '', ['accounts.google.com', 'https://accounts.google.com'], true)) {
+        json_error('Sign-in token has the wrong issuer.', 401, 'auth_failed');
+    }
+    if (($payload['aud'] ?? '') !== GOOGLE_CLIENT_ID) {
+        json_error('Sign-in token was issued for a different app.', 401, 'auth_failed');
+    }
+    if ((int) ($payload['exp'] ?? 0) < time()) {
+        json_error('Sign-in token has expired. Please try again.', 401, 'auth_failed');
+    }
+    if (empty($payload['sub'])) {
+        json_error('Sign-in token is missing a user id.', 401, 'auth_failed');
+    }
+    return $payload;
 }
 
 // ===========================================================================
@@ -138,6 +256,16 @@ function recomputeCategory(PDO $pdo, ?int $categoryId): void
 }
 
 // ---- Shaping helpers (cast SQL strings to clean JSON types) ----------------
+function shapeUser(array $u): array
+{
+    return [
+        'id'      => $u['id'],
+        'email'   => $u['email'],
+        'name'    => $u['name'],
+        'picture' => ($u['picture'] ?? '') !== '' ? $u['picture'] : null,
+    ];
+}
+
 function shapeBook(array $b): array
 {
     return [
@@ -162,13 +290,15 @@ function shapeCustomer(array $c): array
     ];
 }
 
-function shapeProduct(array $p): array
+function shapeProduct(array $p, array $costItems = []): array
 {
     return [
         'id'                    => (int) $p['id'],
         'book_id'               => (int) $p['book_id'],
         'name'                  => $p['name'],
         'quantity_type'         => $p['quantity_type'],
+        'product_type'          => $p['product_type'] ?? 'ready_made',
+        'cost_items'            => $costItems,
         'image_url'             => ($p['image_url'] ?? '') !== '' ? $p['image_url'] : null,
         'current_stock'         => (float) $p['current_stock'],
         'total_stock_in'        => (float) $p['total_stock_in'],
@@ -180,7 +310,7 @@ function shapeProduct(array $p): array
     ];
 }
 
-function shapeTransaction(array $t): array
+function shapeTransaction(array $t, array $costs = []): array
 {
     return [
         'id'             => (int) $t['id'],
@@ -191,6 +321,7 @@ function shapeTransaction(array $t): array
         'total_amount'   => (float) $t['total_amount'],
         'stock_after'    => (float) $t['stock_after'],
         'note'           => $t['note'],
+        'costs'          => $costs,
         'created_at'     => $t['created_at'],
     ];
 }
@@ -237,10 +368,15 @@ function shapePersonalTx(array $t): array
     ];
 }
 
+// find*() double as the ownership guard for resources addressed by their own id:
+// each joins through books so another user's row is simply "not found".
 function findCustomer(PDO $pdo, string $id): array
 {
-    $stmt = $pdo->prepare('SELECT * FROM customers WHERE id = ?');
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare(
+        'SELECT c.* FROM customers c JOIN books b ON b.id = c.book_id
+         WHERE c.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$id, authUser()['id']]);
     $c = $stmt->fetch();
     if (!$c) {
         json_error('Customer not found.', 404, 'not_found');
@@ -250,8 +386,11 @@ function findCustomer(PDO $pdo, string $id): array
 
 function findProduct(PDO $pdo, int $id): array
 {
-    $stmt = $pdo->prepare('SELECT * FROM products WHERE id = ?');
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare(
+        'SELECT p.* FROM products p JOIN books b ON b.id = p.book_id
+         WHERE p.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$id, authUser()['id']]);
     $p = $stmt->fetch();
     if (!$p) {
         json_error('Product not found.', 404, 'not_found');
@@ -261,8 +400,11 @@ function findProduct(PDO $pdo, int $id): array
 
 function findCategory(PDO $pdo, int $id): array
 {
-    $stmt = $pdo->prepare('SELECT * FROM categories WHERE id = ?');
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare(
+        'SELECT c.* FROM categories c JOIN books b ON b.id = c.book_id
+         WHERE c.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$id, authUser()['id']]);
     $c = $stmt->fetch();
     if (!$c) {
         json_error('Category not found.', 404, 'not_found');
@@ -272,13 +414,104 @@ function findCategory(PDO $pdo, int $id): array
 
 function findPersonalTx(PDO $pdo, int $id): array
 {
-    $stmt = $pdo->prepare('SELECT * FROM personal_transactions WHERE id = ?');
-    $stmt->execute([$id]);
+    $stmt = $pdo->prepare(
+        'SELECT t.* FROM personal_transactions t JOIN books b ON b.id = t.book_id
+         WHERE t.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$id, authUser()['id']]);
     $t = $stmt->fetch();
     if (!$t) {
         json_error('Transaction not found.', 404, 'not_found');
     }
     return $t;
+}
+
+// ---- Manufacture cost helpers ----------------------------------------------
+
+/** A manufacture product's cost-item template (labels), ordered for display. */
+function loadCostItems(PDO $pdo, int $productId): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT id, name FROM product_cost_items WHERE product_id = ? ORDER BY sort_order ASC, id ASC'
+    );
+    $stmt->execute([$productId]);
+    return array_map(fn($r) => ['id' => (int) $r['id'], 'name' => $r['name']], $stmt->fetchAll());
+}
+
+/** The per-line cost breakdown recorded for one stock-in transaction. */
+function loadTxCosts(PDO $pdo, int $txId): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT name, amount FROM product_transaction_costs WHERE transaction_id = ? ORDER BY sort_order ASC, id ASC'
+    );
+    $stmt->execute([$txId]);
+    return array_map(fn($r) => ['name' => $r['name'], 'amount' => (float) $r['amount']], $stmt->fetchAll());
+}
+
+/** Normalise an incoming cost-item template to a clean list of label strings. */
+function parseCostItemNames($raw): array
+{
+    if (!is_array($raw)) {
+        return [];
+    }
+    $names = [];
+    foreach ($raw as $item) {
+        $name = is_array($item) ? ($item['name'] ?? '') : $item;
+        $name = is_string($name) ? trim($name) : '';
+        if ($name === '') {
+            continue;
+        }
+        $names[] = mb_substr($name, 0, 100);
+        if (count($names) >= 50) {
+            break;
+        }
+    }
+    return $names;
+}
+
+/** Replace a product's cost-item template with the given labels (order preserved). */
+function saveCostItems(PDO $pdo, int $productId, int $bookId, array $names): void
+{
+    $pdo->prepare('DELETE FROM product_cost_items WHERE product_id = ?')->execute([$productId]);
+    $ins = $pdo->prepare(
+        'INSERT INTO product_cost_items (product_id, book_id, name, sort_order) VALUES (?, ?, ?, ?)'
+    );
+    $order = 0;
+    foreach ($names as $name) {
+        $ins->execute([$productId, $bookId, $name, $order++]);
+    }
+}
+
+/** Normalise an incoming stock-in cost breakdown to [['name'=>, 'amount'=>float], ...]. */
+function parseCosts($raw): array
+{
+    $out = [];
+    if (!is_array($raw)) {
+        return $out;
+    }
+    foreach ($raw as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $amtRaw = $item['amount'] ?? null;
+        // A blank line (no amount typed) is simply omitted from the breakdown.
+        if ($amtRaw === '' || $amtRaw === null || !is_numeric($amtRaw)) {
+            continue;
+        }
+        $amt = round((float) $amtRaw, 2);
+        if ($amt < 0) {
+            json_error('Cost amount must be 0 or more.', 422, 'validation');
+        }
+        $name = is_string($item['name'] ?? null) ? trim($item['name']) : '';
+        if ($name === '') {
+            $name = 'Cost';
+        }
+        $out[] = ['name' => mb_substr($name, 0, 100), 'amount' => $amt];
+        if (count($out) >= 50) {
+            break;
+        }
+    }
+    return $out;
 }
 
 // ===========================================================================
@@ -287,9 +520,60 @@ function findPersonalTx(PDO $pdo, int $id): array
 
 on('GET', '/', fn() => json_response(['name' => 'Tally v3 API', 'status' => 'ok']));
 
+// ---- Auth ----
+on('POST', '/auth/google', function () {
+    $pdo  = db();
+    $body = read_json_body();
+    $idToken = is_string($body['id_token'] ?? null) ? trim($body['id_token']) : '';
+    if ($idToken === '') {
+        json_error('Missing sign-in token.', 422, 'validation');
+    }
+    $claims  = verifyGoogleIdToken($idToken);
+    $sub     = (string) $claims['sub'];
+    $email   = is_string($claims['email']   ?? null) ? $claims['email']   : '';
+    $name    = is_string($claims['name']    ?? null) ? $claims['name']    : '';
+    $picture = is_string($claims['picture'] ?? null) ? $claims['picture'] : '';
+
+    // Upsert the user by their stable Google subject, refreshing the profile.
+    $stmt = $pdo->prepare('SELECT id FROM users WHERE google_id = ?');
+    $stmt->execute([$sub]);
+    $existing = $stmt->fetch();
+    if ($existing) {
+        $userId = $existing['id'];
+        $pdo->prepare('UPDATE users SET email = ?, name = ?, picture = ? WHERE id = ?')
+            ->execute([$email, $name, $picture, $userId]);
+    } else {
+        $userId = uuid4();
+        $pdo->prepare('INSERT INTO users (id, google_id, email, name, picture) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$userId, $sub, $email, $name, $picture]);
+    }
+
+    // Mint an opaque, revocable session token.
+    $token = bin2hex(random_bytes(32));
+    $pdo->prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)')
+        ->execute([$token, $userId, gmdate('Y-m-d H:i:s', time() + SESSION_TTL)]);
+
+    $u = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+    $u->execute([$userId]);
+    json_response(['success' => true, 'token' => $token, 'user' => shapeUser($u->fetch())]);
+});
+
+on('GET', '/auth/me', function () {
+    json_response(['user' => shapeUser(authUser())]);
+});
+
+on('POST', '/auth/logout', function () {
+    $token = bearer_token();
+    if ($token !== null) {
+        db()->prepare('DELETE FROM sessions WHERE token = ?')->execute([$token]);
+    }
+    json_response(['success' => true]);
+});
+
 // ---- Books ----
 on('GET', '/books', function () {
-    $stmt = db()->query('SELECT id, name, type FROM books ORDER BY id ASC');
+    $stmt = db()->prepare('SELECT id, name, type FROM books WHERE user_id = ? ORDER BY id ASC');
+    $stmt->execute([authUser()['id']]);
     $books = array_map('shapeBook', $stmt->fetchAll());
     json_response(['books' => $books]);
 });
@@ -303,7 +587,8 @@ on('POST', '/books', function () {
         json_error('Type must be "store" or "personal".', 422, 'validation');
     }
 
-    $pdo->prepare('INSERT INTO books (name, type) VALUES (?, ?)')->execute([$name, $type]);
+    $pdo->prepare('INSERT INTO books (user_id, name, type) VALUES (?, ?, ?)')
+        ->execute([authUser()['id'], $name, $type]);
     $id = (int) $pdo->lastInsertId();
 
     // Seed a starter set of categories for a new personal book.
@@ -324,23 +609,13 @@ on('POST', '/books', function () {
 });
 
 on('GET', '/books/{id}', function ($a) {
-    $stmt = db()->prepare('SELECT id, name, type FROM books WHERE id = ?');
-    $stmt->execute([(int) $a['id']]);
-    $book = $stmt->fetch();
-    if (!$book) {
-        json_error('Book not found.', 404, 'not_found');
-    }
-    json_response(shapeBook($book));
+    json_response(shapeBook(requireOwnedBook(db(), (int) $a['id'])));
 });
 
 on('PUT', '/books/{id}', function ($a) {
     $pdo = db();
     $id  = (int) $a['id'];
-    $exists = $pdo->prepare('SELECT id FROM books WHERE id = ?');
-    $exists->execute([$id]);
-    if (!$exists->fetch()) {
-        json_error('Book not found.', 404, 'not_found');
-    }
+    requireOwnedBook($pdo, $id);
 
     $body = read_json_body();
     $name = v_string($body['name'] ?? '', 100, true, 'Book name');
@@ -359,11 +634,7 @@ on('PUT', '/books/{id}', function ($a) {
 on('DELETE', '/books/{id}', function ($a) {
     $pdo = db();
     $id  = (int) $a['id'];
-    $exists = $pdo->prepare('SELECT id FROM books WHERE id = ?');
-    $exists->execute([$id]);
-    if (!$exists->fetch()) {
-        json_error('Book not found.', 404, 'not_found');
-    }
+    requireOwnedBook($pdo, $id);
     // FK cascades remove the book's products, customers, transactions and history.
     $pdo->prepare('DELETE FROM books WHERE id = ?')->execute([$id]);
     json_response(['success' => true]);
@@ -371,7 +642,9 @@ on('DELETE', '/books/{id}', function ($a) {
 
 // ---- Customers ----
 on('GET', '/books/{id}/customers', function ($a) {
-    $stmt = db()->prepare(
+    $pdo = db();
+    requireOwnedBook($pdo, (int) $a['id']);
+    $stmt = $pdo->prepare(
         'SELECT * FROM customers WHERE book_id = ? ORDER BY name ASC, nickname ASC'
     );
     $stmt->execute([(int) $a['id']]);
@@ -391,6 +664,7 @@ on('GET', '/books/{id}/customers', function ($a) {
 on('POST', '/books/{id}/customers', function ($a) {
     $pdo = db();
     $bookId = (int) $a['id'];
+    requireOwnedBook($pdo, $bookId);
     $body = read_json_body();
 
     $name     = v_string($body['name']     ?? '', 100, true,  'Name');
@@ -516,8 +790,11 @@ on('POST', '/customers/{id}/balance', function ($a) {
 
 on('DELETE', '/balance-history/{id}', function ($a) {
     $pdo = db();
-    $stmt = $pdo->prepare('SELECT * FROM customer_balance_history WHERE id = ?');
-    $stmt->execute([$a['id']]);
+    $stmt = $pdo->prepare(
+        'SELECT h.* FROM customer_balance_history h JOIN books b ON b.id = h.book_id
+         WHERE h.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$a['id'], authUser()['id']]);
     $entry = $stmt->fetch();
     if (!$entry) {
         json_error('History entry not found.', 404, 'not_found');
@@ -538,17 +815,46 @@ on('DELETE', '/balance-history/{id}', function ($a) {
 
 // ---- Products ----
 on('GET', '/books/{id}/products', function ($a) {
-    $stmt = db()->prepare('SELECT * FROM products WHERE book_id = ? ORDER BY name ASC');
-    $stmt->execute([(int) $a['id']]);
-    json_response(['products' => array_map('shapeProduct', $stmt->fetchAll())]);
+    $pdo    = db();
+    $bookId = (int) $a['id'];
+    requireOwnedBook($pdo, $bookId);
+    $stmt = $pdo->prepare('SELECT * FROM products WHERE book_id = ? ORDER BY name ASC');
+    $stmt->execute([$bookId]);
+    $products = $stmt->fetchAll();
+
+    // One grouped query for the whole book's cost-item templates (avoids N+1).
+    $ci = $pdo->prepare(
+        'SELECT id, product_id, name FROM product_cost_items WHERE book_id = ? ORDER BY product_id, sort_order, id'
+    );
+    $ci->execute([$bookId]);
+    $byProduct = [];
+    foreach ($ci->fetchAll() as $r) {
+        $byProduct[(int) $r['product_id']][] = ['id' => (int) $r['id'], 'name' => $r['name']];
+    }
+
+    json_response([
+        'products' => array_map(
+            fn($p) => shapeProduct($p, $byProduct[(int) $p['id']] ?? []),
+            $products
+        ),
+    ]);
 });
 
 on('POST', '/books/{id}/products', function ($a) {
     $pdo = db();
     $bookId = (int) $a['id'];
+    requireOwnedBook($pdo, $bookId);
     $body = read_json_body();
     $name         = v_string($body['name'] ?? '', 100, true, 'Product name');
     $quantityType = v_string($body['quantity_type'] ?? 'piece', 50, false, 'Quantity type') ?: 'piece';
+    $productType  = $body['product_type'] ?? 'ready_made';
+    if (!in_array($productType, ['ready_made', 'manufacture'], true)) {
+        json_error('Product type must be "ready_made" or "manufacture".', 422, 'validation');
+    }
+    $costNames = $productType === 'manufacture' ? parseCostItemNames($body['cost_items'] ?? null) : [];
+    if ($productType === 'manufacture' && count($costNames) === 0) {
+        json_error('Add at least one raw material or cost line.', 422, 'validation');
+    }
     $imageUrl     = isset($body['image_url']) && is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null;
 
     // Product names are unique within a book.
@@ -558,38 +864,67 @@ on('POST', '/books/{id}/products', function ($a) {
         json_error('A product named "' . $name . '" already exists.', 409, 'duplicate');
     }
 
-    $stmt = $pdo->prepare('INSERT INTO products (book_id, name, quantity_type, image_url) VALUES (?, ?, ?, ?)');
-    $stmt->execute([$bookId, $name, $quantityType, $imageUrl]);
-    $id = (int) $pdo->lastInsertId();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('INSERT INTO products (book_id, name, quantity_type, product_type, image_url) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$bookId, $name, $quantityType, $productType, $imageUrl]);
+        $id = (int) $pdo->lastInsertId();
+        saveCostItems($pdo, $id, $bookId, $costNames);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save product.', 500);
+    }
 
-    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, $id))], 201);
+    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, $id), loadCostItems($pdo, $id))], 201);
 });
 
 on('GET', '/products/{id}', function ($a) {
-    json_response(['product' => shapeProduct(findProduct(db(), (int) $a['id']))]);
+    $pdo = db();
+    $id  = (int) $a['id'];
+    json_response(['product' => shapeProduct(findProduct($pdo, $id), loadCostItems($pdo, $id))]);
 });
 
 on('PUT', '/products/{id}', function ($a) {
     $pdo = db();
-    $product = findProduct($pdo, (int) $a['id']);
+    $id  = (int) $a['id'];
+    $product = findProduct($pdo, $id);
     $body = read_json_body();
     $name         = v_string($body['name'] ?? '', 100, true, 'Product name');
     $quantityType = v_string($body['quantity_type'] ?? 'piece', 50, false, 'Quantity type') ?: 'piece';
+    $productType  = $body['product_type'] ?? 'ready_made';
+    if (!in_array($productType, ['ready_made', 'manufacture'], true)) {
+        json_error('Product type must be "ready_made" or "manufacture".', 422, 'validation');
+    }
+    $costNames = $productType === 'manufacture' ? parseCostItemNames($body['cost_items'] ?? null) : [];
+    if ($productType === 'manufacture' && count($costNames) === 0) {
+        json_error('Add at least one raw material or cost line.', 422, 'validation');
+    }
     $imageUrl     = array_key_exists('image_url', $body)
         ? (is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null)
         : $product['image_url'];
 
     // Product names are unique within a book (excluding this product itself).
     $dup = $pdo->prepare('SELECT COUNT(*) FROM products WHERE book_id = ? AND name = ? AND id <> ?');
-    $dup->execute([(int) $product['book_id'], $name, (int) $a['id']]);
+    $dup->execute([(int) $product['book_id'], $name, $id]);
     if ((int) $dup->fetchColumn() > 0) {
         json_error('Another product named "' . $name . '" already exists.', 409, 'duplicate');
     }
 
-    $pdo->prepare('UPDATE products SET name = ?, quantity_type = ?, image_url = ? WHERE id = ?')
-        ->execute([$name, $quantityType, $imageUrl, (int) $a['id']]);
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE products SET name = ?, quantity_type = ?, product_type = ?, image_url = ? WHERE id = ?')
+            ->execute([$name, $quantityType, $productType, $imageUrl, $id]);
+        // Replace the template. Past transactions keep their own snapshot in
+        // product_transaction_costs, so editing/clearing the template is safe.
+        saveCostItems($pdo, $id, (int) $product['book_id'], $costNames);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save product.', 500);
+    }
 
-    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, (int) $a['id']))]);
+    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, $id), loadCostItems($pdo, $id))]);
 });
 
 on('DELETE', '/products/{id}', function ($a) {
@@ -604,9 +939,29 @@ on('GET', '/products/{id}/transactions', function ($a) {
     findProduct($pdo, (int) $a['id']);
     $stmt = $pdo->prepare('SELECT * FROM product_transactions WHERE product_id = ? ORDER BY id DESC');
     $stmt->execute([(int) $a['id']]);
+    $txns = $stmt->fetchAll();
+
+    // One grouped query for every transaction's cost breakdown (avoids N+1).
+    $costsByTx = [];
+    $ids = array_map(fn($t) => (int) $t['id'], $txns);
+    if ($ids) {
+        $ph = implode(',', array_fill(0, count($ids), '?'));
+        $cs = $pdo->prepare(
+            "SELECT transaction_id, name, amount FROM product_transaction_costs
+             WHERE transaction_id IN ($ph) ORDER BY sort_order, id"
+        );
+        $cs->execute($ids);
+        foreach ($cs->fetchAll() as $r) {
+            $costsByTx[(int) $r['transaction_id']][] = ['name' => $r['name'], 'amount' => (float) $r['amount']];
+        }
+    }
+
     json_response([
         'product_id'   => (int) $a['id'],
-        'transactions' => array_map('shapeTransaction', $stmt->fetchAll()),
+        'transactions' => array_map(
+            fn($t) => shapeTransaction($t, $costsByTx[(int) $t['id']] ?? []),
+            $txns
+        ),
     ]);
 });
 
@@ -620,12 +975,27 @@ on('POST', '/products/{id}/transactions', function ($a) {
         json_error('Type must be "stock" or "sale".', 422, 'validation');
     }
     $quantity = v_amount($body['quantity'] ?? null, 'Quantity');
-    if (!isset($body['price_per_unit']) || !is_numeric($body['price_per_unit']) || (float) $body['price_per_unit'] < 0) {
-        json_error('Price per unit must be 0 or more.', 422, 'validation');
+    $note     = v_string($body['note'] ?? '', 255, false, 'Note');
+
+    // A manufacture stock-in derives its price from a per-line cost breakdown:
+    // total_amount = Σ costs, price_per_unit = total / quantity produced. Every
+    // other case (ready-made stock, any sale) uses the single price_per_unit.
+    $isManufactureStock = $type === 'stock' && ($product['product_type'] ?? 'ready_made') === 'manufacture';
+    $costs = [];
+    if ($isManufactureStock) {
+        $costs = parseCosts($body['costs'] ?? null);
+        $total = round(array_sum(array_column($costs, 'amount')), 2);
+        if (count($costs) === 0 || $total <= 0) {
+            json_error('Enter at least one cost amount for this batch.', 422, 'validation');
+        }
+        $price = round($total / $quantity, 2);
+    } else {
+        if (!isset($body['price_per_unit']) || !is_numeric($body['price_per_unit']) || (float) $body['price_per_unit'] < 0) {
+            json_error('Price per unit must be 0 or more.', 422, 'validation');
+        }
+        $price = round((float) $body['price_per_unit'], 2);
+        $total = round($quantity * $price, 2);
     }
-    $price = round((float) $body['price_per_unit'], 2);
-    $note  = v_string($body['note'] ?? '', 255, false, 'Note');
-    $total = round($quantity * $price, 2);
     // When editing, this entry replaces an existing one (insert + delete happen
     // atomically below), so no update endpoint is needed.
     $replaces = isset($body['replaces']) && is_numeric($body['replaces']) ? (int) $body['replaces'] : 0;
@@ -654,7 +1024,18 @@ on('POST', '/products/{id}/transactions', function ($a) {
              VALUES (?, ?, ?, ?, ?, ?, 0, ?)'
         )->execute([$product['id'], (int) $product['book_id'], $type, $quantity, $price, $total, $note !== '' ? $note : null]);
         $txId = (int) $pdo->lastInsertId();
+        // Persist the batch's cost breakdown (manufacture stock-in only).
+        if ($costs) {
+            $insCost = $pdo->prepare(
+                'INSERT INTO product_transaction_costs (transaction_id, name, amount, sort_order) VALUES (?, ?, ?, ?)'
+            );
+            $order = 0;
+            foreach ($costs as $c) {
+                $insCost->execute([$txId, $c['name'], $c['amount'], $order++]);
+            }
+        }
         if ($replaces > 0) {
+            // The old row's cost lines cascade-delete with it.
             $pdo->prepare('DELETE FROM product_transactions WHERE id = ? AND product_id = ?')
                 ->execute([$replaces, (int) $product['id']]);
         }
@@ -669,15 +1050,18 @@ on('POST', '/products/{id}/transactions', function ($a) {
     $stmt->execute([$txId]);
     json_response([
         'success'     => true,
-        'transaction' => shapeTransaction($stmt->fetch()),
-        'product'     => shapeProduct(findProduct($pdo, (int) $product['id'])),
+        'transaction' => shapeTransaction($stmt->fetch(), loadTxCosts($pdo, $txId)),
+        'product'     => shapeProduct(findProduct($pdo, (int) $product['id']), loadCostItems($pdo, (int) $product['id'])),
     ], 201);
 });
 
 on('DELETE', '/product-transactions/{id}', function ($a) {
     $pdo = db();
-    $stmt = $pdo->prepare('SELECT * FROM product_transactions WHERE id = ?');
-    $stmt->execute([(int) $a['id']]);
+    $stmt = $pdo->prepare(
+        'SELECT t.* FROM product_transactions t JOIN books b ON b.id = t.book_id
+         WHERE t.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([(int) $a['id'], authUser()['id']]);
     $tx = $stmt->fetch();
     if (!$tx) {
         json_error('Transaction not found.', 404, 'not_found');
@@ -693,12 +1077,17 @@ on('DELETE', '/product-transactions/{id}', function ($a) {
         json_error('Failed to delete transaction.', 500);
     }
 
-    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, (int) $tx['product_id']))]);
+    json_response([
+        'success' => true,
+        'product' => shapeProduct(findProduct($pdo, (int) $tx['product_id']), loadCostItems($pdo, (int) $tx['product_id'])),
+    ]);
 });
 
 // ---- Categories (personal books) ----
 on('GET', '/books/{id}/categories', function ($a) {
-    $stmt = db()->prepare('SELECT * FROM categories WHERE book_id = ? ORDER BY type ASC, name ASC');
+    $pdo = db();
+    requireOwnedBook($pdo, (int) $a['id']);
+    $stmt = $pdo->prepare('SELECT * FROM categories WHERE book_id = ? ORDER BY type ASC, name ASC');
     $stmt->execute([(int) $a['id']]);
     json_response(['categories' => array_map('shapeCategory', $stmt->fetchAll())]);
 });
@@ -706,6 +1095,7 @@ on('GET', '/books/{id}/categories', function ($a) {
 on('POST', '/books/{id}/categories', function ($a) {
     $pdo    = db();
     $bookId = (int) $a['id'];
+    requireOwnedBook($pdo, $bookId);
     $body   = read_json_body();
     $name    = v_string($body['name'] ?? '', 100, true, 'Category name');
     $details = v_string($body['details'] ?? '', 255, false, 'Details');
@@ -786,7 +1176,9 @@ function requireCategory(PDO $pdo, int $bookId, string $type, $rawId): array
 }
 
 on('GET', '/books/{id}/transactions', function ($a) {
-    $stmt = db()->prepare('SELECT * FROM personal_transactions WHERE book_id = ? ORDER BY id DESC');
+    $pdo = db();
+    requireOwnedBook($pdo, (int) $a['id']);
+    $stmt = $pdo->prepare('SELECT * FROM personal_transactions WHERE book_id = ? ORDER BY id DESC');
     $stmt->execute([(int) $a['id']]);
     $txns = array_map('shapePersonalTx', $stmt->fetchAll());
 
@@ -808,6 +1200,7 @@ on('GET', '/books/{id}/transactions', function ($a) {
 on('POST', '/books/{id}/transactions', function ($a) {
     $pdo    = db();
     $bookId = (int) $a['id'];
+    requireOwnedBook($pdo, $bookId);
     $body   = read_json_body();
 
     $type = $body['type'] ?? '';

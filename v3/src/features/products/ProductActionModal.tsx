@@ -13,6 +13,11 @@ interface ProductActionModalProps {
   onSaved: () => void;
 }
 
+interface CostLine {
+  name: string;
+  amount: string;
+}
+
 export function ProductActionModal({
   open,
   product,
@@ -24,26 +29,49 @@ export function ProductActionModal({
   const [tab, setTab] = useState<TransactionType>('stock');
   const [qty, setQty] = useState('');
   const [price, setPrice] = useState('');
+  const [costLines, setCostLines] = useState<CostLine[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !product) return;
+    // Cost lines come from the transaction being edited (its own snapshot), or
+    // from the product's current template for a fresh stock-in.
+    const templateLines: CostLine[] =
+      product.cost_items.length > 0
+        ? product.cost_items.map((c) => ({ name: c.name, amount: '' }))
+        : [{ name: '', amount: '' }];
     if (editTx) {
       setTab(editTx.type);
       setQty(String(editTx.quantity));
       setPrice(String(editTx.price_per_unit));
+      setCostLines(
+        editTx.costs.length > 0
+          ? editTx.costs.map((c) => ({ name: c.name, amount: String(c.amount) }))
+          : templateLines,
+      );
     } else {
       setTab('stock');
       setQty('');
       setPrice('');
+      setCostLines(templateLines);
     }
-  }, [open, editTx]);
+  }, [open, editTx, product]);
 
   if (!product) return null;
 
   const isStock = tab === 'stock';
-  const total = (parseFloat(qty) || 0) * (parseFloat(price) || 0);
+  const isManufacture = product.product_type === 'manufacture';
+  // A manufacture stock-in is costed from its line breakdown; everything else
+  // (ready-made stock, any sale) uses the single price field.
+  const showCostBreakdown = isStock && isManufacture;
+  const costTotal = costLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
+  const qtyNum = parseFloat(qty) || 0;
+  const perUnit = qtyNum > 0 ? costTotal / qtyNum : 0;
+  const total = showCostBreakdown ? costTotal : qtyNum * (parseFloat(price) || 0);
   const hasImage = product.image_url && product.image_url !== 'null';
+
+  const setCostAmount = (i: number, value: string) =>
+    setCostLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, amount: value } : l)));
 
   // Stock available for a sale. When editing, reverse the edited entry's effect
   // so lowering/raising it validates against the true baseline (mirrors the API).
@@ -54,12 +82,24 @@ export function ProductActionModal({
 
   const submit = async () => {
     const q = parseFloat(qty);
-    const p = parseFloat(price);
     if (!q || q <= 0) {
       alert(t.enterValidQuantity);
       return;
     }
-    if (isNaN(p) || p < 0) {
+
+    // Manufacture stock-in: build the cost breakdown; price is derived server-side.
+    let costs: { name: string; amount: number }[] = [];
+    let p = parseFloat(price);
+    if (showCostBreakdown) {
+      costs = costLines
+        .filter((l) => l.amount.trim() !== '' && !isNaN(parseFloat(l.amount)))
+        .map((l) => ({ name: l.name.trim(), amount: parseFloat(l.amount) }));
+      if (costTotal <= 0) {
+        alert(t.enterCostAmount);
+        return;
+      }
+      p = perUnit;
+    } else if (isNaN(p) || p < 0) {
       alert(t.enterValidPrice);
       return;
     }
@@ -76,6 +116,7 @@ export function ProductActionModal({
         type: tab,
         quantity: q,
         pricePerUnit: p,
+        costs,
         replaces: editTx?.id ?? null,
       });
       onSaved();
@@ -148,7 +189,7 @@ export function ProductActionModal({
         )}
 
         <div className="field">
-          <label htmlFor="qty">{t.quantity}</label>
+          <label htmlFor="qty">{showCostBreakdown ? t.quantityProduced : t.quantity}</label>
           <input
             id="qty"
             className="input"
@@ -162,23 +203,54 @@ export function ProductActionModal({
           />
         </div>
 
-        <div className="field">
-          <label htmlFor="price">{isStock ? t.buyingPrice : t.sellingPrice}</label>
-          <input
-            id="price"
-            className="input"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="any"
-            placeholder="0.00"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-          />
-        </div>
+        {showCostBreakdown ? (
+          <div className="field">
+            <label>{t.rawMaterials}</label>
+            <div className={styles.costList}>
+              {costLines.map((line, i) => (
+                <div key={i} className={styles.costLineRow}>
+                  <span className={styles.costLineName} title={line.name || t.cost}>
+                    {line.name || t.cost}
+                  </span>
+                  <input
+                    className={`input ${styles.costLineInput}`}
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="any"
+                    placeholder="0.00"
+                    value={line.amount}
+                    onChange={(e) => setCostAmount(i, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className={styles.perUnitRow}>
+              <span>{t.costPerUnit}</span>
+              <span>
+                {formatCurrency(perUnit)} / {unit}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="field">
+            <label htmlFor="price">{isStock ? t.buyingPrice : t.sellingPrice}</label>
+            <input
+              id="price"
+              className="input"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="any"
+              placeholder="0.00"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
+          </div>
+        )}
 
         <div className={styles.totalRow}>
-          <span>{t.total}</span>
+          <span>{showCostBreakdown ? t.totalCost : t.total}</span>
           <span className={styles.totalValue}>{formatCurrency(total)}</span>
         </div>
 

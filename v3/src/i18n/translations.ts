@@ -16,6 +16,13 @@ export interface Translation {
   english: string;
   bangla: string;
 
+  // Auth
+  signInSubtitle: string;
+  signInFailed: string;
+  googleNotConfigured: string;
+  account: string;
+  signOut: string;
+
   // Theme
   theme: string;
   themeSystem: string;
@@ -120,10 +127,28 @@ export interface Translation {
   failedDeleteProduct: string;
   duplicateProduct: string;
 
+  // Product type (ready-made / manufacture) + cost template
+  productType: string;
+  typeReadyMade: string;
+  typeManufacture: string;
+  typeReadyMadeHint: string;
+  typeManufactureHint: string;
+  rawMaterials: string;
+  rawMaterialsHint: string;
+  costItemPlaceholder: string;
+  addCostLine: string;
+  removeLine: string;
+  enterCostItem: string;
+
   // Action (stock/sale) modal
   stockIn: string;
   sale: string;
   quantity: string;
+  quantityProduced: string;
+  cost: string;
+  costPerUnit: string;
+  totalCost: string;
+  enterCostAmount: string;
   buyingPrice: string;
   sellingPrice: string;
   total: string;
@@ -209,7 +234,7 @@ export interface Translation {
 
 const en: Translation = {
   pageTitle: 'Cash Entry - Tally',
-  appName: 'Tally Store',
+  appName: 'Tally',
   numberFormat: 'en-US',
   timeFormat: 'en-US',
 
@@ -217,6 +242,12 @@ const en: Translation = {
   language: 'Language',
   english: 'English',
   bangla: 'বাংলা',
+
+  signInSubtitle: 'Sign in to manage your books.',
+  signInFailed: 'Sign-in failed. Please try again.',
+  googleNotConfigured: 'Google sign-in is not configured.',
+  account: 'Account',
+  signOut: 'Sign out',
 
   theme: 'Theme',
   themeSystem: 'System',
@@ -316,6 +347,24 @@ const en: Translation = {
   failedDeleteProduct: 'Failed to delete product. Please try again.',
   duplicateProduct: 'A product with this name already exists in this book.',
 
+  productType: 'Product Type',
+  typeReadyMade: 'Ready Made',
+  typeManufacture: 'Manufacture',
+  typeReadyMadeHint: 'Bought from a vendor and resold — one buying price per stock-in.',
+  typeManufactureHint: 'Made from raw materials — enter each cost when stocking in.',
+  rawMaterials: 'Raw materials & costs',
+  rawMaterialsHint: 'These cost lines appear each time you stock in. Fill their prices then.',
+  costItemPlaceholder: 'e.g. Flour, Labour, Packaging',
+  addCostLine: 'Add cost line',
+  removeLine: 'Remove line',
+  enterCostItem: 'Add at least one raw material or cost line.',
+
+  quantityProduced: 'Quantity Produced',
+  cost: 'Cost',
+  costPerUnit: 'Cost per unit',
+  totalCost: 'Total Cost',
+  enterCostAmount: 'Enter at least one cost amount for this batch.',
+
   stockIn: 'Stock In',
   sale: 'Sale',
   quantity: 'Quantity',
@@ -398,7 +447,7 @@ const en: Translation = {
 
 const bn: Translation = {
   pageTitle: 'নগদ এন্ট্রি - ট্যালি',
-  appName: 'ট্যালি স্টোর',
+  appName: 'ট্যালি',
   numberFormat: 'bn-BD',
   timeFormat: 'bn-BD',
 
@@ -406,6 +455,12 @@ const bn: Translation = {
   language: 'ভাষা',
   english: 'English',
   bangla: 'বাংলা',
+
+  signInSubtitle: 'আপনার বইগুলো পরিচালনা করতে সাইন ইন করুন।',
+  signInFailed: 'সাইন ইন ব্যর্থ হয়েছে। আবার চেষ্টা করুন।',
+  googleNotConfigured: 'গুগল সাইন-ইন কনফিগার করা নেই।',
+  account: 'অ্যাকাউন্ট',
+  signOut: 'সাইন আউট',
 
   theme: 'থিম',
   themeSystem: 'সিস্টেম',
@@ -504,6 +559,24 @@ const bn: Translation = {
   deleteProductConfirm: 'এই পণ্য ও তার সমস্ত স্টক/বিক্রয় ইতিহাস মুছে ফেলবেন? এটি ফেরানো যাবে না।',
   failedDeleteProduct: 'পণ্য মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
   duplicateProduct: 'এই বইয়ে এই নামের একটি পণ্য ইতিমধ্যে আছে।',
+
+  productType: 'পণ্যের ধরন',
+  typeReadyMade: 'রেডিমেড',
+  typeManufacture: 'উৎপাদিত',
+  typeReadyMadeHint: 'সরবরাহকারীর কাছ থেকে কিনে পুনরায় বিক্রি — প্রতি স্টকে একটি ক্রয়মূল্য।',
+  typeManufactureHint: 'কাঁচামাল দিয়ে তৈরি — স্টক করার সময় প্রতিটি খরচ লিখুন।',
+  rawMaterials: 'কাঁচামাল ও খরচ',
+  rawMaterialsHint: 'এই খরচের লাইনগুলো প্রতিবার স্টক করার সময় আসবে। তখন দাম লিখবেন।',
+  costItemPlaceholder: 'যেমন ময়দা, মজুরি, প্যাকেজিং',
+  addCostLine: 'খরচের লাইন যোগ করুন',
+  removeLine: 'লাইন সরান',
+  enterCostItem: 'অন্তত একটি কাঁচামাল বা খরচের লাইন যোগ করুন।',
+
+  quantityProduced: 'উৎপাদিত পরিমাণ',
+  cost: 'খরচ',
+  costPerUnit: 'প্রতি এককের খরচ',
+  totalCost: 'মোট খরচ',
+  enterCostAmount: 'এই ব্যাচের জন্য অন্তত একটি খরচের পরিমাণ লিখুন।',
 
   stockIn: 'স্টক ইন',
   sale: 'বিক্রয়',

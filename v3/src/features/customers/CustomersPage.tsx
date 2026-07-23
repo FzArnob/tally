@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useI18n } from '../../i18n/LanguageContext';
 import { Header, HeaderBackButton } from '../../components/Header';
-import { ThemeToggle } from '../../components/ThemeToggle';
-import { LanguageSwitcher } from '../../components/LanguageSwitcher';
+import { UserMenu } from '../../auth/UserMenu';
 import { Toolbar } from '../../components/Toolbar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { deleteCustomer, getCustomers, BOOK_ID } from '../../lib/api';
@@ -138,12 +137,7 @@ export function CustomersPage() {
       <Header
         leading={<HeaderBackButton label={t.back} onClick={() => navigate(`/${bookId}/products`)} />}
         title={t.customerBalancesTitle}
-        actions={
-          <>
-            <ThemeToggle />
-            <LanguageSwitcher />
-          </>
-        }
+        actions={<UserMenu />}
       />
 
       <div className={styles.page}>

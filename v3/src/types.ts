@@ -1,5 +1,23 @@
 // Shared domain types mirroring the Tally v3 PHP API responses.
 
+// ---- Auth ----
+export interface User {
+  id: string; // UUID
+  email: string;
+  name: string;
+  picture: string | null;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  token: string;
+  user: User;
+}
+
+export interface MeResponse {
+  user: User;
+}
+
 export type BookType = 'store' | 'personal';
 
 export interface Book {
@@ -126,6 +144,12 @@ export interface SavePersonalTxResponse {
 
 export type TransactionType = 'stock' | 'sale';
 
+/** One line of a manufacture stock-in's cost breakdown (snapshot at entry time). */
+export interface TransactionCost {
+  name: string;
+  amount: number;
+}
+
 export interface ProductTransaction {
   id: number;
   product_id: number;
@@ -135,7 +159,17 @@ export interface ProductTransaction {
   total_amount: number;
   stock_after: number;
   note: string | null;
+  /** Present (non-empty) only for a manufacture stock-in. */
+  costs: TransactionCost[];
   created_at: string;
+}
+
+export type ProductType = 'ready_made' | 'manufacture';
+
+/** A reusable cost-line label in a manufacture product's template. */
+export interface CostItem {
+  id: number;
+  name: string;
 }
 
 export interface Product {
@@ -143,6 +177,9 @@ export interface Product {
   book_id: number;
   name: string;
   quantity_type: string;
+  product_type: ProductType;
+  /** The cost-line template; empty for ready-made products. */
+  cost_items: CostItem[];
   image_url: string | null;
   current_stock: number;
   total_stock_in: number;

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
 import { saveProduct } from '../../lib/api';
-import { ApiError, type Product } from '../../types';
+import { ApiError, type Product, type ProductType } from '../../types';
 import type { Translation } from '../../i18n/translations';
 import { ImageCropperModal } from './ImageCropperModal';
 import styles from './products.module.css';
@@ -36,6 +36,8 @@ export function ProductFormModal({
   const [name, setName] = useState('');
   const [type, setType] = useState<string>('piece');
   const [customType, setCustomType] = useState('');
+  const [productType, setProductType] = useState<ProductType>('ready_made');
+  const [costItems, setCostItems] = useState<string[]>(['']);
   const [image, setImage] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -59,13 +61,27 @@ export function ProductFormModal({
         setCustomType(qt);
       }
       setImage(product.image_url && product.image_url !== 'null' ? product.image_url : null);
+      setProductType(product.product_type || 'ready_made');
+      setCostItems(
+        product.product_type === 'manufacture' && product.cost_items.length > 0
+          ? product.cost_items.map((c) => c.name)
+          : [''],
+      );
     } else {
       setName('');
       setType('piece');
       setCustomType('');
       setImage(null);
+      setProductType('ready_made');
+      setCostItems(['']);
     }
   }, [open, product]);
+
+  const setCostItemAt = (i: number, value: string) =>
+    setCostItems((prev) => prev.map((c, idx) => (idx === i ? value : c)));
+  const addCostItem = () => setCostItems((prev) => [...prev, '']);
+  const removeCostItem = (i: number) =>
+    setCostItems((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,6 +108,14 @@ export function ProductFormModal({
         return;
       }
     }
+    let cleanCostItems: string[] = [];
+    if (productType === 'manufacture') {
+      cleanCostItems = costItems.map((c) => c.trim()).filter(Boolean);
+      if (cleanCostItems.length === 0) {
+        setError(t.enterCostItem);
+        return;
+      }
+    }
     setSaving(true);
     setError(null);
     try {
@@ -99,6 +123,8 @@ export function ProductFormModal({
         productId: product?.id ?? null,
         name: trimmed,
         quantityType,
+        productType,
+        costItems: cleanCostItems,
         imageUrl: image,
         bookId,
       });
@@ -167,6 +193,35 @@ export function ProductFormModal({
         </div>
 
         <div className="field">
+          <label>{t.productType}</label>
+          <div className={styles.segmented} role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={productType === 'ready_made'}
+              className={`${styles.segBtn} ${productType === 'ready_made' ? styles.segActive : ''}`}
+              onClick={() => setProductType('ready_made')}
+            >
+              <span className="material-symbols-outlined icon-md">local_shipping</span>
+              {t.typeReadyMade}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={productType === 'manufacture'}
+              className={`${styles.segBtn} ${productType === 'manufacture' ? styles.segActive : ''}`}
+              onClick={() => setProductType('manufacture')}
+            >
+              <span className="material-symbols-outlined icon-md">precision_manufacturing</span>
+              {t.typeManufacture}
+            </button>
+          </div>
+          <span className={styles.fieldHint}>
+            {productType === 'manufacture' ? t.typeManufactureHint : t.typeReadyMadeHint}
+          </span>
+        </div>
+
+        <div className="field">
           <label htmlFor="pType">{t.quantityType}</label>
           <select
             id="pType"
@@ -192,6 +247,38 @@ export function ProductFormModal({
             />
           )}
         </div>
+
+        {productType === 'manufacture' && (
+          <div className="field">
+            <label>{t.rawMaterials}</label>
+            <span className={styles.fieldHint}>{t.rawMaterialsHint}</span>
+            <div className={styles.costEditor}>
+              {costItems.map((item, i) => (
+                <div key={i} className={styles.costEditRow}>
+                  <input
+                    className="input"
+                    value={item}
+                    onChange={(e) => setCostItemAt(i, e.target.value)}
+                    placeholder={t.costItemPlaceholder}
+                  />
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    aria-label={t.removeLine}
+                    onClick={() => removeCostItem(i)}
+                    disabled={costItems.length <= 1}
+                  >
+                    <span className="material-symbols-outlined icon-md">close</span>
+                  </button>
+                </div>
+              ))}
+              <button type="button" className={styles.addCostBtn} onClick={addCostItem}>
+                <span className="material-symbols-outlined icon-md">add</span>
+                {t.addCostLine}
+              </button>
+            </div>
+          </div>
+        )}
 
         {error && <div className={styles.formError}>{error}</div>}
 

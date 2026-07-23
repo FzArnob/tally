@@ -76,6 +76,16 @@ export function ProductHistoryModal({
                     </button>
                   </div>
                 </div>
+                {tx.costs.length > 0 && (
+                  <ul className={styles.costBreakdown}>
+                    {tx.costs.map((c, i) => (
+                      <li key={i}>
+                        <span className={styles.costBreakName}>{c.name}</span>
+                        <span>{formatCurrency(c.amount)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className={styles.entryFoot}>
                   <span>
                     {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}

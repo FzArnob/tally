@@ -2,10 +2,20 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Expose the Authorization header to PHP (Apache/CGI strips it by default),
+    # so bearer tokens reach $_SERVER['HTTP_AUTHORIZATION'] / REDIRECT_*.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
     # Send OPTIONS (CORS preflight) and any non-file/non-dir request to index.php.
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# Fallback for setups where mod_rewrite can't forward the header.
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
 </IfModule>
 
 # Never list the directory.

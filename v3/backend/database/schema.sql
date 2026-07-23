@@ -16,23 +16,61 @@ USE tally_v3;
 DROP TABLE IF EXISTS personal_transactions;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS customer_balance_history;
+DROP TABLE IF EXISTS product_transaction_costs;
 DROP TABLE IF EXISTS product_transactions;
+DROP TABLE IF EXISTS product_cost_items;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS sessions;
 DROP TABLE IF EXISTS books;
+DROP TABLE IF EXISTS users;
 
 -- ---------------------------------------------------------------------------
--- Books (a "store")
+-- Users — one row per Google account (UUID primary key). Identity comes from
+-- Google Sign-In: google_id is the token's `sub` claim (stable per account);
+-- email/name/picture are refreshed from the ID token on every login.
+-- ---------------------------------------------------------------------------
+CREATE TABLE users (
+    id         CHAR(36)     NOT NULL PRIMARY KEY,
+    google_id  VARCHAR(255) NOT NULL,               -- Google ID-token `sub`
+    email      VARCHAR(255) NOT NULL DEFAULT '',
+    name       VARCHAR(255) NOT NULL DEFAULT '',
+    picture    VARCHAR(512) NOT NULL DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_users_google UNIQUE (google_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+-- Books (a "store") — owned by exactly one user; a user can have many books.
 -- ---------------------------------------------------------------------------
 CREATE TABLE books (
     id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    CHAR(36)     NOT NULL,               -- owner (users.id)
     name       VARCHAR(100) NOT NULL,
     -- 'store' books use products + customer balances; 'personal' books use transactions.
     -- The UI renders a type-based icon (no per-book logo).
     type       ENUM('store','personal') NOT NULL DEFAULT 'store',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_books_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_books_user ON books(user_id, id);
+
+-- ---------------------------------------------------------------------------
+-- Sessions — opaque bearer tokens issued on login (revocable, server-side).
+-- The frontend stores the token and sends it as `Authorization: Bearer <token>`.
+-- ---------------------------------------------------------------------------
+CREATE TABLE sessions (
+    token      CHAR(64)  NOT NULL PRIMARY KEY,       -- random 32-byte hex
+    user_id    CHAR(36)  NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME  NOT NULL,
+    CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_sessions_user ON sessions(user_id);
 
 -- ---------------------------------------------------------------------------
 -- Customers — UUID primary key; names are NOT unique (a nickname disambiguates).
@@ -92,6 +130,11 @@ CREATE TABLE products (
     book_id               INT           NOT NULL,
     name                  VARCHAR(100)  NOT NULL,
     quantity_type         VARCHAR(50)   NOT NULL DEFAULT 'piece',
+    -- 'ready_made' products are bought and resold (one buying price per stock-in);
+    -- 'manufacture' products are produced from raw materials/costs, so a stock-in
+    -- carries a per-line cost breakdown (see product_cost_items / _transaction_costs)
+    -- and price_per_unit is the derived per-unit production cost.
+    product_type          ENUM('ready_made','manufacture') NOT NULL DEFAULT 'ready_made',
     image_url             MEDIUMTEXT     NULL,
     current_stock         DECIMAL(14,3) NOT NULL DEFAULT 0,
     total_stock_in        DECIMAL(14,3) NOT NULL DEFAULT 0,
@@ -111,8 +154,28 @@ CREATE TABLE products (
 CREATE INDEX idx_products_book_last_txn ON products(book_id, last_transaction_time DESC);
 
 -- ---------------------------------------------------------------------------
+-- Product cost items (manufacture products only) — the reusable *template* of
+-- cost-line labels defined when the product is added/edited (e.g. Flour, Sugar,
+-- Labour). During a stock-in the user fills an amount for each; the entered
+-- amounts live in product_transaction_costs. Empty for ready-made products.
+-- ---------------------------------------------------------------------------
+CREATE TABLE product_cost_items (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT          NOT NULL,
+    book_id    INT          NOT NULL,
+    name       VARCHAR(100) NOT NULL,
+    sort_order INT          NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pci_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pci_book    FOREIGN KEY (book_id)    REFERENCES books(id)    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_pci_product ON product_cost_items(product_id, sort_order);
+
+-- ---------------------------------------------------------------------------
 -- Product transactions — stock in / sale. total_amount and stock_after are
--- precomputed running values.
+-- precomputed running values. For a manufacture stock-in, total_amount is the
+-- sum of the batch's cost lines and price_per_unit = total_amount / quantity.
 -- ---------------------------------------------------------------------------
 CREATE TABLE product_transactions (
     id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -130,6 +193,24 @@ CREATE TABLE product_transactions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_pt_product ON product_transactions(product_id, id DESC);
+
+-- ---------------------------------------------------------------------------
+-- Product transaction costs — the per-line cost breakdown entered for one
+-- manufacture stock-in. name is a DENORMALISED snapshot of the cost-item label
+-- at entry time, so history renders even after the template is edited/deleted.
+-- Rows cascade-delete with their transaction (which is how an edit's swap works).
+-- ---------------------------------------------------------------------------
+CREATE TABLE product_transaction_costs (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    transaction_id INT           NOT NULL,
+    name           VARCHAR(100)  NOT NULL,           -- denormalised label snapshot
+    amount         DECIMAL(14,2) NOT NULL,
+    sort_order     INT           NOT NULL DEFAULT 0,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ptc_txn FOREIGN KEY (transaction_id) REFERENCES product_transactions(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_ptc_txn ON product_transaction_costs(transaction_id, sort_order);
 
 -- ---------------------------------------------------------------------------
 -- Categories (personal books) — income/expense buckets. transaction_count is

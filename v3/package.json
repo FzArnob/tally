@@ -3,7 +3,7 @@
   "private": true,
   "version": "3.0.0",
   "type": "module",
-  "description": "Tally Store — product cash-flow & customer balances (React + TypeScript + Vite)",
+  "description": "Tally — product cash-flow & customer balances (React + TypeScript + Vite)",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

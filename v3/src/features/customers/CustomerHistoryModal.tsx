@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useI18n } from '../../i18n/LanguageContext';
 import { deleteCustomerBalanceHistory, getCustomerHistory } from '../../lib/api';
 import { formatDisplayExpression } from '../../lib/format';
@@ -18,6 +19,8 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
   const [entries, setEntries] = useState<BalanceHistoryEntry[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<BalanceHistoryEntry | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const open = !!customer;
 
   useEffect(() => {
@@ -40,10 +43,13 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
     };
   }, [customer]);
 
-  const handleDelete = async (id: string) => {
-    if (removingId) return;
+  const confirmDelete = async () => {
+    if (!pendingDelete || deleting) return;
+    const id = pendingDelete.id;
+    setDeleting(true);
     try {
       await deleteCustomerBalanceHistory(id);
+      setPendingDelete(null);
       setRemovingId(id);
       window.setTimeout(() => {
         setEntries((prev) => prev.filter((e) => e.id !== id));
@@ -53,10 +59,13 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
     } catch (err) {
       console.error('Failed to delete history entry:', err);
       alert(t.failedDeleteHistory);
+    } finally {
+      setDeleting(false);
     }
   };
 
   return (
+    <>
     <Modal
       open={open}
       onClose={onClose}
@@ -107,7 +116,7 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
                 <button
                   className="ghost-btn"
                   aria-label={t.deleteAction}
-                  onClick={() => handleDelete(entry.id)}
+                  onClick={() => setPendingDelete(entry)}
                 >
                   <span className="material-symbols-outlined icon-lg">delete</span>
                 </button>
@@ -121,5 +130,16 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
         })}
       </div>
     </Modal>
+
+    <ConfirmDialog
+      open={!!pendingDelete}
+      title={t.deleteEntry}
+      message={t.deleteEntryConfirm}
+      confirmLabel={t.deleteAction}
+      onConfirm={confirmDelete}
+      onCancel={() => setPendingDelete(null)}
+      busy={deleting}
+    />
+    </>
   );
 }

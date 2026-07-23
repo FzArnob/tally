@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n/LanguageContext';
 import { Header, HeaderBackButton } from '../../components/Header';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { LanguageSwitcher } from '../../components/LanguageSwitcher';
+import { Toolbar } from '../../components/Toolbar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { deleteCustomer, getCustomers, BOOK_ID } from '../../lib/api';
 import type { Customer, CustomerTotals } from '../../types';
@@ -146,27 +147,16 @@ export function CustomersPage() {
       />
 
       <div className={styles.page}>
-        <div className={styles.toolbar}>
-        <div className={styles.search}>
-          <span className="material-symbols-outlined icon-md">search</span>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t.searchCustomers}
-            aria-label={t.searchCustomers}
-          />
-        </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => {
+        <Toolbar
+          query={query}
+          onQueryChange={setQuery}
+          searchPlaceholder={t.searchCustomers}
+          addLabel={t.add}
+          onAdd={() => {
             setFormCustomer(null);
             setFormOpen(true);
           }}
-        >
-          <span className="material-symbols-outlined icon-md">add</span>
-          {t.add}
-        </button>
-      </div>
+        />
 
       {customers.length > 0 && (
         <div className={styles.totals}>

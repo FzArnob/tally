@@ -1,6 +1,5 @@
 /* ---- Product list ---- */
 .main {
-  padding: 1.1rem 1.25rem 3rem;
   max-width: 46rem;
   margin: 0 auto;
 }
@@ -9,6 +8,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
+  padding: 1rem 1.25rem 3rem;
 }
 
 /* ---- Product row ---- */
@@ -129,82 +129,6 @@
 .rowActions {
   display: flex;
   gap: 0.05rem;
-}
-
-/* Add-product row */
-.addRow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  width: 100%;
-  padding: 0.85rem;
-  border: 1.5px dashed var(--border);
-  border-radius: 0.9rem;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: var(--fs-base);
-  font-weight: var(--font-weight-medium);
-  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
-    border-color var(--dur-fast) ease, transform var(--dur-fast) ease;
-}
-
-.addRow:hover {
-  background: var(--muted);
-  color: var(--foreground);
-  border-color: var(--primary);
-}
-
-.addRow:active {
-  transform: scale(0.99);
-}
-
-/* Floating "+ Add" — appears bottom-right once the top Add row scrolls away. */
-.fab {
-  position: fixed;
-  right: 1.25rem;
-  bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
-  z-index: 50;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.8rem 1.3rem;
-  border: none;
-  border-radius: 999px;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-size: var(--fs-btn);
-  font-weight: var(--font-weight-semibold);
-  box-shadow: var(--shadow-lg);
-  cursor: pointer;
-  animation: fabIn var(--dur-base) var(--ease-emphasized) both;
-  transition: transform var(--dur-fast) ease, filter var(--dur-fast) ease;
-}
-
-.fab:hover {
-  filter: brightness(1.08);
-}
-
-.fab:active {
-  transform: scale(0.95);
-}
-
-@keyframes fabIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (max-width: 640px) {
-  .fab {
-    right: 1rem;
-    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  }
 }
 
 /* ---- Form modal ---- */
@@ -434,8 +358,8 @@
 }
 
 @media (max-width: 640px) {
-  .main {
-    padding: 0.9rem 0.9rem 2rem;
+  .list {
+    padding: 0.85rem 0.9rem 2rem;
   }
   .row {
     gap: 0.65rem;

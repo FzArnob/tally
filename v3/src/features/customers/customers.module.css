@@ -6,43 +6,6 @@
   margin: 0 auto;
 }
 
-.toolbar {
-  display: flex;
-  gap: 0.6rem;
-  padding: 0.9rem 1.25rem 0.4rem;
-}
-
-.search {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  background: var(--input-background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0 0.75rem;
-  color: var(--muted-foreground);
-  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
-}
-
-.search:focus-within {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent);
-}
-
-.search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  padding: 0.6rem 0;
-  font-size: var(--fs-base);
-  color: var(--foreground);
-  font-family: inherit;
-  outline: none;
-}
-
 .totals {
   display: grid;
   grid-template-columns: 1fr 1fr;

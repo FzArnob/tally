@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../../i18n/LanguageContext';
 import {
   deleteProduct,
@@ -12,12 +12,14 @@ import { ProductFormModal } from './ProductFormModal';
 import { ProductActionModal } from './ProductActionModal';
 import { ProductHistoryModal } from './ProductHistoryModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { Toolbar } from '../../components/Toolbar';
 import styles from './products.module.css';
 
 export function ProductsSection() {
   const { t } = useI18n();
   const [products, setProducts] = useState<Product[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [query, setQuery] = useState('');
 
   const [formOpen, setFormOpen] = useState(false);
   const [formProduct, setFormProduct] = useState<Product | null>(null);
@@ -35,10 +37,6 @@ export function ProductsSection() {
   const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Show the floating "+ Add" only once the top Add-Product row leaves the viewport.
-  const addRowRef = useRef<HTMLButtonElement>(null);
-  const [showFab, setShowFab] = useState(false);
-
   const load = useCallback(async () => {
     try {
       const data = await getProducts();
@@ -54,15 +52,15 @@ export function ProductsSection() {
     void load();
   }, [load]);
 
-  // Toggle the FAB based on whether the top Add-Product row is visible.
-  // Re-attaches when the row mounts (i.e. once status leaves 'loading').
-  useEffect(() => {
-    const el = addRowRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(([entry]) => setShowFab(!entry.isIntersecting));
-    io.observe(el);
-    return () => io.disconnect();
-  }, [status]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.quantity_type || '').toLowerCase().includes(q),
+    );
+  }, [products, query]);
 
   const loadHistory = useCallback(async (productId: number) => {
     setHistoryLoading(true);
@@ -139,25 +137,31 @@ export function ProductsSection() {
 
   return (
     <main className={styles.main}>
+      <Toolbar
+        query={query}
+        onQueryChange={setQuery}
+        searchPlaceholder={t.searchProducts}
+        addLabel={t.add}
+        onAdd={openAdd}
+      />
+
       <div className={styles.list}>
         {status === 'loading' && <div className="empty-state">…</div>}
         {status === 'error' && <div className="empty-state">{t.failedLoadProducts}</div>}
-
-        {status !== 'loading' && (
-          <button ref={addRowRef} className={styles.addRow} onClick={openAdd}>
-            <span className="material-symbols-outlined icon-md">add</span>
-            {t.addProduct}
-          </button>
-        )}
-
-        {status === 'ready' && products.length === 0 && (
+        {status === 'ready' && filtered.length === 0 && (
           <div className="empty-state">
-            {t.noProducts}
-            <br />
-            {t.addFirstProduct}
+            {products.length === 0 ? (
+              <>
+                {t.noProducts}
+                <br />
+                {t.addFirstProduct}
+              </>
+            ) : (
+              t.noMatches
+            )}
           </div>
         )}
-        {products.map((product, i) => (
+        {filtered.map((product, i) => (
           <ProductCard
             key={product.id}
             product={product}
@@ -172,13 +176,6 @@ export function ProductsSection() {
           />
         ))}
       </div>
-
-      {showFab && status !== 'loading' && (
-        <button className={styles.fab} onClick={openAdd} aria-label={t.addProduct}>
-          <span className="material-symbols-outlined icon-md">add</span>
-          {t.add}
-        </button>
-      )}
 
       <ProductFormModal
         open={formOpen}

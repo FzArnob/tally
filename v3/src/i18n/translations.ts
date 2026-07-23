@@ -26,6 +26,7 @@ export interface Translation {
   noProducts: string;
   addFirstProduct: string;
   failedLoadProducts: string;
+  searchProducts: string;
   stock: string;
 
   // Product form modal
@@ -154,8 +155,9 @@ const en: Translation = {
   themeDark: 'Dark',
 
   noProducts: 'No products yet',
-  addFirstProduct: 'Tap + to add your first product.',
+  addFirstProduct: 'Tap Add to create your first product.',
   failedLoadProducts: 'Failed to load products. Please refresh the page.',
+  searchProducts: 'Search products',
   stock: 'Stock',
 
   addProduct: 'Add Product',
@@ -276,8 +278,9 @@ const bn: Translation = {
   themeDark: 'ডার্ক',
 
   noProducts: 'এখনো কোন পণ্য নেই',
-  addFirstProduct: 'প্রথম পণ্য যোগ করতে + চাপুন।',
+  addFirstProduct: 'প্রথম পণ্য তৈরি করতে যোগ চাপুন।',
   failedLoadProducts: 'পণ্য লোড করা যায়নি। অনুগ্রহ করে পৃষ্ঠাটি রিফ্রেশ করুন।',
+  searchProducts: 'পণ্য খুঁজুন',
   stock: 'স্টক',
 
   addProduct: 'পণ্য যোগ করুন',

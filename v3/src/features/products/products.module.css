@@ -1,88 +1,36 @@
-/* ---- Grid ---- */
+/* ---- Product list ---- */
 .main {
-  padding: 1.25rem 1.5rem 3rem;
-  max-width: 68rem;
+  padding: 1.1rem 1.25rem 3rem;
+  max-width: 46rem;
   margin: 0 auto;
 }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
-  align-items: start;
-  gap: 1rem 0.9rem;
-}
-
-/* Tablet: slightly larger tiles */
-@media (min-width: 768px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(7.25rem, 1fr));
-    gap: 1.25rem 1rem;
-  }
-}
-
-/* Desktop / large: roomier tiles, capped by .main max-width */
-@media (min-width: 1024px) {
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
-    gap: 1.4rem 1.1rem;
-  }
-}
-
-.emptyWrap {
-  grid-column: 1 / -1;
-}
-
-/* Cell = square tile + label stacked beneath it */
-.cell {
+.list {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  animation: cardIn var(--dur-base) var(--ease-emphasized) both;
+  gap: 0.6rem;
 }
 
-.card {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: 1.15rem;
+/* ---- Product row ---- */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
   background: var(--card);
   border: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  padding: 0.65rem 0.5rem 0.5rem;
-  position: relative;
-  overflow: hidden;
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.85rem;
   box-shadow: var(--shadow-sm);
+  cursor: pointer;
   transition: transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease,
     border-color var(--dur-fast) ease;
+  animation: rowIn var(--dur-fast) ease both;
 }
 
-.card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 4%, transparent), transparent 55%);
-  pointer-events: none;
-}
-
-.card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-md);
-  border-color: color-mix(in srgb, var(--primary) 25%, var(--border));
-}
-
-.card:active {
-  transform: scale(0.96);
-}
-
-@keyframes cardIn {
+@keyframes rowIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -90,116 +38,125 @@
   }
 }
 
-.thumb {
-  width: 3.1rem;
-  height: 3.1rem;
-  object-fit: cover;
-  border-radius: 0.85rem;
+.row:hover {
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
+}
+
+.row:active {
+  transform: scale(0.99);
+}
+
+/* Thumbnail / placeholder */
+.thumbWrap {
+  flex-shrink: 0;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.75rem;
   background: var(--muted);
-}
-
-.cardIcon {
-  color: var(--muted-foreground);
-}
-
-/* Row of edit / history / delete actions inside the tile */
-.cardActions {
   display: flex;
   align-items: center;
-  gap: 0.15rem;
-  margin-top: 0.1rem;
-}
-
-.actionBtn {
-  width: 1.85rem;
-  height: 1.85rem;
-  border: none;
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--muted) 60%, transparent);
-  color: var(--muted-foreground);
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
-  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
-    transform var(--dur-fast) ease;
+  overflow: hidden;
 }
 
-.actionBtn:hover {
-  background: var(--muted);
-  color: var(--foreground);
+.thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.actionBtn:active {
-  transform: scale(0.9);
+.thumbIcon {
+  color: var(--muted-foreground);
+  font-size: 1.6rem;
 }
 
-.actionBtn.danger:hover {
-  background: color-mix(in srgb, var(--red-600) 15%, transparent);
-  color: var(--red-700);
+/* Name + meta */
+.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .name {
   font-size: var(--fs-base);
   font-weight: var(--font-weight-semibold);
   color: var(--foreground);
-  line-height: 1.25;
-  text-align: center;
-  max-width: 100%;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+  line-height: 1.3;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.unit {
+.meta {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Right cluster: stock on top, actions below */
+.right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.stockWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.stockValue {
+  font-size: var(--fs-amount);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+.stockUnit {
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
   text-transform: capitalize;
 }
 
-.stockPill {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  font-size: 0.62rem;
-  line-height: 1;
-  font-weight: var(--font-weight-semibold);
-  padding: 0.2rem 0.4rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--green-600) 16%, transparent);
-  color: var(--green-700);
+.actions {
+  display: flex;
+  gap: 0.05rem;
 }
 
-.stockPill.low {
-  background: color-mix(in srgb, var(--red-600) 16%, transparent);
-  color: var(--red-700);
-}
-
-/* Add tile — matches a card's footprint (label height reserved below) */
-.add {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: 1.15rem;
-  border: 2px dashed var(--border);
-  background: transparent;
-  color: var(--muted-foreground);
+/* Add-product row */
+.addRow {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.85rem;
+  border: 1.5px dashed var(--border);
+  border-radius: 0.9rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--fs-base);
+  font-weight: var(--font-weight-medium);
   transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
     border-color var(--dur-fast) ease, transform var(--dur-fast) ease;
 }
 
-.add:hover {
+.addRow:hover {
   background: var(--muted);
   color: var(--foreground);
   border-color: var(--primary);
 }
 
-.add:active {
-  transform: scale(0.96);
+.addRow:active {
+  transform: scale(0.99);
 }
 
 /* ---- Form modal ---- */
@@ -376,7 +333,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  animation: cardIn var(--dur-fast) ease both;
+  animation: rowIn var(--dur-fast) ease both;
 }
 
 .entryLine {
@@ -426,17 +383,17 @@
 
 @media (max-width: 640px) {
   .main {
-    padding: 1rem 1rem 2rem;
+    padding: 0.9rem 0.9rem 2rem;
   }
-  .grid {
-    grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
-    gap: 0.85rem 0.65rem;
+  .row {
+    gap: 0.65rem;
+    padding: 0.65rem 0.7rem;
   }
-  .card {
-    padding: 0.55rem 0.35rem 0.45rem;
+  .thumbWrap {
+    width: 2.85rem;
+    height: 2.85rem;
   }
-  .actionBtn {
-    width: 1.7rem;
-    height: 1.7rem;
+  .actions button {
+    padding: 0.25rem;
   }
 }

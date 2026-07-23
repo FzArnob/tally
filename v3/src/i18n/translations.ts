@@ -123,6 +123,7 @@ export interface Translation {
   outOfStock: string;
   lastPurchase: string;
   lastSale: string;
+  transactions: string;
 
   // Common
   close: string;
@@ -239,6 +240,7 @@ const en: Translation = {
   outOfStock: 'Out of stock',
   lastPurchase: 'Last buy',
   lastSale: 'Last sale',
+  transactions: 'txns',
 
   close: 'Close',
   allClear: 'AC',
@@ -354,6 +356,7 @@ const bn: Translation = {
   outOfStock: 'স্টক শেষ',
   lastPurchase: 'সর্বশেষ ক্রয়',
   lastSale: 'সর্বশেষ বিক্রয়',
+  transactions: 'লেনদেন',
 
   close: 'বন্ধ',
   allClear: 'AC',

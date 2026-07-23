@@ -125,12 +125,11 @@ export function ProductsSection() {
 
   return (
     <main className={styles.main}>
-      <div className={styles.grid}>
-        {status === 'error' && (
-          <div className={`${styles.emptyWrap} empty-state`}>{t.failedLoadProducts}</div>
-        )}
+      <div className={styles.list}>
+        {status === 'loading' && <div className="empty-state">…</div>}
+        {status === 'error' && <div className="empty-state">{t.failedLoadProducts}</div>}
         {status === 'ready' && products.length === 0 && (
-          <div className={`${styles.emptyWrap} empty-state`}>
+          <div className="empty-state">
             {t.noProducts}
             <br />
             {t.addFirstProduct}
@@ -151,8 +150,9 @@ export function ProductsSection() {
           />
         ))}
         {status !== 'loading' && (
-          <button className={styles.add} aria-label={t.addProduct} onClick={openAdd}>
-            <span className="material-symbols-outlined icon-xl">add</span>
+          <button className={styles.addRow} onClick={openAdd}>
+            <span className="material-symbols-outlined icon-md">add</span>
+            {t.addProduct}
           </button>
         )}
       </div>

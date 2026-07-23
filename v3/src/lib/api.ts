@@ -4,6 +4,9 @@
 import {
   ApiError,
   type Book,
+  type BookType,
+  type BooksResponse,
+  type SaveBookResponse,
   type CreateBalanceResponse,
   type Customer,
   type CustomerHistoryResponse,
@@ -48,7 +51,16 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 
-// ---- Book ----
+// ---- Books ----
+export function getBooks(): Promise<BooksResponse> {
+  return request<BooksResponse>('books');
+}
+
+export function createBook(params: { name: string; type: BookType }): Promise<SaveBookResponse> {
+  const { name, type } = params;
+  return request<SaveBookResponse>('books', jsonInit('POST', { name, type }));
+}
+
 export function getBookDetails(bookId = BOOK_ID): Promise<Book> {
   return request<Book>(`books/${bookId}`);
 }

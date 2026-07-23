@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import styles from './Modal.module.css';
 
@@ -75,7 +76,9 @@ export function Modal({
 
   if (!mounted) return null;
 
-  return (
+  // Portal to <body> so a modal is never trapped by an ancestor that creates a
+  // containing block for fixed elements (transformed sheets, blurred header, …).
+  return createPortal(
     <div
       className={`${styles.overlay} ${centered ? styles.centered : ''} ${entered ? styles.open : ''}`}
       onMouseDown={(e) => {
@@ -98,7 +101,8 @@ export function Modal({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

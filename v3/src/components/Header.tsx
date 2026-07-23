@@ -3,9 +3,10 @@ import type { ReactNode } from 'react';
 import styles from './Header.module.css';
 
 interface HeaderProps {
-  /** Leading element — a logo badge, back button, etc. */
+  /** Leading element — a logo badge, back button, book switcher, etc. */
   leading: ReactNode;
-  title: string;
+  /** Optional page title. Omit when `leading` already carries a name. */
+  title?: string;
   /** Right-aligned action buttons (theme, language, …). */
   actions?: ReactNode;
 }
@@ -36,22 +37,15 @@ export function Header({ leading, title, actions }: HeaderProps) {
       <div className={styles.inner}>
         <div className={styles.left}>
           {leading}
-          <h1 className={styles.title} title={title}>
-            {title}
-          </h1>
+          {title && (
+            <h1 className={styles.title} title={title}>
+              {title}
+            </h1>
+          )}
         </div>
         {actions && <div className={styles.right}>{actions}</div>}
       </div>
     </header>
-  );
-}
-
-/** Rounded store-logo badge used as the home header's leading element. */
-export function HeaderLogo({ src }: { src: string }) {
-  return (
-    <div className={styles.logoBadge}>
-      <img src={src} alt="" className={styles.logo} />
-    </div>
   );
 }
 

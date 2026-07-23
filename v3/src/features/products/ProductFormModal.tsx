@@ -19,11 +19,18 @@ const UNIT_LABELS: Record<(typeof KNOWN_TYPES)[number], keyof Translation> = {
 interface ProductFormModalProps {
   open: boolean;
   product: Product | null;
+  bookId: number;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export function ProductFormModal({ open, product, onClose, onSaved }: ProductFormModalProps) {
+export function ProductFormModal({
+  open,
+  product,
+  bookId,
+  onClose,
+  onSaved,
+}: ProductFormModalProps) {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [type, setType] = useState<string>('piece');
@@ -88,6 +95,7 @@ export function ProductFormModal({ open, product, onClose, onSaved }: ProductFor
         name: trimmed,
         quantityType,
         imageUrl: image,
+        bookId,
       });
       onSaved();
       onClose();

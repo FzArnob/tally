@@ -1,9 +1,20 @@
 // Shared domain types mirroring the Tally v3 PHP API responses.
 
+export type BookType = 'store' | 'personal';
+
 export interface Book {
   id: number;
   name: string;
-  logo_url: string;
+  type: BookType;
+}
+
+export interface BooksResponse {
+  books: Book[];
+}
+
+export interface SaveBookResponse {
+  success: boolean;
+  book: Book;
 }
 
 export interface Customer {

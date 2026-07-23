@@ -136,7 +136,7 @@ export function CustomersPage() {
   return (
     <>
       <Header
-        leading={<HeaderBackButton label={t.back} onClick={() => navigate('/')} />}
+        leading={<HeaderBackButton label={t.back} onClick={() => navigate(`/${bookId}/products`)} />}
         title={t.customerBalancesTitle}
         actions={
           <>

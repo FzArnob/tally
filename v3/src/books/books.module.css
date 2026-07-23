@@ -1,0 +1,328 @@
+/* =========================================================
+   Book switcher (header left)
+   ========================================================= */
+.switcher {
+  position: relative;
+  min-width: 0;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.25rem 0.4rem 0.25rem 0.25rem;
+  border: none;
+  background: transparent;
+  border-radius: 0.85rem;
+  color: var(--foreground);
+  transition: background-color var(--dur-fast) ease;
+}
+
+.trigger:hover {
+  background: var(--muted);
+}
+
+.badge {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--orange-600) 22%, var(--card)), var(--card));
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  color: var(--foreground);
+}
+
+.currentName {
+  font-size: var(--fs-heading-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  transition: transform var(--dur-fast) ease;
+}
+
+.chevronUp {
+  transform: rotate(180deg);
+}
+
+/* ---- Dropdown ---- */
+.dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.4rem;
+  min-width: 15rem;
+  max-width: 20rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  box-shadow: var(--shadow-lg);
+  padding: 0.35rem;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px) scale(0.98);
+  transform-origin: top left;
+  transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease-emphasized),
+    visibility var(--dur-fast);
+}
+
+.dropdownOpen {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  border-radius: 0.6rem;
+  text-align: left;
+  transition: background-color var(--dur-fast) ease;
+}
+
+.option:hover {
+  background: var(--muted);
+}
+
+.optionActive {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.optionIcon {
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 0.55rem;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.optionText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.optionName {
+  font-size: var(--fs-base);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.optionType {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+
+.optionCheck {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.addBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.6rem;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--foreground);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--fs-base);
+  border-radius: 0 0 0.6rem 0.6rem;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+.addBtn:hover {
+  background: var(--muted);
+  color: var(--primary);
+}
+
+/* =========================================================
+   Create-book modal
+   ========================================================= */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.typeCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.85rem;
+  border: 1.5px solid var(--border);
+  border-radius: 0.85rem;
+  background: var(--input-background);
+  color: var(--foreground);
+  text-align: left;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
+}
+
+.typeCard:active {
+  transform: scale(0.98);
+}
+
+.typeCard .material-symbols-outlined {
+  color: var(--muted-foreground);
+}
+
+.typeActive {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--input-background));
+}
+
+.typeActive .material-symbols-outlined {
+  color: var(--primary);
+}
+
+.typeName {
+  font-size: var(--fs-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.typeHint {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  line-height: 1.3;
+}
+
+.formError {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.75rem;
+  font-size: var(--fs-sm);
+}
+
+/* =========================================================
+   Full-screen states (welcome / coming soon / loader)
+   ========================================================= */
+.screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 2rem 1.5rem;
+  max-width: 30rem;
+  margin: 0 auto;
+}
+
+.screenIcon {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--orange-600) 22%, var(--card)), var(--card));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  color: var(--foreground);
+}
+
+.screenIcon .material-symbols-outlined {
+  font-size: 2.5rem;
+}
+
+.screenTitle {
+  font-size: var(--fs-display);
+  font-weight: var(--font-weight-semibold);
+}
+
+.screenText {
+  font-size: var(--fs-base);
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+
+.screenActions {
+  margin-top: 1.25rem;
+  width: 100%;
+  max-width: 20rem;
+}
+
+.spinner {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 3px solid var(--muted);
+  border-top-color: var(--primary);
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Theme/language controls floated on the welcome screen. */
+.topControls {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  z-index: 10;
+}
+
+/* Centered state that lives below a header (e.g. "coming soon"). */
+.pageState {
+  min-height: calc(100dvh - var(--header-h, 4rem));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 2rem 1.5rem;
+  max-width: 30rem;
+  margin: 0 auto;
+}

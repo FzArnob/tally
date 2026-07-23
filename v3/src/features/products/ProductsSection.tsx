@@ -15,7 +15,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Toolbar } from '../../components/Toolbar';
 import styles from './products.module.css';
 
-export function ProductsSection() {
+export function ProductsSection({ bookId }: { bookId: number }) {
   const { t } = useI18n();
   const [products, setProducts] = useState<Product[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -39,14 +39,14 @@ export function ProductsSection() {
 
   const load = useCallback(async () => {
     try {
-      const data = await getProducts();
+      const data = await getProducts(bookId);
       setProducts(data.products || []);
       setStatus('ready');
     } catch (err) {
       console.error('Failed to load products:', err);
       setStatus('error');
     }
-  }, []);
+  }, [bookId]);
 
   useEffect(() => {
     void load();
@@ -180,6 +180,7 @@ export function ProductsSection() {
       <ProductFormModal
         open={formOpen}
         product={formProduct}
+        bookId={bookId}
         onClose={() => setFormOpen(false)}
         onSaved={load}
       />

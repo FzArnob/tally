@@ -29,7 +29,7 @@ USE tally_v3;
 SET time_zone = '+00:00';
 
 -- Make sure the target book exists (schema.sql already seeds it).
-INSERT IGNORE INTO books (id, name, logo_url) VALUES (1, 'Samad''s Store', './store.svg');
+INSERT IGNORE INTO books (id, name, type) VALUES (1, 'Samad''s Store', 'store');
 
 DROP PROCEDURE IF EXISTS seed_dummy_data;
 

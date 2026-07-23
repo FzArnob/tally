@@ -28,25 +28,6 @@
   min-width: 0;
 }
 
-.logoBadge {
-  width: 2.75rem;
-  height: 2.75rem;
-  flex-shrink: 0;
-  border-radius: 0.85rem;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--orange-600) 22%, var(--card)), var(--card));
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--shadow-sm);
-}
-
-.logo {
-  width: 1.7rem;
-  height: 1.7rem;
-  object-fit: contain;
-}
-
 .title {
   font-size: var(--fs-heading-sm);
   font-weight: var(--font-weight-semibold);
@@ -86,14 +67,5 @@
   }
   .title {
     font-size: var(--fs-amount);
-  }
-  .logoBadge {
-    width: 2.4rem;
-    height: 2.4rem;
-    border-radius: 0.7rem;
-  }
-  .logo {
-    width: 1.45rem;
-    height: 1.45rem;
   }
 }

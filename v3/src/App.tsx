@@ -1,40 +1,65 @@
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { Header, HeaderLogo, CustomersButton } from './components/Header';
+import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Header, CustomersButton } from './components/Header';
 import { ThemeToggle } from './components/ThemeToggle';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { ProductsSection } from './features/products/ProductsSection';
 import { CustomersPage } from './features/customers/CustomersPage';
+import { TransactionsPage } from './features/transactions/TransactionsPage';
 import { useI18n } from './i18n/LanguageContext';
-import { getBookDetails, BOOK_ID } from './lib/api';
+import { useBooks } from './books/BooksContext';
+import { BookSwitcher } from './books/BookSwitcher';
+import { WelcomeScreen } from './books/WelcomeScreen';
+import { bookHomePath } from './books/book';
 import type { Book } from './types';
+import styles from './books/books.module.css';
 
-const storeLogo = `${import.meta.env.BASE_URL}store.svg`;
-
-/** Loads the current book once; falls back to a sensible default on error. */
-export function useBook(): Book {
-  const [book, setBook] = useState<Book>({ id: BOOK_ID, name: '', logo_url: '' });
-  useEffect(() => {
-    getBookDetails()
-      .then(setBook)
-      .catch((err) => {
-        console.error('Failed to load book details:', err);
-        setBook({ id: BOOK_ID, name: "Samad's Store", logo_url: '' });
-      });
-  }, []);
-  return book;
+function FullScreenLoader() {
+  return (
+    <div className={styles.screen}>
+      <span className={styles.spinner} />
+    </div>
+  );
 }
 
-function HomePage() {
+/** `/` — decides between the welcome screen and the default book's home. */
+function BooksGate() {
   const { t } = useI18n();
-  const book = useBook();
+  const { books, status } = useBooks();
+
+  if (status === 'loading') return <FullScreenLoader />;
+  if (status === 'error') {
+    return (
+      <div className={styles.screen}>
+        <p className={styles.screenText}>{t.failedLoadBooks}</p>
+      </div>
+    );
+  }
+  if (books.length === 0) return <WelcomeScreen />;
+  // First book is the default selection.
+  return <Navigate to={bookHomePath(books[0])} replace />;
+}
+
+/** Resolves the :bookId route param against the loaded books. */
+function useRouteBook(): { book: Book | null; status: 'loading' | 'ready' | 'error' } {
+  const { books, status } = useBooks();
+  const { bookId } = useParams();
+  const id = Number(bookId);
+  return { book: books.find((b) => b.id === id) ?? null, status };
+}
+
+function StoreProductsPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
+  const { book, status } = useRouteBook();
+
+  if (status === 'loading') return <FullScreenLoader />;
+  if (!book) return <Navigate to="/" replace />;
+  if (book.type !== 'store') return <Navigate to={bookHomePath(book)} replace />;
 
   return (
     <>
       <Header
-        leading={<HeaderLogo src={book.logo_url || storeLogo} />}
-        title={book.name || t.appName}
+        leading={<BookSwitcher current={book} />}
         actions={
           <>
             <ThemeToggle />
@@ -46,16 +71,28 @@ function HomePage() {
           </>
         }
       />
-      <ProductsSection />
+      <ProductsSection bookId={book.id} />
     </>
   );
+}
+
+function PersonalHomePage() {
+  const { book, status } = useRouteBook();
+
+  if (status === 'loading') return <FullScreenLoader />;
+  if (!book) return <Navigate to="/" replace />;
+  if (book.type !== 'personal') return <Navigate to={bookHomePath(book)} replace />;
+
+  return <TransactionsPage book={book} />;
 }
 
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
+      <Route path="/" element={<BooksGate />} />
+      <Route path="/:bookId/products" element={<StoreProductsPage />} />
       <Route path="/:bookId/customers" element={<CustomersPage />} />
+      <Route path="/:bookId/transactions" element={<PersonalHomePage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

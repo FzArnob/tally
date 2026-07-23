@@ -22,6 +22,27 @@ export interface Translation {
   themeLight: string;
   themeDark: string;
 
+  // Books
+  switchBook: string;
+  addBook: string;
+  createBook: string;
+  bookName: string;
+  bookNamePlaceholder: string;
+  bookType: string;
+  typeStore: string;
+  typeStoreHint: string;
+  typePersonal: string;
+  typePersonalHint: string;
+  enterBookName: string;
+  failedLoadBooks: string;
+  failedSaveBook: string;
+  welcomeTitle: string;
+  welcomeSubtitle: string;
+  getStarted: string;
+  transactionsTitle: string;
+  comingSoon: string;
+  comingSoonHint: string;
+
   // Products grid
   noProducts: string;
   addFirstProduct: string;
@@ -155,6 +176,26 @@ const en: Translation = {
   themeLight: 'Light',
   themeDark: 'Dark',
 
+  switchBook: 'Switch book',
+  addBook: 'Add Book',
+  createBook: 'Create Book',
+  bookName: 'Book Name',
+  bookNamePlaceholder: 'e.g. My Store',
+  bookType: 'Book Type',
+  typeStore: 'Store',
+  typeStoreHint: 'Products, stock & customer balances',
+  typePersonal: 'Personal',
+  typePersonalHint: 'Personal income & expenses',
+  enterBookName: 'Please enter a book name.',
+  failedLoadBooks: 'Failed to load books. Please refresh the page.',
+  failedSaveBook: 'Failed to create book. Please try again.',
+  welcomeTitle: 'Welcome to Tally',
+  welcomeSubtitle: 'Create your first book to get started.',
+  getStarted: 'Create your first book',
+  transactionsTitle: 'Transactions',
+  comingSoon: 'Coming soon',
+  comingSoonHint: 'Personal transactions are on the way.',
+
   noProducts: 'No products yet',
   addFirstProduct: 'Tap Add to create your first product.',
   failedLoadProducts: 'Failed to load products. Please refresh the page.',
@@ -278,6 +319,26 @@ const bn: Translation = {
   themeSystem: 'সিস্টেম',
   themeLight: 'লাইট',
   themeDark: 'ডার্ক',
+
+  switchBook: 'বই পরিবর্তন',
+  addBook: 'বই যোগ করুন',
+  createBook: 'বই তৈরি করুন',
+  bookName: 'বইয়ের নাম',
+  bookNamePlaceholder: 'যেমন আমার দোকান',
+  bookType: 'বইয়ের ধরন',
+  typeStore: 'দোকান',
+  typeStoreHint: 'পণ্য, স্টক ও গ্রাহক ব্যালেন্স',
+  typePersonal: 'ব্যক্তিগত',
+  typePersonalHint: 'ব্যক্তিগত আয় ও ব্যয়',
+  enterBookName: 'অনুগ্রহ করে বইয়ের নাম লিখুন।',
+  failedLoadBooks: 'বই লোড করা যায়নি। অনুগ্রহ করে পৃষ্ঠাটি রিফ্রেশ করুন।',
+  failedSaveBook: 'বই তৈরি করা যায়নি। আবার চেষ্টা করুন।',
+  welcomeTitle: 'ট্যালিতে স্বাগতম',
+  welcomeSubtitle: 'শুরু করতে আপনার প্রথম বই তৈরি করুন।',
+  getStarted: 'আপনার প্রথম বই তৈরি করুন',
+  transactionsTitle: 'লেনদেন',
+  comingSoon: 'শীঘ্রই আসছে',
+  comingSoonHint: 'ব্যক্তিগত লেনদেন শীঘ্রই আসছে।',
 
   noProducts: 'এখনো কোন পণ্য নেই',
   addFirstProduct: 'প্রথম পণ্য তৈরি করতে যোগ চাপুন।',

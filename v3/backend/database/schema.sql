@@ -25,7 +25,9 @@ DROP TABLE IF EXISTS books;
 CREATE TABLE books (
     id         INT AUTO_INCREMENT PRIMARY KEY,
     name       VARCHAR(100) NOT NULL,
-    logo_url   VARCHAR(500) NOT NULL DEFAULT '',
+    -- 'store' books use products + customer balances; 'personal' books use transactions.
+    -- The UI renders a type-based icon (no per-book logo).
+    type       ENUM('store','personal') NOT NULL DEFAULT 'store',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -127,7 +129,3 @@ CREATE TABLE product_transactions (
 
 CREATE INDEX idx_pt_product ON product_transactions(product_id, id DESC);
 
--- ---------------------------------------------------------------------------
--- Seed
--- ---------------------------------------------------------------------------
-INSERT INTO books (id, name, logo_url) VALUES (1, 'Samad''s Store', './store.svg');

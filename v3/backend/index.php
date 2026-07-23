@@ -125,6 +125,15 @@ function recomputeProduct(PDO $pdo, int $productId): array
 }
 
 // ---- Shaping helpers (cast SQL strings to clean JSON types) ----------------
+function shapeBook(array $b): array
+{
+    return [
+        'id'   => (int) $b['id'],
+        'name' => $b['name'],
+        'type' => $b['type'],
+    ];
+}
+
 function shapeCustomer(array $c): array
 {
     return [
@@ -216,16 +225,38 @@ function findProduct(PDO $pdo, int $id): array
 
 on('GET', '/', fn() => json_response(['name' => 'Tally v3 API', 'status' => 'ok']));
 
-// ---- Book ----
+// ---- Books ----
+on('GET', '/books', function () {
+    $stmt = db()->query('SELECT id, name, type FROM books ORDER BY id ASC');
+    $books = array_map('shapeBook', $stmt->fetchAll());
+    json_response(['books' => $books]);
+});
+
+on('POST', '/books', function () {
+    $pdo  = db();
+    $body = read_json_body();
+    $name = v_string($body['name'] ?? '', 100, true, 'Book name');
+    $type = $body['type'] ?? 'store';
+    if (!in_array($type, ['store', 'personal'], true)) {
+        json_error('Type must be "store" or "personal".', 422, 'validation');
+    }
+
+    $pdo->prepare('INSERT INTO books (name, type) VALUES (?, ?)')->execute([$name, $type]);
+    $id = (int) $pdo->lastInsertId();
+
+    $stmt = $pdo->prepare('SELECT id, name, type FROM books WHERE id = ?');
+    $stmt->execute([$id]);
+    json_response(['success' => true, 'book' => shapeBook($stmt->fetch())], 201);
+});
+
 on('GET', '/books/{id}', function ($a) {
-    $stmt = db()->prepare('SELECT id, name, logo_url FROM books WHERE id = ?');
+    $stmt = db()->prepare('SELECT id, name, type FROM books WHERE id = ?');
     $stmt->execute([(int) $a['id']]);
     $book = $stmt->fetch();
     if (!$book) {
         json_error('Book not found.', 404, 'not_found');
     }
-    $book['id'] = (int) $book['id'];
-    json_response($book);
+    json_response(shapeBook($book));
 });
 
 // ---- Customers ----

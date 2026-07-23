@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useI18n } from '../../i18n/LanguageContext';
 import {
   deleteProduct,
@@ -35,6 +35,10 @@ export function ProductsSection() {
   const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Show the floating "+ Add" only once the top Add-Product row leaves the viewport.
+  const addRowRef = useRef<HTMLButtonElement>(null);
+  const [showFab, setShowFab] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const data = await getProducts();
@@ -49,6 +53,16 @@ export function ProductsSection() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Toggle the FAB based on whether the top Add-Product row is visible.
+  // Re-attaches when the row mounts (i.e. once status leaves 'loading').
+  useEffect(() => {
+    const el = addRowRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => setShowFab(!entry.isIntersecting));
+    io.observe(el);
+    return () => io.disconnect();
+  }, [status]);
 
   const loadHistory = useCallback(async (productId: number) => {
     setHistoryLoading(true);
@@ -128,6 +142,14 @@ export function ProductsSection() {
       <div className={styles.list}>
         {status === 'loading' && <div className="empty-state">…</div>}
         {status === 'error' && <div className="empty-state">{t.failedLoadProducts}</div>}
+
+        {status !== 'loading' && (
+          <button ref={addRowRef} className={styles.addRow} onClick={openAdd}>
+            <span className="material-symbols-outlined icon-md">add</span>
+            {t.addProduct}
+          </button>
+        )}
+
         {status === 'ready' && products.length === 0 && (
           <div className="empty-state">
             {t.noProducts}
@@ -149,13 +171,14 @@ export function ProductsSection() {
             onDelete={() => setPendingDeleteProduct(product)}
           />
         ))}
-        {status !== 'loading' && (
-          <button className={styles.addRow} onClick={openAdd}>
-            <span className="material-symbols-outlined icon-md">add</span>
-            {t.addProduct}
-          </button>
-        )}
       </div>
+
+      {showFab && status !== 'loading' && (
+        <button className={styles.fab} onClick={openAdd} aria-label={t.addProduct}>
+          <span className="material-symbols-outlined icon-md">add</span>
+          {t.add}
+        </button>
+      )}
 
       <ProductFormModal
         open={formOpen}

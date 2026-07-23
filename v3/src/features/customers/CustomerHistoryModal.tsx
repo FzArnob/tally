@@ -113,17 +113,20 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
               </div>
 
               <div className={styles.entryRight}>
+                <span className={styles.entryBalance}>
+                  {t.balanceLabel}{' '}
+                  <span className={entry.balance_after >= 0 ? 'text-positive' : 'text-negative'}>
+                    {formatSignedCurrency(entry.balance_after)}
+                  </span>
+                </span>
+                {entry.reason && <span className={styles.entryReason}>{entry.reason}</span>}
                 <button
                   className="ghost-btn"
                   aria-label={t.deleteAction}
                   onClick={() => setPendingDelete(entry)}
                 >
-                  <span className="material-symbols-outlined icon-lg">delete</span>
+                  <span className="material-symbols-outlined icon-md">delete</span>
                 </button>
-                {entry.reason && <span className={styles.entryReason}>{entry.reason}</span>}
-                <span className={styles.entryBalance}>
-                  {t.balanceLabel} {formatSignedCurrency(entry.balance_after)}
-                </span>
               </div>
             </div>
           );

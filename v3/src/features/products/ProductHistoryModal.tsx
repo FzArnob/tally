@@ -52,29 +52,29 @@ export function ProductHistoryModal({
                   <span className={`${styles.typePill} ${isStock ? styles.stock : styles.sale}`}>
                     {isStock ? t.stockIn : t.sale}
                   </span>
-                  <div className={styles.entryActions}>
-                    <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(tx)}>
-                      <span className="material-symbols-outlined icon-sm">edit</span>
-                    </button>
-                    <button
-                      className="ghost-btn"
-                      aria-label={t.deleteAction}
-                      onClick={() => onDelete(tx)}
-                    >
-                      <span className="material-symbols-outlined icon-sm">delete</span>
-                    </button>
-                  </div>
+                  <span
+                    className={`${styles.entryAmount} ${isStock ? 'text-negative' : 'text-positive'}`}
+                  >
+                    {formatCurrency(tx.total_amount)}
+                  </span>
                 </div>
                 <div className={styles.entryLine}>
                   <span className={styles.entryDetail}>
                     {localizeDigits(`${formatNumber(tx.quantity)} ${unit} × `)}
                     {formatCurrency(tx.price_per_unit)}
                   </span>
-                  <span
-                    className={`${styles.entryAmount} ${isStock ? 'text-negative' : 'text-positive'}`}
-                  >
-                    {formatCurrency(tx.total_amount)}
-                  </span>
+                  <div className={styles.entryActions}>
+                    <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(tx)}>
+                      <span className="material-symbols-outlined icon-md">edit</span>
+                    </button>
+                    <button
+                      className="ghost-btn"
+                      aria-label={t.deleteAction}
+                      onClick={() => onDelete(tx)}
+                    >
+                      <span className="material-symbols-outlined icon-md">delete</span>
+                    </button>
+                  </div>
                 </div>
                 <div className={styles.entryFoot}>
                   <span>

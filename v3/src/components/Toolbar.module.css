@@ -1,12 +1,26 @@
-/* Sticks just under the app header; frosted so list content blurs beneath it. */
+/* Sticks just under the app header. Solid (not translucent) so scrolled rows
+   never show through, and pulled up 1px to overlap the header — closing any
+   sub-pixel seam between the two sticky bars. */
 .bar {
   position: sticky;
-  top: var(--header-h, 4.5rem);
+  top: calc(var(--header-h, 4.5rem) - 1px);
   z-index: 30;
+  padding-top: 1px;
   padding-bottom: 0.5rem;
-  background: color-mix(in srgb, var(--background) 85%, transparent);
-  backdrop-filter: saturate(180%) blur(12px);
-  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  background: var(--background);
+}
+
+/* Content scrolling beneath the bar fades out into it. */
+.bar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 1.25rem;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--background), transparent);
+  background: linear-gradient(to bottom, var(--background), rgb(from var(--background) r g b / 0));
 }
 
 .toolbar {

@@ -20,7 +20,11 @@ export function Header({ leading, title, actions }: HeaderProps) {
     const el = ref.current;
     if (!el) return;
     const update = () =>
-      document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`);
+      // Sub-pixel precise so the sticky bar below can sit flush with no seam.
+      document.documentElement.style.setProperty(
+        '--header-h',
+        `${el.getBoundingClientRect().height}px`,
+      );
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);

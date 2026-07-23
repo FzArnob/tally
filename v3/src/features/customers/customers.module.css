@@ -10,7 +10,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.5rem 0.75rem;
-  margin: 0.6rem 1.25rem 0;
+  margin: 1rem 1.25rem 0;
   padding: 0.7rem 1rem;
   background: var(--secondary);
   border: 1px solid var(--border);

@@ -71,18 +71,12 @@
 
 .balanceTaka {
   position: absolute;
-  top: -4px;
-  right: -5px;
-  font-size: 0.6rem;
+  top: -6px;
+  right: -7px;
+  font-size: 0.9rem;
   font-weight: var(--font-weight-semibold);
   color: var(--red-700);
-  background: var(--background);
-  border-radius: 50%;
-  width: 0.95rem;
-  height: 0.95rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: transparent;
   line-height: 1;
 }
 

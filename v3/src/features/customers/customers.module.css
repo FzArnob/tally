@@ -369,8 +369,9 @@
   border-radius: 0.65rem;
   padding: 0.7rem 0.8rem;
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 0.75rem;
   overflow: hidden;
 }
 
@@ -389,26 +390,38 @@
   }
 }
 
-.entryLine {
+/* Left column: amount, expression, time — vertically centered. */
+.entryLeft {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+/* Right column: delete, reason, balance — vertically centered, right-aligned. */
+.entryRight {
+  flex-shrink: 0;
+  max-width: 55%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.2rem;
+  text-align: right;
 }
 
 .entryAmount {
   font-weight: var(--font-weight-semibold);
   font-size: var(--fs-amount);
-  flex-shrink: 0;
 }
 
 .entryBalance {
-  flex: 1;
-  text-align: right;
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .entryTime {
@@ -419,12 +432,15 @@
 .entryExpr {
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .entryReason {
   font-size: var(--fs-sm);
   color: var(--muted-foreground);
-  white-space: pre-wrap;
   word-break: break-word;
 }
 

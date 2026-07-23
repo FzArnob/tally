@@ -77,21 +77,33 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
         )}
         {entries.map((entry) => {
           const isPaid = entry.type === 'paid';
+          // Only show the expression when it involved an actual operation, not a
+          // bare number that just equals the amount.
+          const showExpr = !!entry.expression && /[+\-*/×÷]/.test(entry.expression);
           return (
             <div
               key={entry.id}
               className={`${styles.entry} ${removingId === entry.id ? styles.removing : ''}`}
             >
-              <div className={styles.entryLine}>
+              <div className={styles.entryLeft}>
                 <span
                   className={`${styles.entryAmount} ${isPaid ? 'text-positive' : 'text-negative'}`}
                 >
                   {isPaid ? '+' : '-'}
                   {formatCurrency(entry.amount)}
                 </span>
-                <span className={styles.entryBalance}>
-                  {t.currentBalanceLabel} {formatSignedCurrency(entry.balance_after)}
+                {showExpr && (
+                  <span className={styles.entryExpr}>
+                    {localizeDigits(formatDisplayExpression(entry.expression as string))} ={' '}
+                    {formatCurrency(entry.amount)}
+                  </span>
+                )}
+                <span className={styles.entryTime}>
+                  {localizeDigits(formatTimeFull(entry.timestamp))}
                 </span>
+              </div>
+
+              <div className={styles.entryRight}>
                 <button
                   className="ghost-btn"
                   aria-label={t.deleteAction}
@@ -99,16 +111,10 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
                 >
                   <span className="material-symbols-outlined icon-lg">delete</span>
                 </button>
-              </div>
-              {entry.expression && (
-                <div className={styles.entryExpr}>
-                  {localizeDigits(formatDisplayExpression(entry.expression))} ={' '}
-                  {formatCurrency(entry.amount)}
-                </div>
-              )}
-              {entry.reason && <div className={styles.entryReason}>{entry.reason}</div>}
-              <div className={styles.entryTime}>
-                {localizeDigits(formatTimeFull(entry.timestamp))}
+                {entry.reason && <span className={styles.entryReason}>{entry.reason}</span>}
+                <span className={styles.entryBalance}>
+                  {t.balanceLabel} {formatSignedCurrency(entry.balance_after)}
+                </span>
               </div>
             </div>
           );

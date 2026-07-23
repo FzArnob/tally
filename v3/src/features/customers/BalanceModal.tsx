@@ -53,8 +53,13 @@ export function BalanceModal({ customer, onClose, onChanged }: BalanceModalProps
         return;
       }
       const type = sign > 0 ? 'paid' : 'unpaid';
-      const expression = calc.expression || calc.display || '';
-      const reason = note.trim() || (sign > 0 ? t.paid : t.unpaid);
+      // Only keep the expression when it actually contains an operation — a bare
+      // number like "900" is redundant with the amount.
+      let expr = calc.expression || '';
+      if (/[+\-*/]$/.test(expr)) expr = expr.slice(0, -1); // drop dangling operator
+      const expression = /[+\-*/]/.test(expr) ? expr : null;
+      // Note is optional — leave it empty rather than defaulting to Paid/Unpaid.
+      const reason = note.trim() || null;
 
       setBusy(true);
       setError(null);

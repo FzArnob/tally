@@ -88,6 +88,7 @@ export interface Translation {
   customerName: string;
   orderDetails: string;
   currentBalanceLabel: string;
+  balanceLabel: string;
   advancePaid: string;
   totalUnpaid: string;
   noCustomers: string;
@@ -214,6 +215,7 @@ const en: Translation = {
   customerName: 'Customer Name',
   orderDetails: 'Order Details',
   currentBalanceLabel: 'Current Balance:',
+  balanceLabel: 'Balance:',
   advancePaid: 'Advance Paid:',
   totalUnpaid: 'Total Unpaid:',
   noCustomers: 'No customers yet',
@@ -337,6 +339,7 @@ const bn: Translation = {
   customerName: 'গ্রাহকের নাম',
   orderDetails: 'অর্ডারের বিবরণ',
   currentBalanceLabel: 'বর্তমান ব্যালেন্স:',
+  balanceLabel: 'ব্যালেন্স:',
   advancePaid: 'অগ্রিম পরিশোধিত:',
   totalUnpaid: 'মোট বকেয়া:',
   noCustomers: 'এখনো কোন গ্রাহক নেই',

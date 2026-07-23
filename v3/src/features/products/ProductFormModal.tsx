@@ -171,11 +171,9 @@ export function ProductFormModal({ open, product, onClose, onSaved }: ProductFor
           )}
         </div>
 
-        <div className={styles.actions}>
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={saving}>
-            {isEdit ? t.saveChanges : t.addProduct}
-          </button>
-        </div>
+        <button className="btn btn-primary btn-block" onClick={submit} disabled={saving}>
+          {isEdit ? t.saveChanges : t.addProduct}
+        </button>
       </div>
     </Modal>
   );

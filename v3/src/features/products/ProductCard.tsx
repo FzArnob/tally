@@ -69,7 +69,7 @@ export function ProductCard({
           </span>
           <span className={styles.stockUnit}>{unit}</span>
         </span>
-        <div className={styles.actions} onClick={stop}>
+        <div className={styles.rowActions} onClick={stop}>
           <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
             <span className="material-symbols-outlined icon-md">history</span>
           </button>

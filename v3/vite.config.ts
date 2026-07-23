@@ -10,8 +10,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    // Relative asset paths so the built app can be served from any sub-folder.
-    base: './',
+    // Absolute asset base. Must NOT be relative ('./'): the app uses
+    // BrowserRouter with nested routes (e.g. /:bookId/products), and relative
+    // asset URLs resolve against the current route depth on reload, so they
+    // 404 and get rewritten to index.html -> "wrong MIME type" module error.
+    // Defaults to the domain root; set VITE_BASE=/sub/path/ for a sub-folder
+    // deploy (and match RewriteBase + RewriteRule in .htaccess accordingly).
+    base: env.VITE_BASE || '/',
     server: {
       port: 8888,
       // In dev, forward API calls to the running XAMPP/PHP backend so the app

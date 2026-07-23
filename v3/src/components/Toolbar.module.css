@@ -1,3 +1,14 @@
+/* Sticks just under the app header; frosted so list content blurs beneath it. */
+.bar {
+  position: sticky;
+  top: var(--header-h, 4.5rem);
+  z-index: 30;
+  padding-bottom: 0.5rem;
+  background: color-mix(in srgb, var(--background) 85%, transparent);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+}
+
 .toolbar {
   display: flex;
   gap: 0.6rem;

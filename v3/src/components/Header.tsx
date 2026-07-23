@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import styles from './Header.module.css';
 
@@ -11,15 +12,32 @@ interface HeaderProps {
 
 /** Reusable sticky app bar shared by every page. */
 export function Header({ leading, title, actions }: HeaderProps) {
+  const ref = useRef<HTMLElement>(null);
+
+  // Publish the header's height so sticky elements below it (e.g. the toolbar)
+  // can offset by exactly the right amount regardless of responsive sizing.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () =>
+      document.documentElement.style.setProperty('--header-h', `${el.offsetHeight}px`);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <header className={styles.header}>
-      <div className={styles.left}>
-        {leading}
-        <h1 className={styles.title} title={title}>
-          {title}
-        </h1>
+    <header ref={ref} className={styles.header}>
+      <div className={styles.inner}>
+        <div className={styles.left}>
+          {leading}
+          <h1 className={styles.title} title={title}>
+            {title}
+          </h1>
+        </div>
+        {actions && <div className={styles.right}>{actions}</div>}
       </div>
-      {actions && <div className={styles.right}>{actions}</div>}
     </header>
   );
 }

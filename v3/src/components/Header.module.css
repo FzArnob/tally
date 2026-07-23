@@ -1,9 +1,6 @@
+/* Full-bleed bar (background + border span the viewport)… */
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1.5rem;
+  padding: 0.85rem 0;
   position: sticky;
   top: 0;
   z-index: 40;
@@ -11,6 +8,17 @@
   backdrop-filter: saturate(180%) blur(12px);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
   border-bottom: 1px solid var(--border);
+}
+
+/* …while the contents line up with the list column below (same 46rem + padding). */
+.inner {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .left {
@@ -80,7 +88,7 @@
 
 @media (max-width: 640px) {
   .header {
-    padding: 0.75rem 1rem;
+    padding: 0.75rem 0;
   }
   .title {
     font-size: var(--fs-amount);

@@ -26,7 +26,7 @@ function CustomerRow({
   const { t, formatSignedCurrency, formatTimeShort, localizeDigits } = useI18n();
   const positive = customer.total_balance >= 0;
   const last = customer.last_transaction_time
-    ? localizeDigits(formatTimeShort(new Date(customer.last_transaction_time.replace(' ', 'T'))))
+    ? localizeDigits(formatTimeShort(customer.last_transaction_time))
     : t.noActivity;
 
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();

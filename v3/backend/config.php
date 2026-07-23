@@ -4,6 +4,12 @@
 
 declare(strict_types=1);
 
+// Store every time in UTC. This makes PHP-generated timestamps (date(), etc.)
+// UTC; the DB session time zone below keeps MySQL's CURRENT_TIMESTAMP/NOW() and
+// TIMESTAMP/DATETIME columns in UTC too. The frontend converts to the viewer's
+// local zone on display (see v3/src/lib/format.ts parseServerTime()).
+date_default_timezone_set('UTC');
+
 const DB_HOST = '127.0.0.1';
 const DB_NAME = 'tally_v3';
 const DB_USER = 'root';
@@ -27,6 +33,10 @@ function db(): PDO
                     PDO::ATTR_EMULATE_PREPARES   => false,
                 ]
             );
+            // Force this connection to UTC so NOW()/CURRENT_TIMESTAMP and every
+            // TIMESTAMP/DATETIME read or written is in UTC, regardless of the
+            // server's local time zone. '+00:00' needs no MySQL tz tables loaded.
+            $pdo->exec("SET time_zone = '+00:00'");
         } catch (PDOException $e) {
             json_response(['error' => 'Database connection failed'], 500);
         }

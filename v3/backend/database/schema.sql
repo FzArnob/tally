@@ -2,6 +2,11 @@
 -- Design principle: every "calculative" value is DENORMALISED and kept up to date on
 -- write (insert/delete) so the UI only ever needs a plain SELECT — no aggregation at
 -- read time. See v3/backend/index.php recomputeCustomer()/recomputeProduct().
+--
+-- Time convention: ALL time columns (DATE/DATETIME/TIMESTAMP) store UTC. The API
+-- connection runs with `SET time_zone = '+00:00'` and PHP uses UTC (config.php), so
+-- CURRENT_TIMESTAMP/NOW() and any written value are UTC. The frontend renders them in
+-- the viewer's local zone (v3/src/lib/format.ts parseServerTime()).
 
 CREATE DATABASE IF NOT EXISTS tally_v3
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

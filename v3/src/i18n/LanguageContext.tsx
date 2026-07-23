@@ -19,8 +19,8 @@ interface LanguageContextValue {
   formatCurrency: (value: number | string | null | undefined) => string;
   formatSignedCurrency: (value: number) => string;
   formatNumber: (value: number | string | null | undefined) => string;
-  formatTimeFull: (date: Date) => string;
-  formatTimeShort: (date: Date) => string;
+  formatTimeFull: (value: Date | string | null | undefined) => string;
+  formatTimeShort: (value: Date | string | null | undefined) => string;
   localizeDigits: (text: string) => string;
 }
 
@@ -59,8 +59,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       formatCurrency: (v) => fmtCurrency(v, locale),
       formatSignedCurrency: (v) => fmtSigned(v, locale),
       formatNumber: (v) => fmtNumber(v, locale),
-      formatTimeFull: (d) => fmtTime(d, locale),
-      formatTimeShort: (d) => fmtTimeShort(d, locale),
+      formatTimeFull: (v) => fmtTime(v, locale),
+      formatTimeShort: (v) => fmtTimeShort(v, locale),
       localizeDigits: (s) => locDigits(s, locale),
     }),
     [lang, setLang, t, locale],

@@ -108,7 +108,7 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
               )}
               {entry.reason && <div className={styles.entryReason}>{entry.reason}</div>}
               <div className={styles.entryTime}>
-                {localizeDigits(formatTimeFull(new Date(entry.timestamp.replace(' ', 'T'))))}
+                {localizeDigits(formatTimeFull(entry.timestamp))}
               </div>
             </div>
           );

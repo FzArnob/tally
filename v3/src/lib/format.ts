@@ -48,8 +48,34 @@ export function localizeDigits(text: string, locale: string): string {
   return text;
 }
 
-/** Full date/time label for history rows. */
-export function formatTimeFull(date: Date, locale: string): string {
+/**
+ * Parse a datetime coming from the API into an absolute instant.
+ *
+ * The backend stores and returns every time in **UTC** as
+ * "YYYY-MM-DD HH:MM:SS" (no zone suffix). A bare string like that is parsed by
+ * the browser as *local* time, which would shift the value — so we normalise it
+ * and append the "Z" UTC designator. Once the Date is a correct instant, any
+ * Intl.DateTimeFormat call renders it in the viewer's local zone automatically.
+ *
+ * Returns null for empty/invalid input; a Date is passed through unchanged.
+ */
+export function parseServerTime(value: Date | string | null | undefined): Date | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+
+  let s = value.trim().replace(' ', 'T');
+  // Only tag as UTC when the string carries no zone info of its own.
+  if (!/[zZ]$|[+-]\d{2}:?\d{2}$/.test(s)) {
+    s += 'Z';
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** Full date/time label for history rows, rendered in the viewer's local zone. */
+export function formatTimeFull(value: Date | string | null | undefined, locale: string): string {
+  const date = parseServerTime(value);
+  if (!date) return '';
   return new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
@@ -60,8 +86,10 @@ export function formatTimeFull(date: Date, locale: string): string {
   }).format(date);
 }
 
-/** Compact date/time label for list rows (e.g. "22 Jul, 4:06 PM"). */
-export function formatTimeShort(date: Date, locale: string): string {
+/** Compact date/time label for list rows (e.g. "22 Jul, 4:06 PM"), local zone. */
+export function formatTimeShort(value: Date | string | null | undefined, locale: string): string {
+  const date = parseServerTime(value);
+  if (!date) return '';
   return new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'short',

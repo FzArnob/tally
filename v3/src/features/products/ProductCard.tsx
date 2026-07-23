@@ -26,7 +26,7 @@ export function ProductCard({
   const unit = product.quantity_type || 'piece';
   const count = product.transaction_count || 0;
   const last = product.last_transaction_time
-    ? localizeDigits(formatTimeShort(new Date(product.last_transaction_time.replace(' ', 'T'))))
+    ? localizeDigits(formatTimeShort(product.last_transaction_time))
     : t.noActivity;
 
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();

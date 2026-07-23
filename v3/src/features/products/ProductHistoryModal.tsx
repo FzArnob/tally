@@ -80,7 +80,7 @@ export function ProductHistoryModal({
                   <span>
                     {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}
                   </span>
-                  <span>{localizeDigits(formatTimeFull(new Date(tx.created_at.replace(' ', 'T'))))}</span>
+                  <span>{localizeDigits(formatTimeFull(tx.created_at))}</span>
                 </div>
               </div>
             );

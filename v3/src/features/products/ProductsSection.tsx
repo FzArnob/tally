@@ -143,10 +143,15 @@ export function ProductsSection() {
             index={i}
             onOpen={() => openAction(product)}
             onHistory={() => openHistory(product)}
+            onEdit={() => {
+              setFormProduct(product);
+              setFormOpen(true);
+            }}
+            onDelete={() => setPendingDeleteProduct(product)}
           />
         ))}
         {status !== 'loading' && (
-          <button className={`${styles.card} ${styles.add}`} aria-label={t.addProduct} onClick={openAdd}>
+          <button className={styles.add} aria-label={t.addProduct} onClick={openAdd}>
             <span className="material-symbols-outlined icon-xl">add</span>
           </button>
         )}
@@ -165,15 +170,6 @@ export function ProductsSection() {
         editTx={actionEditTx}
         onClose={() => setActionOpen(false)}
         onSaved={afterTxChange}
-        onEditProduct={(product) => {
-          setActionOpen(false);
-          setFormProduct(product);
-          setFormOpen(true);
-        }}
-        onDeleteProduct={(product) => {
-          setActionOpen(false);
-          setPendingDeleteProduct(product);
-        }}
       />
 
       <ProductHistoryModal

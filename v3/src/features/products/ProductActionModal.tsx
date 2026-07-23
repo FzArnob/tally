@@ -11,8 +11,6 @@ interface ProductActionModalProps {
   editTx: ProductTransaction | null;
   onClose: () => void;
   onSaved: () => void;
-  onEditProduct: (product: Product) => void;
-  onDeleteProduct: (product: Product) => void;
 }
 
 export function ProductActionModal({
@@ -21,8 +19,6 @@ export function ProductActionModal({
   editTx,
   onClose,
   onSaved,
-  onEditProduct,
-  onDeleteProduct,
 }: ProductActionModalProps) {
   const { t, formatCurrency, formatNumber } = useI18n();
   const [tab, setTab] = useState<TransactionType>('stock');
@@ -102,20 +98,6 @@ export function ProductActionModal({
                 >
                   {product.name}
                 </h3>
-                <button
-                  className="ghost-btn"
-                  aria-label={t.editProduct}
-                  onClick={() => onEditProduct(product)}
-                >
-                  <span className="material-symbols-outlined icon-md">edit</span>
-                </button>
-                <button
-                  className="ghost-btn"
-                  aria-label={t.deleteProduct}
-                  onClick={() => onDeleteProduct(product)}
-                >
-                  <span className="material-symbols-outlined icon-md">delete</span>
-                </button>
               </div>
               <span className={styles.actionStock}>
                 {t.stock}: {formatNumber(product.current_stock || 0)} {product.quantity_type || 'piece'}

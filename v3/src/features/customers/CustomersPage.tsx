@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useI18n } from '../../i18n/LanguageContext';
+import { Header, HeaderBackButton } from '../../components/Header';
+import { ThemeToggle } from '../../components/ThemeToggle';
 import { LanguageSwitcher } from '../../components/LanguageSwitcher';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { deleteCustomer, getCustomers, BOOK_ID } from '../../lib/api';
@@ -131,16 +133,20 @@ export function CustomersPage() {
   };
 
   return (
-    <div className={styles.page}>
-      <header className={styles.pageHeader}>
-        <button className="icon-btn" aria-label={t.back} onClick={() => navigate('/')}>
-          <span className="material-symbols-outlined icon-lg">arrow_back</span>
-        </button>
-        <h1 className={styles.pageTitle}>{t.customerBalancesTitle}</h1>
-        <LanguageSwitcher />
-      </header>
+    <>
+      <Header
+        leading={<HeaderBackButton label={t.back} onClick={() => navigate('/')} />}
+        title={t.customerBalancesTitle}
+        actions={
+          <>
+            <ThemeToggle />
+            <LanguageSwitcher />
+          </>
+        }
+      />
 
-      <div className={styles.toolbar}>
+      <div className={styles.page}>
+        <div className={styles.toolbar}>
         <div className={styles.search}>
           <span className="material-symbols-outlined icon-md">search</span>
           <input
@@ -229,6 +235,7 @@ export function CustomersPage() {
         onCancel={() => setPendingDelete(null)}
         busy={deleting}
       />
-    </div>
+      </div>
+    </>
   );
 }

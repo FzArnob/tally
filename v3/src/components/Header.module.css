@@ -3,7 +3,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
-  padding: 1.25rem 1.5rem;
+  padding: 0.85rem 1.5rem;
   position: sticky;
   top: 0;
   z-index: 40;
@@ -39,7 +39,7 @@
   object-fit: contain;
 }
 
-.storeName {
+.title {
   font-size: var(--fs-heading-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--foreground);
@@ -80,9 +80,18 @@
 
 @media (max-width: 640px) {
   .header {
-    padding: 0.9rem 1rem;
+    padding: 0.75rem 1rem;
   }
-  .storeName {
+  .title {
     font-size: var(--fs-amount);
+  }
+  .logoBadge {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 0.7rem;
+  }
+  .logo {
+    width: 1.45rem;
+    height: 1.45rem;
   }
 }

@@ -16,6 +16,12 @@ export interface Translation {
   english: string;
   bangla: string;
 
+  // Theme
+  theme: string;
+  themeSystem: string;
+  themeLight: string;
+  themeDark: string;
+
   // Products grid
   noProducts: string;
   addFirstProduct: string;
@@ -141,6 +147,11 @@ const en: Translation = {
   english: 'English',
   bangla: 'বাংলা',
 
+  theme: 'Theme',
+  themeSystem: 'System',
+  themeLight: 'Light',
+  themeDark: 'Dark',
+
   noProducts: 'No products yet',
   addFirstProduct: 'Tap + to add your first product.',
   failedLoadProducts: 'Failed to load products. Please refresh the page.',
@@ -256,6 +267,11 @@ const bn: Translation = {
   language: 'ভাষা',
   english: 'English',
   bangla: 'বাংলা',
+
+  theme: 'থিম',
+  themeSystem: 'সিস্টেম',
+  themeLight: 'লাইট',
+  themeDark: 'ডার্ক',
 
   noProducts: 'এখনো কোন পণ্য নেই',
   addFirstProduct: 'প্রথম পণ্য যোগ করতে + চাপুন।',

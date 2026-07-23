@@ -1,11 +1,15 @@
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { Header } from './components/Header';
+import { Header, HeaderLogo, CustomersButton } from './components/Header';
+import { ThemeToggle } from './components/ThemeToggle';
+import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { ProductsSection } from './features/products/ProductsSection';
 import { CustomersPage } from './features/customers/CustomersPage';
 import { useI18n } from './i18n/LanguageContext';
 import { getBookDetails, BOOK_ID } from './lib/api';
 import type { Book } from './types';
+
+const storeLogo = `${import.meta.env.BASE_URL}store.svg`;
 
 /** Loads the current book once; falls back to a sensible default on error. */
 export function useBook(): Book {
@@ -29,9 +33,18 @@ function HomePage() {
   return (
     <>
       <Header
-        storeName={book.name || t.appName}
-        logoUrl={book.logo_url}
-        onOpenCustomers={() => navigate(`/${book.id}/customers`)}
+        leading={<HeaderLogo src={book.logo_url || storeLogo} />}
+        title={book.name || t.appName}
+        actions={
+          <>
+            <ThemeToggle />
+            <LanguageSwitcher />
+            <CustomersButton
+              label={t.customerBalances}
+              onClick={() => navigate(`/${book.id}/customers`)}
+            />
+          </>
+        }
       />
       <ProductsSection />
     </>

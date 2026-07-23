@@ -5,7 +5,7 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { useBooks } from './BooksContext';
 import { bookHomePath } from './book';
-import { CreateBookModal } from './CreateBookModal';
+import { BookFormModal } from './BookFormModal';
 import type { Book } from '../types';
 import styles from './books.module.css';
 
@@ -43,7 +43,7 @@ export function WelcomeScreen() {
         </div>
       </div>
 
-      <CreateBookModal open={open} onClose={() => setOpen(false)} onCreated={handleCreated} />
+      <BookFormModal open={open} book={null} onClose={() => setOpen(false)} onSaved={handleCreated} />
     </>
   );
 }

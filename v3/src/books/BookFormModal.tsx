@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import { Modal, ModalHeader } from '../components/Modal';
 import { useI18n } from '../i18n/LanguageContext';
-import { createBook } from '../lib/api';
+import { createBook, updateBook } from '../lib/api';
 import { bookIcon } from './book';
 import type { Book, BookType } from '../types';
 import type { Translation } from '../i18n/translations';
 import styles from './books.module.css';
 
-interface CreateBookModalProps {
+interface BookFormModalProps {
   open: boolean;
+  /** null => create a new book; a book => edit it. */
+  book: Book | null;
   onClose: () => void;
-  onCreated: (book: Book) => void;
+  onSaved: (book: Book, created: boolean) => void;
 }
 
 const TYPES: { value: BookType; labelKey: keyof Translation; hintKey: keyof Translation }[] = [
@@ -18,8 +20,9 @@ const TYPES: { value: BookType; labelKey: keyof Translation; hintKey: keyof Tran
   { value: 'personal', labelKey: 'typePersonal', hintKey: 'typePersonalHint' },
 ];
 
-export function CreateBookModal({ open, onClose, onCreated }: CreateBookModalProps) {
+export function BookFormModal({ open, book, onClose, onSaved }: BookFormModalProps) {
   const { t } = useI18n();
+  const isEdit = !!book;
   const [name, setName] = useState('');
   const [type, setType] = useState<BookType>('store');
   const [saving, setSaving] = useState(false);
@@ -27,11 +30,11 @@ export function CreateBookModal({ open, onClose, onCreated }: CreateBookModalPro
 
   useEffect(() => {
     if (!open) return;
-    setName('');
-    setType('store');
+    setName(book?.name ?? '');
+    setType(book?.type ?? 'store');
     setError(null);
     setSaving(false);
-  }, [open]);
+  }, [open, book]);
 
   const submit = async () => {
     const trimmed = name.trim();
@@ -42,10 +45,12 @@ export function CreateBookModal({ open, onClose, onCreated }: CreateBookModalPro
     setSaving(true);
     setError(null);
     try {
-      const res = await createBook({ name: trimmed, type });
-      onCreated(res.book);
+      const res = book
+        ? await updateBook(book.id, { name: trimmed, type })
+        : await createBook({ name: trimmed, type });
+      onSaved(res.book, !book);
     } catch (err) {
-      console.error('Failed to create book:', err);
+      console.error('Failed to save book:', err);
       setError(t.failedSaveBook);
     } finally {
       setSaving(false);
@@ -56,11 +61,11 @@ export function CreateBookModal({ open, onClose, onCreated }: CreateBookModalPro
     <Modal
       open={open}
       onClose={onClose}
-      labelledBy="createBookTitle"
+      labelledBy="bookFormTitle"
       header={
         <ModalHeader
-          title={t.addBook}
-          titleId="createBookTitle"
+          title={isEdit ? t.editBook : t.addBook}
+          titleId="bookFormTitle"
           onClose={onClose}
           closeLabel={t.close}
         />
@@ -102,7 +107,7 @@ export function CreateBookModal({ open, onClose, onCreated }: CreateBookModalPro
         {error && <div className={styles.formError}>{error}</div>}
 
         <button className="btn btn-primary btn-block" onClick={submit} disabled={saving}>
-          {t.createBook}
+          {isEdit ? t.saveChanges : t.createBook}
         </button>
       </div>
     </Modal>

@@ -259,6 +259,42 @@ on('GET', '/books/{id}', function ($a) {
     json_response(shapeBook($book));
 });
 
+on('PUT', '/books/{id}', function ($a) {
+    $pdo = db();
+    $id  = (int) $a['id'];
+    $exists = $pdo->prepare('SELECT id FROM books WHERE id = ?');
+    $exists->execute([$id]);
+    if (!$exists->fetch()) {
+        json_error('Book not found.', 404, 'not_found');
+    }
+
+    $body = read_json_body();
+    $name = v_string($body['name'] ?? '', 100, true, 'Book name');
+    $type = $body['type'] ?? 'store';
+    if (!in_array($type, ['store', 'personal'], true)) {
+        json_error('Type must be "store" or "personal".', 422, 'validation');
+    }
+
+    $pdo->prepare('UPDATE books SET name = ?, type = ? WHERE id = ?')->execute([$name, $type, $id]);
+
+    $stmt = $pdo->prepare('SELECT id, name, type FROM books WHERE id = ?');
+    $stmt->execute([$id]);
+    json_response(['success' => true, 'book' => shapeBook($stmt->fetch())]);
+});
+
+on('DELETE', '/books/{id}', function ($a) {
+    $pdo = db();
+    $id  = (int) $a['id'];
+    $exists = $pdo->prepare('SELECT id FROM books WHERE id = ?');
+    $exists->execute([$id]);
+    if (!$exists->fetch()) {
+        json_error('Book not found.', 404, 'not_found');
+    }
+    // FK cascades remove the book's products, customers, transactions and history.
+    $pdo->prepare('DELETE FROM books WHERE id = ?')->execute([$id]);
+    json_response(['success' => true]);
+});
+
 // ---- Customers ----
 on('GET', '/books/{id}/customers', function ($a) {
     $stmt = db()->prepare(
@@ -516,6 +552,26 @@ on('POST', '/products/{id}/transactions', function ($a) {
     $price = round((float) $body['price_per_unit'], 2);
     $note  = v_string($body['note'] ?? '', 255, false, 'Note');
     $total = round($quantity * $price, 2);
+    // When editing, this entry replaces an existing one (insert + delete happen
+    // atomically below), so no update endpoint is needed.
+    $replaces = isset($body['replaces']) && is_numeric($body['replaces']) ? (int) $body['replaces'] : 0;
+
+    // Stock guard: a sale can never exceed the stock in hand, so stock stays >= 0.
+    // For an edit, reverse the replaced entry's effect to get the true baseline.
+    if ($type === 'sale') {
+        $available = (float) $product['current_stock'];
+        if ($replaces > 0) {
+            $r = $pdo->prepare('SELECT type, quantity FROM product_transactions WHERE id = ? AND product_id = ?');
+            $r->execute([$replaces, (int) $product['id']]);
+            if ($old = $r->fetch()) {
+                $available += $old['type'] === 'sale' ? (float) $old['quantity'] : -(float) $old['quantity'];
+            }
+        }
+        if ($quantity - $available > 0.0000001) {
+            $avail = rtrim(rtrim(number_format($available, 3, '.', ''), '0'), '.');
+            json_error('Not enough stock. Only ' . $avail . ' in stock.', 422, 'insufficient_stock');
+        }
+    }
 
     $pdo->beginTransaction();
     try {
@@ -524,6 +580,10 @@ on('POST', '/products/{id}/transactions', function ($a) {
              VALUES (?, ?, ?, ?, ?, ?, 0, ?)'
         )->execute([$product['id'], (int) $product['book_id'], $type, $quantity, $price, $total, $note !== '' ? $note : null]);
         $txId = (int) $pdo->lastInsertId();
+        if ($replaces > 0) {
+            $pdo->prepare('DELETE FROM product_transactions WHERE id = ? AND product_id = ?')
+                ->execute([$replaces, (int) $product['id']]);
+        }
         recomputeProduct($pdo, (int) $product['id']);
         $pdo->commit();
     } catch (Throwable $e) {

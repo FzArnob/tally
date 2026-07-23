@@ -25,6 +25,10 @@ export interface Translation {
   // Books
   switchBook: string;
   addBook: string;
+  editBook: string;
+  deleteBook: string;
+  deleteBookConfirm: string;
+  failedDeleteBook: string;
   createBook: string;
   bookName: string;
   bookNamePlaceholder: string;
@@ -84,6 +88,7 @@ export interface Translation {
   update: string;
   enterValidQuantity: string;
   enterValidPrice: string;
+  notEnoughStock: string;
   failedSaveTransaction: string;
   failedLoadProduct: string;
 
@@ -178,6 +183,10 @@ const en: Translation = {
 
   switchBook: 'Switch book',
   addBook: 'Add Book',
+  editBook: 'Edit Book',
+  deleteBook: 'Delete Book',
+  deleteBookConfirm: 'Delete this book and everything in it (products, customers, history)? This cannot be undone.',
+  failedDeleteBook: 'Failed to delete book. Please try again.',
   createBook: 'Create Book',
   bookName: 'Book Name',
   bookNamePlaceholder: 'e.g. My Store',
@@ -234,6 +243,7 @@ const en: Translation = {
   update: 'Update',
   enterValidQuantity: 'Please enter a valid quantity.',
   enterValidPrice: 'Please enter a valid price.',
+  notEnoughStock: 'Not enough stock. Available:',
   failedSaveTransaction: 'Failed to save transaction. Please try again.',
   failedLoadProduct: 'Failed to load product. Please try again.',
 
@@ -322,6 +332,10 @@ const bn: Translation = {
 
   switchBook: 'বই পরিবর্তন',
   addBook: 'বই যোগ করুন',
+  editBook: 'বই সম্পাদনা',
+  deleteBook: 'বই মুছুন',
+  deleteBookConfirm: 'এই বই ও এর সমস্ত কিছু (পণ্য, গ্রাহক, ইতিহাস) মুছে ফেলবেন? এটি ফেরানো যাবে না।',
+  failedDeleteBook: 'বই মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
   createBook: 'বই তৈরি করুন',
   bookName: 'বইয়ের নাম',
   bookNamePlaceholder: 'যেমন আমার দোকান',
@@ -378,6 +392,7 @@ const bn: Translation = {
   update: 'আপডেট',
   enterValidQuantity: 'অনুগ্রহ করে সঠিক পরিমাণ লিখুন।',
   enterValidPrice: 'অনুগ্রহ করে সঠিক মূল্য লিখুন।',
+  notEnoughStock: 'পর্যাপ্ত স্টক নেই। উপলব্ধ:',
   failedSaveTransaction: 'লেনদেন সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
   failedLoadProduct: 'পণ্য লোড করা যায়নি। আবার চেষ্টা করুন।',
 

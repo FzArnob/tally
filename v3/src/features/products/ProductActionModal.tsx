@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
-import { deleteProductTransaction, saveProductTransaction } from '../../lib/api';
-import type { Product, ProductTransaction, TransactionType } from '../../types';
+import { saveProductTransaction } from '../../lib/api';
+import { ApiError, type Product, type ProductTransaction, type TransactionType } from '../../types';
 import styles from './products.module.css';
 
 interface ProductActionModalProps {
@@ -45,6 +45,13 @@ export function ProductActionModal({
   const total = (parseFloat(qty) || 0) * (parseFloat(price) || 0);
   const hasImage = product.image_url && product.image_url !== 'null';
 
+  // Stock available for a sale. When editing, reverse the edited entry's effect
+  // so lowering/raising it validates against the true baseline (mirrors the API).
+  const unit = product.quantity_type || 'piece';
+  const available =
+    (product.current_stock || 0) +
+    (editTx ? (editTx.type === 'sale' ? editTx.quantity : -editTx.quantity) : 0);
+
   const submit = async () => {
     const q = parseFloat(qty);
     const p = parseFloat(price);
@@ -56,24 +63,30 @@ export function ProductActionModal({
       alert(t.enterValidPrice);
       return;
     }
+    // A sale cannot exceed the stock in hand (stock never goes below 0).
+    if (tab === 'sale' && q - available > 1e-9) {
+      alert(`${t.notEnoughStock} ${formatNumber(available)} ${unit}`);
+      return;
+    }
     setSaving(true);
     try {
+      // Editing passes `replaces` so the API swaps the entry atomically.
       await saveProductTransaction({
         productId: product.id,
         type: tab,
         quantity: q,
         pricePerUnit: p,
+        replaces: editTx?.id ?? null,
       });
-      // Editing = insert the corrected entry, then remove the old one
-      // (the PHP API has no update endpoint; this uses only existing endpoints).
-      if (editTx) {
-        await deleteProductTransaction(editTx.id);
-      }
       onSaved();
       onClose();
     } catch (err) {
-      console.error('Failed to save transaction:', err);
-      alert(t.failedSaveTransaction);
+      if (err instanceof ApiError && err.code === 'insufficient_stock') {
+        alert(err.message);
+      } else {
+        console.error('Failed to save transaction:', err);
+        alert(t.failedSaveTransaction);
+      }
     } finally {
       setSaving(false);
     }

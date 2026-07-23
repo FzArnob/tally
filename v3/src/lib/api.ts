@@ -61,6 +61,18 @@ export function createBook(params: { name: string; type: BookType }): Promise<Sa
   return request<SaveBookResponse>('books', jsonInit('POST', { name, type }));
 }
 
+export function updateBook(
+  id: number,
+  params: { name: string; type: BookType },
+): Promise<SaveBookResponse> {
+  const { name, type } = params;
+  return request<SaveBookResponse>(`books/${id}`, jsonInit('PUT', { name, type }));
+}
+
+export function deleteBook(id: number): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`books/${id}`, { method: 'DELETE' });
+}
+
 export function getBookDetails(bookId = BOOK_ID): Promise<Book> {
   return request<Book>(`books/${bookId}`);
 }
@@ -158,11 +170,13 @@ export function saveProductTransaction(params: {
   quantity: number;
   pricePerUnit: number;
   note?: string | null;
+  /** When editing, the id of the transaction this one replaces (insert+delete atomically). */
+  replaces?: number | null;
 }): Promise<SaveTransactionResponse> {
-  const { productId, type, quantity, pricePerUnit, note = null } = params;
+  const { productId, type, quantity, pricePerUnit, note = null, replaces = null } = params;
   return request<SaveTransactionResponse>(
     `products/${productId}/transactions`,
-    jsonInit('POST', { type, quantity, price_per_unit: pricePerUnit, note }),
+    jsonInit('POST', { type, quantity, price_per_unit: pricePerUnit, note, replaces }),
   );
 }
 

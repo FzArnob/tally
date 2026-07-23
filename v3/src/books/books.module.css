@@ -86,17 +86,13 @@
   transform: translateY(0) scale(1);
 }
 
+/* One book row — the whole area (info + actions) reads as a single unit. */
 .option {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  width: 100%;
-  padding: 0.55rem 0.6rem;
-  border: none;
-  background: transparent;
-  color: var(--foreground);
+  gap: 0.1rem;
+  padding-right: 0.3rem;
   border-radius: 0.6rem;
-  text-align: left;
   transition: background-color var(--dur-fast) ease;
 }
 
@@ -104,8 +100,35 @@
   background: var(--muted);
 }
 
+/* The current book stays tinted so it's clearly the selected one. */
 .optionActive {
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.optionActive:hover {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* The switch-to-book clickable area (icon + name/type). */
+.optionMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.6rem;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  border-radius: 0.6rem;
+}
+
+.optionActions {
+  display: flex;
+  align-items: center;
+  gap: 0.05rem;
+  flex-shrink: 0;
 }
 
 .optionIcon {
@@ -139,11 +162,6 @@
 .optionType {
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
-}
-
-.optionCheck {
-  flex-shrink: 0;
-  color: var(--primary);
 }
 
 .addBtn {

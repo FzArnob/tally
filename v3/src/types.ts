@@ -75,6 +75,55 @@ export interface DeleteBalanceResponse {
   new_balance: number;
 }
 
+// ---- Personal books: categories + transactions ----
+export type CashflowType = 'income' | 'expense';
+
+export interface Category {
+  id: number;
+  book_id: number;
+  name: string;
+  details: string;
+  type: CashflowType;
+  transaction_count: number;
+}
+
+export interface CategoriesResponse {
+  categories: Category[];
+}
+
+export interface SaveCategoryResponse {
+  success: boolean;
+  category: Category;
+}
+
+export interface PersonalTransaction {
+  id: number;
+  book_id: number;
+  category_id: number | null;
+  category_name: string;
+  type: CashflowType;
+  note: string;
+  amount: number;
+  signed_amount: number;
+  timestamp: string;
+}
+
+export interface TransactionTotals {
+  income: number;
+  expense: number;
+  balance: number;
+}
+
+export interface TransactionsResponse {
+  transactions: PersonalTransaction[];
+  totals: TransactionTotals;
+}
+
+export interface SavePersonalTxResponse {
+  success: boolean;
+  transaction: PersonalTransaction;
+}
+
 export type TransactionType = 'stock' | 'sale';
 
 export interface ProductTransaction {

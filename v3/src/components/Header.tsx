@@ -69,3 +69,12 @@ export function CustomersButton({ label, onClick }: { label: string; onClick: ()
     </button>
   );
 }
+
+/** Categories manager button (personal books). */
+export function CategoriesButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="icon-btn" aria-label={label} onClick={onClick}>
+      <span className="material-symbols-outlined icon-lg">category</span>
+    </button>
+  );
+}

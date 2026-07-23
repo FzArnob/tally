@@ -1,0 +1,206 @@
+.page {
+  max-width: 46rem;
+  margin: 0 auto;
+}
+
+/* ---- Summary card (Income / Expense / Balance) ---- */
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem 0.75rem;
+  margin: 1rem 1.25rem 0;
+  padding: 0.8rem 1rem;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sumItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.sumItem:nth-child(2) {
+  align-items: center;
+}
+
+.sumItem:last-child {
+  align-items: flex-end;
+}
+
+.sumLabel {
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+}
+
+.sumValue {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--fs-base);
+  white-space: nowrap;
+}
+
+/* ---- List ---- */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem 3rem;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  box-shadow: var(--shadow-sm);
+  animation: rowIn var(--dur-fast) ease both;
+}
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.amount {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--fs-amount);
+  white-space: nowrap;
+}
+
+.note {
+  font-size: var(--fs-sm);
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  text-transform: capitalize;
+}
+
+.right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.chip {
+  max-width: 8rem;
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipIncome {
+  background: color-mix(in srgb, var(--green-600) 15%, transparent);
+  color: var(--green-700);
+}
+
+.chipExpense {
+  background: color-mix(in srgb, var(--red-600) 15%, transparent);
+  color: var(--red-700);
+}
+
+.actions {
+  display: flex;
+  gap: 0.05rem;
+}
+
+/* ---- Form modal ---- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.typeToggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.typeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.65rem;
+  border: 1.5px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--input-background);
+  color: var(--muted-foreground);
+  font-size: var(--fs-base);
+  font-weight: var(--font-weight-medium);
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+
+.typeIncomeActive {
+  border-color: var(--green-600);
+  background: color-mix(in srgb, var(--green-600) 12%, var(--input-background));
+  color: var(--green-700);
+}
+
+.typeExpenseActive {
+  border-color: var(--red-600);
+  background: color-mix(in srgb, var(--red-600) 12%, var(--input-background));
+  color: var(--red-700);
+}
+
+.categoryEmpty {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+
+.categoryEmpty:hover {
+  background: var(--muted);
+  color: var(--foreground);
+  border-color: var(--primary);
+}
+
+.formError {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.75rem;
+  font-size: var(--fs-sm);
+}

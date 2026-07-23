@@ -7,6 +7,9 @@ import {
   type BookType,
   type BooksResponse,
   type SaveBookResponse,
+  type CashflowType,
+  type CategoriesResponse,
+  type SaveCategoryResponse,
   type CreateBalanceResponse,
   type Customer,
   type CustomerHistoryResponse,
@@ -17,6 +20,8 @@ import {
   type SaveCustomerResponse,
   type SaveProductResponse,
   type SaveTransactionResponse,
+  type SavePersonalTxResponse,
+  type TransactionsResponse,
   type BalanceType,
   type TransactionType,
 } from '../types';
@@ -184,4 +189,51 @@ export function deleteProductTransaction(transactionId: number): Promise<{ succe
   return request<{ success: boolean }>(`product-transactions/${transactionId}`, {
     method: 'DELETE',
   });
+}
+
+// ---- Categories (personal books) ----
+export function getCategories(bookId: number): Promise<CategoriesResponse> {
+  return request<CategoriesResponse>(`books/${bookId}/categories`);
+}
+
+export function saveCategory(params: {
+  categoryId?: number | null;
+  bookId: number;
+  name: string;
+  details: string;
+  type: CashflowType;
+}): Promise<SaveCategoryResponse> {
+  const { categoryId = null, bookId, name, details, type } = params;
+  const body = { name, details, type };
+  return categoryId
+    ? request<SaveCategoryResponse>(`categories/${categoryId}`, jsonInit('PUT', body))
+    : request<SaveCategoryResponse>(`books/${bookId}/categories`, jsonInit('POST', body));
+}
+
+export function deleteCategory(id: number): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`categories/${id}`, { method: 'DELETE' });
+}
+
+// ---- Personal transactions (personal books) ----
+export function getTransactions(bookId: number): Promise<TransactionsResponse> {
+  return request<TransactionsResponse>(`books/${bookId}/transactions`);
+}
+
+export function savePersonalTransaction(params: {
+  transactionId?: number | null;
+  bookId: number;
+  type: CashflowType;
+  categoryId: number;
+  note: string;
+  amount: number;
+}): Promise<SavePersonalTxResponse> {
+  const { transactionId = null, bookId, type, categoryId, note, amount } = params;
+  const body = { type, category_id: categoryId, note, amount };
+  return transactionId
+    ? request<SavePersonalTxResponse>(`personal-transactions/${transactionId}`, jsonInit('PUT', body))
+    : request<SavePersonalTxResponse>(`books/${bookId}/transactions`, jsonInit('POST', body));
+}
+
+export function deletePersonalTransaction(id: number): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`personal-transactions/${id}`, { method: 'DELETE' });
 }

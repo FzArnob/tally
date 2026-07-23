@@ -5,6 +5,7 @@ import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { ProductsSection } from './features/products/ProductsSection';
 import { CustomersPage } from './features/customers/CustomersPage';
 import { TransactionsPage } from './features/transactions/TransactionsPage';
+import { CategoriesPage } from './features/categories/CategoriesPage';
 import { useI18n } from './i18n/LanguageContext';
 import { useBooks } from './books/BooksContext';
 import { BookSwitcher } from './books/BookSwitcher';
@@ -86,6 +87,16 @@ function PersonalHomePage() {
   return <TransactionsPage book={book} />;
 }
 
+function PersonalCategoriesPage() {
+  const { book, status } = useRouteBook();
+
+  if (status === 'loading') return <FullScreenLoader />;
+  if (!book) return <Navigate to="/" replace />;
+  if (book.type !== 'personal') return <Navigate to={bookHomePath(book)} replace />;
+
+  return <CategoriesPage book={book} />;
+}
+
 export function App() {
   return (
     <Routes>
@@ -93,6 +104,7 @@ export function App() {
       <Route path="/:bookId/products" element={<StoreProductsPage />} />
       <Route path="/:bookId/customers" element={<CustomersPage />} />
       <Route path="/:bookId/transactions" element={<PersonalHomePage />} />
+      <Route path="/:bookId/categories" element={<PersonalCategoriesPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

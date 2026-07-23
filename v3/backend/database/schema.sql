@@ -13,6 +13,8 @@ CREATE DATABASE IF NOT EXISTS tally_v3
 USE tally_v3;
 
 -- Drop in dependency order so the file is re-runnable.
+DROP TABLE IF EXISTS personal_transactions;
+DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS customer_balance_history;
 DROP TABLE IF EXISTS product_transactions;
 DROP TABLE IF EXISTS customers;
@@ -128,4 +130,48 @@ CREATE TABLE product_transactions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_pt_product ON product_transactions(product_id, id DESC);
+
+-- ---------------------------------------------------------------------------
+-- Categories (personal books) — income/expense buckets. transaction_count is
+-- precomputed on write so the manager needs no aggregation at read time.
+-- ---------------------------------------------------------------------------
+CREATE TABLE categories (
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    book_id           INT           NOT NULL,
+    name              VARCHAR(100)  NOT NULL,
+    details           VARCHAR(255)  NOT NULL DEFAULT '',
+    type              ENUM('income','expense') NOT NULL,
+    transaction_count INT           NOT NULL DEFAULT 0,   -- denormalised
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_categories_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+    -- A category name is unique per type within a book.
+    CONSTRAINT uq_category_identity UNIQUE (book_id, type, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_categories_book_type ON categories(book_id, type, name);
+
+-- ---------------------------------------------------------------------------
+-- Personal transactions (personal books) — income/expense entries. category_name
+-- is a denormalised snapshot so the list needs no JOIN; signed_amount (+income /
+-- -expense) makes the summary a trivial sum. On category delete the FK nulls the
+-- link but the row keeps its category_name label.
+-- ---------------------------------------------------------------------------
+CREATE TABLE personal_transactions (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    book_id       INT           NOT NULL,
+    category_id   INT           NULL,
+    category_name VARCHAR(100)  NOT NULL DEFAULT '',   -- denormalised snapshot
+    type          ENUM('income','expense') NOT NULL,
+    note          VARCHAR(255)  NOT NULL DEFAULT '',
+    amount        DECIMAL(14,2) NOT NULL,              -- always positive
+    signed_amount DECIMAL(14,2) NOT NULL,              -- +income / -expense
+    timestamp     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ptx_book     FOREIGN KEY (book_id)     REFERENCES books(id)      ON DELETE CASCADE,
+    CONSTRAINT fk_ptx_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_ptx_book_time ON personal_transactions(book_id, id DESC);
+CREATE INDEX idx_ptx_category  ON personal_transactions(category_id);
 

@@ -1,0 +1,171 @@
+.page {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ---- Per-type section (accent driven by --cat) ---- */
+.section {
+  --cat: var(--muted-foreground);
+  --cat-strong: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.9rem 1rem 1rem;
+  background: color-mix(in srgb, var(--cat) 5%, var(--card));
+}
+
+.income {
+  --cat: var(--green-600);
+  --cat-strong: var(--green-700);
+}
+
+.expense {
+  --cat: var(--red-600);
+  --cat-strong: var(--red-700);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.sectionTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--fs-heading-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--cat-strong);
+}
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--cat) 45%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cat) 12%, transparent);
+  color: var(--cat-strong);
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+  transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+
+.addBtn:hover {
+  background: color-mix(in srgb, var(--cat) 20%, transparent);
+}
+
+.addBtn:active {
+  transform: scale(0.96);
+}
+
+.sectionEmpty {
+  padding: 1.25rem 0.5rem;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+}
+
+/* ---- Category cards ---- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.6rem;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--cat);
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.5rem 0.65rem 0.75rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.cardInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.cardName {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--fs-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardDetails {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardCount {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+
+.cardActions {
+  display: flex;
+  gap: 0.05rem;
+  flex-shrink: 0;
+}
+
+/* ---- Category form modal ---- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.typeBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.badgeIncome {
+  background: color-mix(in srgb, var(--green-600) 15%, transparent);
+  color: var(--green-700);
+}
+
+.badgeExpense {
+  background: color-mix(in srgb, var(--red-600) 15%, transparent);
+  color: var(--red-700);
+}
+
+.optional {
+  color: var(--muted-foreground);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--fs-xs);
+}
+
+.formError {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.75rem;
+  font-size: var(--fs-sm);
+}

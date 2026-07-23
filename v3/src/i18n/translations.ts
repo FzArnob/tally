@@ -47,6 +47,45 @@ export interface Translation {
   comingSoon: string;
   comingSoonHint: string;
 
+  // Personal — transactions
+  income: string;
+  expense: string;
+  netBalance: string;
+  typeLabel: string;
+  amountLabel: string;
+  noteLabel: string;
+  categoryLabel: string;
+  selectCategory: string;
+  addTransaction: string;
+  editTransaction: string;
+  deleteTransaction: string;
+  deleteTransactionConfirm: string;
+  searchTransactions: string;
+  noTransactions: string;
+  addFirstTransaction: string;
+  failedLoadTransactions: string;
+  enterValidAmount: string;
+  noCategoriesHint: string;
+  manageCategories: string;
+
+  // Personal — categories
+  categories: string;
+  categoriesTitle: string;
+  addCategory: string;
+  editCategory: string;
+  deleteCategory: string;
+  deleteCategoryConfirm: string;
+  categoryName: string;
+  categoryNamePlaceholder: string;
+  categoryDetails: string;
+  categoryDetailsPlaceholder: string;
+  duplicateCategory: string;
+  enterCategoryName: string;
+  noCategories: string;
+  failedLoadCategories: string;
+  failedSaveCategory: string;
+  failedDeleteCategory: string;
+
   // Products grid
   noProducts: string;
   addFirstProduct: string;
@@ -205,6 +244,43 @@ const en: Translation = {
   comingSoon: 'Coming soon',
   comingSoonHint: 'Personal transactions are on the way.',
 
+  income: 'Income',
+  expense: 'Expense',
+  netBalance: 'Balance',
+  typeLabel: 'Type',
+  amountLabel: 'Amount',
+  noteLabel: 'Note',
+  categoryLabel: 'Category',
+  selectCategory: 'Select a category',
+  addTransaction: 'Add Transaction',
+  editTransaction: 'Edit Transaction',
+  deleteTransaction: 'Delete Transaction',
+  deleteTransactionConfirm: 'Delete this transaction? This cannot be undone.',
+  searchTransactions: 'Search transactions',
+  noTransactions: 'No transactions yet',
+  addFirstTransaction: 'Tap Add to record your first one.',
+  failedLoadTransactions: 'Failed to load transactions. Please refresh the page.',
+  enterValidAmount: 'Please enter a valid amount.',
+  noCategoriesHint: 'No categories for this type yet. Create one first.',
+  manageCategories: 'Manage categories',
+
+  categories: 'Categories',
+  categoriesTitle: 'Categories',
+  addCategory: 'Add Category',
+  editCategory: 'Edit Category',
+  deleteCategory: 'Delete Category',
+  deleteCategoryConfirm: 'Delete this category? Existing transactions keep their label.',
+  categoryName: 'Category Name',
+  categoryNamePlaceholder: 'e.g. Food',
+  categoryDetails: 'Details',
+  categoryDetailsPlaceholder: 'e.g. Groceries & dining',
+  duplicateCategory: 'A category with this name already exists for this type.',
+  enterCategoryName: 'Please enter a category name.',
+  noCategories: 'No categories yet',
+  failedLoadCategories: 'Failed to load categories. Please refresh the page.',
+  failedSaveCategory: 'Failed to save category. Please try again.',
+  failedDeleteCategory: 'Failed to delete category. Please try again.',
+
   noProducts: 'No products yet',
   addFirstProduct: 'Tap Add to create your first product.',
   failedLoadProducts: 'Failed to load products. Please refresh the page.',
@@ -353,6 +429,43 @@ const bn: Translation = {
   transactionsTitle: 'লেনদেন',
   comingSoon: 'শীঘ্রই আসছে',
   comingSoonHint: 'ব্যক্তিগত লেনদেন শীঘ্রই আসছে।',
+
+  income: 'আয়',
+  expense: 'ব্যয়',
+  netBalance: 'ব্যালেন্স',
+  typeLabel: 'ধরন',
+  amountLabel: 'পরিমাণ',
+  noteLabel: 'নোট',
+  categoryLabel: 'ক্যাটাগরি',
+  selectCategory: 'একটি ক্যাটাগরি নির্বাচন করুন',
+  addTransaction: 'লেনদেন যোগ করুন',
+  editTransaction: 'লেনদেন সম্পাদনা',
+  deleteTransaction: 'লেনদেন মুছুন',
+  deleteTransactionConfirm: 'এই লেনদেনটি মুছে ফেলবেন? এটি ফেরানো যাবে না।',
+  searchTransactions: 'লেনদেন খুঁজুন',
+  noTransactions: 'এখনো কোন লেনদেন নেই',
+  addFirstTransaction: 'প্রথম লেনদেন যোগ করতে যোগ চাপুন।',
+  failedLoadTransactions: 'লেনদেন লোড করা যায়নি। অনুগ্রহ করে পৃষ্ঠাটি রিফ্রেশ করুন।',
+  enterValidAmount: 'অনুগ্রহ করে সঠিক পরিমাণ লিখুন।',
+  noCategoriesHint: 'এই ধরনের কোন ক্যাটাগরি নেই। প্রথমে একটি তৈরি করুন।',
+  manageCategories: 'ক্যাটাগরি পরিচালনা',
+
+  categories: 'ক্যাটাগরি',
+  categoriesTitle: 'ক্যাটাগরি',
+  addCategory: 'ক্যাটাগরি যোগ করুন',
+  editCategory: 'ক্যাটাগরি সম্পাদনা',
+  deleteCategory: 'ক্যাটাগরি মুছুন',
+  deleteCategoryConfirm: 'এই ক্যাটাগরিটি মুছে ফেলবেন? বিদ্যমান লেনদেনগুলো তাদের লেবেল রাখবে।',
+  categoryName: 'ক্যাটাগরির নাম',
+  categoryNamePlaceholder: 'যেমন খাবার',
+  categoryDetails: 'বিবরণ',
+  categoryDetailsPlaceholder: 'যেমন বাজার ও খাওয়া',
+  duplicateCategory: 'এই ধরনের এই নামের একটি ক্যাটাগরি ইতিমধ্যে আছে।',
+  enterCategoryName: 'অনুগ্রহ করে ক্যাটাগরির নাম লিখুন।',
+  noCategories: 'এখনো কোন ক্যাটাগরি নেই',
+  failedLoadCategories: 'ক্যাটাগরি লোড করা যায়নি। অনুগ্রহ করে পৃষ্ঠাটি রিফ্রেশ করুন।',
+  failedSaveCategory: 'ক্যাটাগরি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+  failedDeleteCategory: 'ক্যাটাগরি মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
 
   noProducts: 'এখনো কোন পণ্য নেই',
   addFirstProduct: 'প্রথম পণ্য তৈরি করতে যোগ চাপুন।',

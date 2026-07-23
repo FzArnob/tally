@@ -124,6 +124,19 @@ function recomputeProduct(PDO $pdo, int $productId): array
     ];
 }
 
+/** Recompute a category's denormalised transaction_count. No-op for null id. */
+function recomputeCategory(PDO $pdo, ?int $categoryId): void
+{
+    if ($categoryId === null) {
+        return;
+    }
+    $pdo->prepare(
+        'UPDATE categories
+         SET transaction_count = (SELECT COUNT(*) FROM personal_transactions WHERE category_id = ?)
+         WHERE id = ?'
+    )->execute([$categoryId, $categoryId]);
+}
+
 // ---- Shaping helpers (cast SQL strings to clean JSON types) ----------------
 function shapeBook(array $b): array
 {
@@ -197,6 +210,33 @@ function shapeHistory(array $h): array
     ];
 }
 
+function shapeCategory(array $c): array
+{
+    return [
+        'id'                => (int) $c['id'],
+        'book_id'           => (int) $c['book_id'],
+        'name'              => $c['name'],
+        'details'           => $c['details'],
+        'type'              => $c['type'],
+        'transaction_count' => (int) $c['transaction_count'],
+    ];
+}
+
+function shapePersonalTx(array $t): array
+{
+    return [
+        'id'            => (int) $t['id'],
+        'book_id'       => (int) $t['book_id'],
+        'category_id'   => $t['category_id'] !== null ? (int) $t['category_id'] : null,
+        'category_name' => $t['category_name'],
+        'type'          => $t['type'],
+        'note'          => $t['note'],
+        'amount'        => (float) $t['amount'],
+        'signed_amount' => (float) $t['signed_amount'],
+        'timestamp'     => $t['timestamp'],
+    ];
+}
+
 function findCustomer(PDO $pdo, string $id): array
 {
     $stmt = $pdo->prepare('SELECT * FROM customers WHERE id = ?');
@@ -217,6 +257,28 @@ function findProduct(PDO $pdo, int $id): array
         json_error('Product not found.', 404, 'not_found');
     }
     return $p;
+}
+
+function findCategory(PDO $pdo, int $id): array
+{
+    $stmt = $pdo->prepare('SELECT * FROM categories WHERE id = ?');
+    $stmt->execute([$id]);
+    $c = $stmt->fetch();
+    if (!$c) {
+        json_error('Category not found.', 404, 'not_found');
+    }
+    return $c;
+}
+
+function findPersonalTx(PDO $pdo, int $id): array
+{
+    $stmt = $pdo->prepare('SELECT * FROM personal_transactions WHERE id = ?');
+    $stmt->execute([$id]);
+    $t = $stmt->fetch();
+    if (!$t) {
+        json_error('Transaction not found.', 404, 'not_found');
+    }
+    return $t;
 }
 
 // ===========================================================================
@@ -243,6 +305,18 @@ on('POST', '/books', function () {
 
     $pdo->prepare('INSERT INTO books (name, type) VALUES (?, ?)')->execute([$name, $type]);
     $id = (int) $pdo->lastInsertId();
+
+    // Seed a starter set of categories for a new personal book.
+    if ($type === 'personal') {
+        $defaults = [
+            ['income', 'Salary'], ['income', 'Freelance'],
+            ['expense', 'Food'], ['expense', 'Bills'], ['expense', 'Transport'], ['expense', 'Shopping'],
+        ];
+        $ins = $pdo->prepare('INSERT INTO categories (book_id, name, type) VALUES (?, ?, ?)');
+        foreach ($defaults as [$catType, $catName]) {
+            $ins->execute([$id, $catName, $catType]);
+        }
+    }
 
     $stmt = $pdo->prepare('SELECT id, name, type FROM books WHERE id = ?');
     $stmt->execute([$id]);
@@ -620,6 +694,205 @@ on('DELETE', '/product-transactions/{id}', function ($a) {
     }
 
     json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, (int) $tx['product_id']))]);
+});
+
+// ---- Categories (personal books) ----
+on('GET', '/books/{id}/categories', function ($a) {
+    $stmt = db()->prepare('SELECT * FROM categories WHERE book_id = ? ORDER BY type ASC, name ASC');
+    $stmt->execute([(int) $a['id']]);
+    json_response(['categories' => array_map('shapeCategory', $stmt->fetchAll())]);
+});
+
+on('POST', '/books/{id}/categories', function ($a) {
+    $pdo    = db();
+    $bookId = (int) $a['id'];
+    $body   = read_json_body();
+    $name    = v_string($body['name'] ?? '', 100, true, 'Category name');
+    $details = v_string($body['details'] ?? '', 255, false, 'Details');
+    $type    = $body['type'] ?? '';
+    if (!in_array($type, ['income', 'expense'], true)) {
+        json_error('Type must be "income" or "expense".', 422, 'validation');
+    }
+
+    // Category names are unique per type within a book.
+    $dup = $pdo->prepare('SELECT COUNT(*) FROM categories WHERE book_id = ? AND type = ? AND name = ?');
+    $dup->execute([$bookId, $type, $name]);
+    if ((int) $dup->fetchColumn() > 0) {
+        json_error('A ' . $type . ' category named "' . $name . '" already exists.', 409, 'duplicate');
+    }
+
+    $pdo->prepare('INSERT INTO categories (book_id, name, details, type) VALUES (?, ?, ?, ?)')
+        ->execute([$bookId, $name, $details, $type]);
+    $id = (int) $pdo->lastInsertId();
+    json_response(['success' => true, 'category' => shapeCategory(findCategory($pdo, $id))], 201);
+});
+
+on('PUT', '/categories/{id}', function ($a) {
+    $pdo  = db();
+    $cat  = findCategory($pdo, (int) $a['id']);
+    $body = read_json_body();
+    $name    = v_string($body['name'] ?? '', 100, true, 'Category name');
+    $details = v_string($body['details'] ?? '', 255, false, 'Details');
+    $type    = $cat['type']; // type is immutable
+
+    $dup = $pdo->prepare('SELECT COUNT(*) FROM categories WHERE book_id = ? AND type = ? AND name = ? AND id <> ?');
+    $dup->execute([(int) $cat['book_id'], $type, $name, (int) $cat['id']]);
+    if ((int) $dup->fetchColumn() > 0) {
+        json_error('Another ' . $type . ' category named "' . $name . '" already exists.', 409, 'duplicate');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE categories SET name = ?, details = ? WHERE id = ?')
+            ->execute([$name, $details, (int) $cat['id']]);
+        // Keep each transaction's denormalised category label in sync.
+        $pdo->prepare('UPDATE personal_transactions SET category_name = ? WHERE category_id = ?')
+            ->execute([$name, (int) $cat['id']]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save category.', 500);
+    }
+
+    json_response(['success' => true, 'category' => shapeCategory(findCategory($pdo, (int) $cat['id']))]);
+});
+
+on('DELETE', '/categories/{id}', function ($a) {
+    $pdo = db();
+    findCategory($pdo, (int) $a['id']);
+    // FK ON DELETE SET NULL nulls category_id on its transactions; they keep the label.
+    $pdo->prepare('DELETE FROM categories WHERE id = ?')->execute([(int) $a['id']]);
+    json_response(['success' => true]);
+});
+
+// ---- Personal transactions (personal books) --------------------------------
+
+/** Validate a required category against the book + type; returns the category row. */
+function requireCategory(PDO $pdo, int $bookId, string $type, $rawId): array
+{
+    if (!is_numeric($rawId)) {
+        json_error('Please choose a category.', 422, 'validation');
+    }
+    $stmt = $pdo->prepare('SELECT id, name, type FROM categories WHERE id = ? AND book_id = ?');
+    $stmt->execute([(int) $rawId, $bookId]);
+    $cat = $stmt->fetch();
+    if (!$cat) {
+        json_error('Category not found.', 422, 'validation');
+    }
+    if ($cat['type'] !== $type) {
+        json_error('Category type does not match the transaction type.', 422, 'validation');
+    }
+    return $cat;
+}
+
+on('GET', '/books/{id}/transactions', function ($a) {
+    $stmt = db()->prepare('SELECT * FROM personal_transactions WHERE book_id = ? ORDER BY id DESC');
+    $stmt->execute([(int) $a['id']]);
+    $txns = array_map('shapePersonalTx', $stmt->fetchAll());
+
+    $income = 0.0; $expense = 0.0;
+    foreach ($txns as $t) {
+        if ($t['type'] === 'income') $income += $t['amount'];
+        else $expense += $t['amount'];
+    }
+    json_response([
+        'transactions' => $txns,
+        'totals'       => [
+            'income'  => round($income, 2),
+            'expense' => round($expense, 2),
+            'balance' => round($income - $expense, 2),
+        ],
+    ]);
+});
+
+on('POST', '/books/{id}/transactions', function ($a) {
+    $pdo    = db();
+    $bookId = (int) $a['id'];
+    $body   = read_json_body();
+
+    $type = $body['type'] ?? '';
+    if (!in_array($type, ['income', 'expense'], true)) {
+        json_error('Type must be "income" or "expense".', 422, 'validation');
+    }
+    $amount   = v_amount($body['amount'] ?? null, 'Amount');
+    $note     = v_string($body['note'] ?? '', 255, false, 'Note');
+    $category = requireCategory($pdo, $bookId, $type, $body['category_id'] ?? null);
+
+    $signed    = $type === 'income' ? $amount : -$amount;
+    $timestamp = date('Y-m-d H:i:s');
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            'INSERT INTO personal_transactions
+                (book_id, category_id, category_name, type, note, amount, signed_amount, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        )->execute([$bookId, (int) $category['id'], $category['name'], $type, $note, $amount, $signed, $timestamp]);
+        $txId = (int) $pdo->lastInsertId();
+        recomputeCategory($pdo, (int) $category['id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save transaction.', 500);
+    }
+
+    json_response(['success' => true, 'transaction' => shapePersonalTx(findPersonalTx($pdo, $txId))], 201);
+});
+
+on('PUT', '/personal-transactions/{id}', function ($a) {
+    $pdo    = db();
+    $tx     = findPersonalTx($pdo, (int) $a['id']);
+    $bookId = (int) $tx['book_id'];
+    $body   = read_json_body();
+
+    $type = $body['type'] ?? '';
+    if (!in_array($type, ['income', 'expense'], true)) {
+        json_error('Type must be "income" or "expense".', 422, 'validation');
+    }
+    $amount   = v_amount($body['amount'] ?? null, 'Amount');
+    $note     = v_string($body['note'] ?? '', 255, false, 'Note');
+    $category = requireCategory($pdo, $bookId, $type, $body['category_id'] ?? null);
+
+    $signed   = $type === 'income' ? $amount : -$amount;
+    $oldCatId = $tx['category_id'] !== null ? (int) $tx['category_id'] : null;
+    $newCatId = (int) $category['id'];
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            'UPDATE personal_transactions
+             SET category_id = ?, category_name = ?, type = ?, note = ?, amount = ?, signed_amount = ?
+             WHERE id = ?'
+        )->execute([$newCatId, $category['name'], $type, $note, $amount, $signed, (int) $tx['id']]);
+        if ($oldCatId !== $newCatId) {
+            recomputeCategory($pdo, $oldCatId);
+        }
+        recomputeCategory($pdo, $newCatId);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save transaction.', 500);
+    }
+
+    json_response(['success' => true, 'transaction' => shapePersonalTx(findPersonalTx($pdo, (int) $tx['id']))]);
+});
+
+on('DELETE', '/personal-transactions/{id}', function ($a) {
+    $pdo = db();
+    $tx  = findPersonalTx($pdo, (int) $a['id']);
+    $oldCatId = $tx['category_id'] !== null ? (int) $tx['category_id'] : null;
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM personal_transactions WHERE id = ?')->execute([(int) $tx['id']]);
+        recomputeCategory($pdo, $oldCatId);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to delete transaction.', 500);
+    }
+
+    json_response(['success' => true]);
 });
 
 dispatch();

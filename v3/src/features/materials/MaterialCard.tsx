@@ -43,7 +43,7 @@ export function MaterialCard({
         {hasImage ? (
           <img className={styles.thumb} src={material.image_url as string} alt="" />
         ) : (
-          <span className={`material-symbols-outlined ${styles.thumbIcon}`}>category</span>
+          <span className={`material-symbols-outlined ${styles.thumbIcon}`}>inventory_2</span>
         )}
       </div>
 

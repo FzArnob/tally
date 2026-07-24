@@ -83,7 +83,7 @@ export function CategoriesButton({ label, onClick }: { label: string; onClick: (
 export function MaterialsButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button className="icon-btn" aria-label={label} onClick={onClick}>
-      <span className="material-symbols-outlined icon-lg">pallet</span>
+      <span className="material-symbols-outlined icon-lg">inventory_2</span>
     </button>
   );
 }

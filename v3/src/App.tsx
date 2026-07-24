@@ -1,9 +1,11 @@
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Header, CustomersButton } from './components/Header';
+import { Header, CustomersButton, MaterialsButton, OperationsButton } from './components/Header';
 import { ProductsSection } from './features/products/ProductsSection';
 import { CustomersPage } from './features/customers/CustomersPage';
 import { TransactionsPage } from './features/transactions/TransactionsPage';
 import { CategoriesPage } from './features/categories/CategoriesPage';
+import { MaterialsPage } from './features/materials/MaterialsPage';
+import { OperationsPage } from './features/operations/OperationsPage';
 import { useI18n } from './i18n/LanguageContext';
 import { useBooks } from './books/BooksContext';
 import { UserMenu } from './auth/UserMenu';
@@ -62,6 +64,14 @@ function StoreProductsPage() {
         leading={<BookSwitcher current={book} />}
         actions={
           <>
+            <MaterialsButton
+              label={t.materialsTitle}
+              onClick={() => navigate(`/${book.id}/materials`)}
+            />
+            <OperationsButton
+              label={t.operationsTitle}
+              onClick={() => navigate(`/${book.id}/operations`)}
+            />
             <CustomersButton
               label={t.customerBalances}
               onClick={() => navigate(`/${book.id}/customers`)}
@@ -73,6 +83,26 @@ function StoreProductsPage() {
       <ProductsSection bookId={book.id} />
     </>
   );
+}
+
+function StoreMaterialsPage() {
+  const { book, status } = useRouteBook();
+
+  if (status === 'loading') return <FullScreenLoader />;
+  if (!book) return <Navigate to="/" replace />;
+  if (book.type !== 'store') return <Navigate to={bookHomePath(book)} replace />;
+
+  return <MaterialsPage book={book} />;
+}
+
+function StoreOperationsPage() {
+  const { book, status } = useRouteBook();
+
+  if (status === 'loading') return <FullScreenLoader />;
+  if (!book) return <Navigate to="/" replace />;
+  if (book.type !== 'store') return <Navigate to={bookHomePath(book)} replace />;
+
+  return <OperationsPage book={book} />;
 }
 
 function PersonalHomePage() {
@@ -100,6 +130,8 @@ export function App() {
     <Routes>
       <Route path="/" element={<BooksGate />} />
       <Route path="/:bookId/products" element={<StoreProductsPage />} />
+      <Route path="/:bookId/materials" element={<StoreMaterialsPage />} />
+      <Route path="/:bookId/operations" element={<StoreOperationsPage />} />
       <Route path="/:bookId/customers" element={<CustomersPage />} />
       <Route path="/:bookId/transactions" element={<PersonalHomePage />} />
       <Route path="/:bookId/categories" element={<PersonalCategoriesPage />} />

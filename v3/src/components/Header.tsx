@@ -78,3 +78,21 @@ export function CategoriesButton({ label, onClick }: { label: string; onClick: (
     </button>
   );
 }
+
+/** Material costs (raw stock) manager button (store books). */
+export function MaterialsButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="icon-btn" aria-label={label} onClick={onClick}>
+      <span className="material-symbols-outlined icon-lg">pallet</span>
+    </button>
+  );
+}
+
+/** Operation costs manager button (store books). */
+export function OperationsButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button className="icon-btn" aria-label={label} onClick={onClick}>
+      <span className="material-symbols-outlined icon-lg">receipt_long</span>
+    </button>
+  );
+}

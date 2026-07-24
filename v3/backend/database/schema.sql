@@ -13,6 +13,10 @@ CREATE DATABASE IF NOT EXISTS tally_v3
 USE tally_v3;
 
 -- Drop in dependency order so the file is re-runnable.
+DROP TABLE IF EXISTS operation_cost_entries;
+DROP TABLE IF EXISTS operation_costs;
+DROP TABLE IF EXISTS material_transactions;
+DROP TABLE IF EXISTS materials;
 DROP TABLE IF EXISTS personal_transactions;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS customer_balance_history;
@@ -255,4 +259,101 @@ CREATE TABLE personal_transactions (
 
 CREATE INDEX idx_ptx_book_time ON personal_transactions(book_id, id DESC);
 CREATE INDEX idx_ptx_category  ON personal_transactions(category_id);
+
+-- ---------------------------------------------------------------------------
+-- Materials (store books) — raw stock tracked independently of products (not
+-- linked to any product yet). Modelled on `products` (ready-made): a stock-in
+-- carries one buying price, a sale one selling price. Derived stock/totals/last
+-- prices are DENORMALISED onto the row (see recomputeMaterial()).
+-- image_url is MEDIUMTEXT to hold base64 data URLs.
+-- ---------------------------------------------------------------------------
+CREATE TABLE materials (
+    id                    INT AUTO_INCREMENT PRIMARY KEY,
+    book_id               INT           NOT NULL,
+    name                  VARCHAR(100)  NOT NULL,
+    quantity_type         VARCHAR(50)   NOT NULL DEFAULT 'piece',
+    image_url             MEDIUMTEXT    NULL,
+    current_stock         DECIMAL(14,3) NOT NULL DEFAULT 0,
+    total_stock_in        DECIMAL(14,3) NOT NULL DEFAULT 0,
+    total_stock_out       DECIMAL(14,3) NOT NULL DEFAULT 0,
+    last_purchase_price   DECIMAL(14,2) NULL,
+    last_sale_price       DECIMAL(14,2) NULL,
+    transaction_count     INT           NOT NULL DEFAULT 0,
+    last_transaction_time DATETIME      NULL,
+    created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_materials_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+    -- A material name is unique within a book (also serves the "ORDER BY name" listing).
+    CONSTRAINT uq_material_identity UNIQUE (book_id, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_materials_book_last_txn ON materials(book_id, last_transaction_time DESC);
+
+-- ---------------------------------------------------------------------------
+-- Material transactions — stock in / sale / used. For stock-in and sale the
+-- user enters the total price and price_per_unit is the derived per-unit cost
+-- (total_amount / quantity). A 'used' entry is consumption only: it lowers
+-- stock with no price (price_per_unit and total_amount are 0). total_amount and
+-- stock_after are precomputed running values (recomputeMaterial()).
+-- ---------------------------------------------------------------------------
+CREATE TABLE material_transactions (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    material_id    INT                        NOT NULL,
+    book_id        INT                        NOT NULL,
+    type           ENUM('stock','sale','used') NOT NULL,
+    quantity       DECIMAL(14,3)         NOT NULL,
+    price_per_unit DECIMAL(14,2)         NOT NULL,   -- derived: total_amount / quantity (0 for 'used')
+    total_amount   DECIMAL(14,2)         NOT NULL,   -- entered total price (0 for 'used')
+    stock_after    DECIMAL(14,3)         NOT NULL DEFAULT 0,
+    note           VARCHAR(255)          NULL,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_mt_material FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE,
+    CONSTRAINT fk_mt_book     FOREIGN KEY (book_id)     REFERENCES books(id)     ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_mt_material ON material_transactions(material_id, id DESC);
+
+-- ---------------------------------------------------------------------------
+-- Operation costs (store books) — a named recurring cost (reason) with a
+-- current amount + note. There is no stock/sale action; instead every add/edit
+-- appends an immutable snapshot to operation_cost_entries, so the row keeps a
+-- full amount history. The parent's `amount` mirrors the latest snapshot and
+-- entry_count/last_entry_time are DENORMALISED (see recomputeOperationCost()).
+-- ---------------------------------------------------------------------------
+CREATE TABLE operation_costs (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    book_id         INT           NOT NULL,
+    reason          VARCHAR(100)  NOT NULL,
+    note            VARCHAR(255)  NOT NULL DEFAULT '',
+    amount          DECIMAL(14,2) NOT NULL DEFAULT 0,   -- current (latest) amount
+    entry_count     INT           NOT NULL DEFAULT 0,   -- denormalised
+    last_entry_time DATETIME      NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_operation_costs_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+    -- A reason is unique within a book (the amount history captures changes over time).
+    CONSTRAINT uq_operation_identity UNIQUE (book_id, reason)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_operation_costs_book ON operation_costs(book_id, last_entry_time DESC);
+
+-- ---------------------------------------------------------------------------
+-- Operation cost entries — one immutable amount snapshot per add/edit of an
+-- operation cost. note is a snapshot at entry time so history renders as it was.
+-- ---------------------------------------------------------------------------
+CREATE TABLE operation_cost_entries (
+    id                CHAR(36)      NOT NULL PRIMARY KEY,
+    seq               BIGINT        NOT NULL AUTO_INCREMENT,  -- monotonic insert order
+    operation_cost_id INT           NOT NULL,
+    book_id           INT           NOT NULL,
+    amount            DECIMAL(14,2) NOT NULL,
+    note              VARCHAR(255)  NULL,
+    timestamp         DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at        TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_oce_seq (seq),
+    CONSTRAINT fk_oce_operation FOREIGN KEY (operation_cost_id) REFERENCES operation_costs(id) ON DELETE CASCADE,
+    CONSTRAINT fk_oce_book      FOREIGN KEY (book_id)           REFERENCES books(id)           ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_oce_operation_seq ON operation_cost_entries(operation_cost_id, seq DESC);
 

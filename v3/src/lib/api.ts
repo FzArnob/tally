@@ -19,6 +19,14 @@ import {
   type DeleteBalanceResponse,
   type ProductTransactionsResponse,
   type ProductsResponse,
+  type MaterialsResponse,
+  type MaterialTransactionsResponse,
+  type SaveMaterialResponse,
+  type SaveMaterialTransactionResponse,
+  type MaterialTransactionType,
+  type OperationCostsResponse,
+  type SaveOperationCostResponse,
+  type OperationCostHistoryResponse,
   type SaveCustomerResponse,
   type SaveProductResponse,
   type SaveTransactionResponse,
@@ -251,6 +259,97 @@ export function deleteProductTransaction(transactionId: number): Promise<{ succe
   return request<{ success: boolean }>(`product-transactions/${transactionId}`, {
     method: 'DELETE',
   });
+}
+
+// ---- Materials (store books) ----
+export function getMaterials(bookId: number): Promise<MaterialsResponse> {
+  return request<MaterialsResponse>(`books/${bookId}/materials`);
+}
+
+export function saveMaterial(params: {
+  materialId?: number | null;
+  name: string;
+  quantityType: string;
+  imageUrl?: string | null;
+  bookId: number;
+}): Promise<SaveMaterialResponse> {
+  const { materialId = null, name, quantityType, imageUrl = null, bookId } = params;
+  const body = { name, quantity_type: quantityType, image_url: imageUrl };
+  return materialId
+    ? request<SaveMaterialResponse>(`materials/${materialId}`, jsonInit('PUT', body))
+    : request<SaveMaterialResponse>(`books/${bookId}/materials`, jsonInit('POST', body));
+}
+
+export function deleteMaterial(id: number): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`materials/${id}`, { method: 'DELETE' });
+}
+
+export function getMaterialTransactions(materialId: number): Promise<MaterialTransactionsResponse> {
+  return request<MaterialTransactionsResponse>(`materials/${materialId}/transactions`);
+}
+
+export function saveMaterialTransaction(params: {
+  materialId: number;
+  type: MaterialTransactionType;
+  quantity: number;
+  /** Total price for a stock-in / sale (per-unit cost is derived server-side). Ignored for 'used'. */
+  totalAmount?: number;
+  note?: string | null;
+  replaces?: number | null;
+}): Promise<SaveMaterialTransactionResponse> {
+  const { materialId, type, quantity, totalAmount = 0, note = null, replaces = null } = params;
+  return request<SaveMaterialTransactionResponse>(
+    `materials/${materialId}/transactions`,
+    jsonInit('POST', { type, quantity, total_amount: totalAmount, note, replaces }),
+  );
+}
+
+export function deleteMaterialTransaction(transactionId: number): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`material-transactions/${transactionId}`, {
+    method: 'DELETE',
+  });
+}
+
+// ---- Operation costs (store books) ----
+export function getOperationCosts(bookId: number): Promise<OperationCostsResponse> {
+  return request<OperationCostsResponse>(`books/${bookId}/operation-costs`);
+}
+
+export function saveOperationCost(params: {
+  operationCostId?: number | null;
+  bookId: number;
+  reason: string;
+  note: string;
+}): Promise<SaveOperationCostResponse> {
+  const { operationCostId = null, bookId, reason, note } = params;
+  const body = { reason, note };
+  return operationCostId
+    ? request<SaveOperationCostResponse>(`operation-costs/${operationCostId}`, jsonInit('PUT', body))
+    : request<SaveOperationCostResponse>(`books/${bookId}/operation-costs`, jsonInit('POST', body));
+}
+
+export function deleteOperationCost(id: number): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`operation-costs/${id}`, { method: 'DELETE' });
+}
+
+export function getOperationCostHistory(id: number): Promise<OperationCostHistoryResponse> {
+  return request<OperationCostHistoryResponse>(`operation-costs/${id}/history`);
+}
+
+/** Add one dated amount entry (a cost incurred over time) to an operation cost. */
+export function addOperationCostEntry(
+  operationCostId: number,
+  params: { amount: number; note: string },
+): Promise<SaveOperationCostResponse> {
+  const { amount, note } = params;
+  return request<SaveOperationCostResponse>(
+    `operation-costs/${operationCostId}/entries`,
+    jsonInit('POST', { amount, note }),
+  );
+}
+
+export function deleteOperationCostEntry(entryId: string): Promise<{ success: boolean }> {
+  return request<{ success: boolean }>(`operation-cost-entries/${entryId}`, { method: 'DELETE' });
 }
 
 // ---- Categories (personal books) ----

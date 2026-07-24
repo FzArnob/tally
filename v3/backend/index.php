@@ -242,6 +242,59 @@ function recomputeProduct(PDO $pdo, int $productId): array
     ];
 }
 
+/** Recompute a material's stock/totals/last prices + per-row running stock. */
+function recomputeMaterial(PDO $pdo, int $materialId): array
+{
+    $rows = $pdo->prepare(
+        'SELECT id, type, quantity, price_per_unit, created_at FROM material_transactions
+         WHERE material_id = ? ORDER BY id ASC'
+    );
+    $rows->execute([$materialId]);
+    $entries = $rows->fetchAll();
+
+    $stock = 0.0; $in = 0.0; $out = 0.0;
+    $lastPurchase = null; $lastSale = null; $lastTime = null;
+    $update = $pdo->prepare('UPDATE material_transactions SET stock_after = ? WHERE id = ?');
+    foreach ($entries as $e) {
+        $qty = (float) $e['quantity'];
+        if ($e['type'] === 'stock') {
+            $stock += $qty; $in += $qty; $lastPurchase = (float) $e['price_per_unit'];
+        } elseif ($e['type'] === 'sale') {
+            $stock -= $qty; $out += $qty; $lastSale = (float) $e['price_per_unit'];
+        } else { // 'used' — stock consumed with no price
+            $stock -= $qty; $out += $qty;
+        }
+        $update->execute([$stock, $e['id']]);
+        $lastTime = $e['created_at'];
+    }
+
+    $pdo->prepare(
+        'UPDATE materials SET current_stock = ?, total_stock_in = ?, total_stock_out = ?,
+             last_purchase_price = ?, last_sale_price = ?, transaction_count = ?, last_transaction_time = ?
+         WHERE id = ?'
+    )->execute([$stock, $in, $out, $lastPurchase, $lastSale, count($entries), $lastTime, $materialId]);
+
+    return [
+        'current_stock' => round($stock, 3), 'total_stock_in' => round($in, 3),
+        'total_stock_out' => round($out, 3), 'transaction_count' => count($entries),
+    ];
+}
+
+/** Recompute an operation cost's denormalised total/count/last time from its entries. */
+function recomputeOperationCost(PDO $pdo, int $operationId): void
+{
+    $agg = $pdo->prepare(
+        'SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS cnt, MAX(timestamp) AS last
+         FROM operation_cost_entries WHERE operation_cost_id = ?'
+    );
+    $agg->execute([$operationId]);
+    $r = $agg->fetch();
+
+    $pdo->prepare(
+        'UPDATE operation_costs SET amount = ?, entry_count = ?, last_entry_time = ? WHERE id = ?'
+    )->execute([(float) $r['total'], (int) $r['cnt'], $r['last'], $operationId]);
+}
+
 /** Recompute a category's denormalised transaction_count. No-op for null id. */
 function recomputeCategory(PDO $pdo, ?int $categoryId): void
 {
@@ -341,6 +394,63 @@ function shapeHistory(array $h): array
     ];
 }
 
+function shapeMaterial(array $m): array
+{
+    return [
+        'id'                    => (int) $m['id'],
+        'book_id'               => (int) $m['book_id'],
+        'name'                  => $m['name'],
+        'quantity_type'         => $m['quantity_type'],
+        'image_url'             => ($m['image_url'] ?? '') !== '' ? $m['image_url'] : null,
+        'current_stock'         => (float) $m['current_stock'],
+        'total_stock_in'        => (float) $m['total_stock_in'],
+        'total_stock_out'       => (float) $m['total_stock_out'],
+        'last_purchase_price'   => $m['last_purchase_price'] !== null ? (float) $m['last_purchase_price'] : null,
+        'last_sale_price'       => $m['last_sale_price'] !== null ? (float) $m['last_sale_price'] : null,
+        'transaction_count'     => (int) $m['transaction_count'],
+        'last_transaction_time' => $m['last_transaction_time'],
+    ];
+}
+
+function shapeMaterialTransaction(array $t): array
+{
+    return [
+        'id'             => (int) $t['id'],
+        'material_id'    => (int) $t['material_id'],
+        'type'           => $t['type'],
+        'quantity'       => (float) $t['quantity'],
+        'price_per_unit' => (float) $t['price_per_unit'],
+        'total_amount'   => (float) $t['total_amount'],
+        'stock_after'    => (float) $t['stock_after'],
+        'note'           => $t['note'],
+        'created_at'     => $t['created_at'],
+    ];
+}
+
+function shapeOperationCost(array $o): array
+{
+    return [
+        'id'              => (int) $o['id'],
+        'book_id'         => (int) $o['book_id'],
+        'reason'          => $o['reason'],
+        'note'            => $o['note'],
+        'amount'          => (float) $o['amount'],
+        'entry_count'     => (int) $o['entry_count'],
+        'last_entry_time' => $o['last_entry_time'],
+    ];
+}
+
+function shapeOperationEntry(array $e): array
+{
+    return [
+        'id'                => $e['id'],
+        'operation_cost_id' => (int) $e['operation_cost_id'],
+        'amount'            => (float) $e['amount'],
+        'note'              => $e['note'],
+        'timestamp'         => $e['timestamp'],
+    ];
+}
+
 function shapeCategory(array $c): array
 {
     return [
@@ -396,6 +506,34 @@ function findProduct(PDO $pdo, int $id): array
         json_error('Product not found.', 404, 'not_found');
     }
     return $p;
+}
+
+function findMaterial(PDO $pdo, int $id): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT m.* FROM materials m JOIN books b ON b.id = m.book_id
+         WHERE m.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$id, authUser()['id']]);
+    $m = $stmt->fetch();
+    if (!$m) {
+        json_error('Material not found.', 404, 'not_found');
+    }
+    return $m;
+}
+
+function findOperationCost(PDO $pdo, int $id): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT o.* FROM operation_costs o JOIN books b ON b.id = o.book_id
+         WHERE o.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$id, authUser()['id']]);
+    $o = $stmt->fetch();
+    if (!$o) {
+        json_error('Operation cost not found.', 404, 'not_found');
+    }
+    return $o;
 }
 
 function findCategory(PDO $pdo, int $id): array
@@ -1080,6 +1218,307 @@ on('DELETE', '/product-transactions/{id}', function ($a) {
     json_response([
         'success' => true,
         'product' => shapeProduct(findProduct($pdo, (int) $tx['product_id']), loadCostItems($pdo, (int) $tx['product_id'])),
+    ]);
+});
+
+// ---- Materials (store books) ----
+on('GET', '/books/{id}/materials', function ($a) {
+    $pdo    = db();
+    $bookId = (int) $a['id'];
+    requireOwnedBook($pdo, $bookId);
+    $stmt = $pdo->prepare('SELECT * FROM materials WHERE book_id = ? ORDER BY name ASC');
+    $stmt->execute([$bookId]);
+    json_response(['materials' => array_map('shapeMaterial', $stmt->fetchAll())]);
+});
+
+on('POST', '/books/{id}/materials', function ($a) {
+    $pdo    = db();
+    $bookId = (int) $a['id'];
+    requireOwnedBook($pdo, $bookId);
+    $body = read_json_body();
+    $name         = v_string($body['name'] ?? '', 100, true, 'Material name');
+    $quantityType = v_string($body['quantity_type'] ?? 'piece', 50, false, 'Quantity type') ?: 'piece';
+    $imageUrl     = isset($body['image_url']) && is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null;
+
+    // Material names are unique within a book.
+    $dup = $pdo->prepare('SELECT COUNT(*) FROM materials WHERE book_id = ? AND name = ?');
+    $dup->execute([$bookId, $name]);
+    if ((int) $dup->fetchColumn() > 0) {
+        json_error('A material named "' . $name . '" already exists.', 409, 'duplicate');
+    }
+
+    $pdo->prepare('INSERT INTO materials (book_id, name, quantity_type, image_url) VALUES (?, ?, ?, ?)')
+        ->execute([$bookId, $name, $quantityType, $imageUrl]);
+    $id = (int) $pdo->lastInsertId();
+
+    json_response(['success' => true, 'material' => shapeMaterial(findMaterial($pdo, $id))], 201);
+});
+
+on('PUT', '/materials/{id}', function ($a) {
+    $pdo      = db();
+    $id       = (int) $a['id'];
+    $material = findMaterial($pdo, $id);
+    $body     = read_json_body();
+    $name         = v_string($body['name'] ?? '', 100, true, 'Material name');
+    $quantityType = v_string($body['quantity_type'] ?? 'piece', 50, false, 'Quantity type') ?: 'piece';
+    $imageUrl     = array_key_exists('image_url', $body)
+        ? (is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null)
+        : $material['image_url'];
+
+    $dup = $pdo->prepare('SELECT COUNT(*) FROM materials WHERE book_id = ? AND name = ? AND id <> ?');
+    $dup->execute([(int) $material['book_id'], $name, $id]);
+    if ((int) $dup->fetchColumn() > 0) {
+        json_error('Another material named "' . $name . '" already exists.', 409, 'duplicate');
+    }
+
+    $pdo->prepare('UPDATE materials SET name = ?, quantity_type = ?, image_url = ? WHERE id = ?')
+        ->execute([$name, $quantityType, $imageUrl, $id]);
+
+    json_response(['success' => true, 'material' => shapeMaterial(findMaterial($pdo, $id))]);
+});
+
+on('DELETE', '/materials/{id}', function ($a) {
+    $pdo = db();
+    findMaterial($pdo, (int) $a['id']);
+    $pdo->prepare('DELETE FROM materials WHERE id = ?')->execute([(int) $a['id']]);
+    json_response(['success' => true]);
+});
+
+on('GET', '/materials/{id}/transactions', function ($a) {
+    $pdo = db();
+    findMaterial($pdo, (int) $a['id']);
+    $stmt = $pdo->prepare('SELECT * FROM material_transactions WHERE material_id = ? ORDER BY id DESC');
+    $stmt->execute([(int) $a['id']]);
+    json_response([
+        'material_id'  => (int) $a['id'],
+        'transactions' => array_map('shapeMaterialTransaction', $stmt->fetchAll()),
+    ]);
+});
+
+on('POST', '/materials/{id}/transactions', function ($a) {
+    $pdo      = db();
+    $material = findMaterial($pdo, (int) $a['id']);
+    $body     = read_json_body();
+
+    $type = $body['type'] ?? '';
+    if (!in_array($type, ['stock', 'sale', 'used'], true)) {
+        json_error('Type must be "stock", "sale" or "used".', 422, 'validation');
+    }
+    $quantity = v_amount($body['quantity'] ?? null, 'Quantity');
+    $note     = v_string($body['note'] ?? '', 255, false, 'Note');
+
+    // Stock-in / sale: the user enters the total price; per-unit cost is derived.
+    // Stock-used: consumption only — no price, so total and per-unit are 0.
+    if ($type === 'used') {
+        $price = 0.0;
+        $total = 0.0;
+    } else {
+        if (!isset($body['total_amount']) || !is_numeric($body['total_amount']) || (float) $body['total_amount'] < 0) {
+            json_error('Total price must be 0 or more.', 422, 'validation');
+        }
+        $total = round((float) $body['total_amount'], 2);
+        $price = $quantity > 0 ? round($total / $quantity, 2) : 0.0;
+    }
+
+    // When editing, this entry replaces an existing one (insert + delete atomically).
+    $replaces = isset($body['replaces']) && is_numeric($body['replaces']) ? (int) $body['replaces'] : 0;
+
+    // Stock guard: a sale or used entry can never exceed the stock in hand, so
+    // stock stays >= 0. For an edit, reverse the replaced entry's effect first.
+    if ($type === 'sale' || $type === 'used') {
+        $available = (float) $material['current_stock'];
+        if ($replaces > 0) {
+            $r = $pdo->prepare('SELECT type, quantity FROM material_transactions WHERE id = ? AND material_id = ?');
+            $r->execute([$replaces, (int) $material['id']]);
+            if ($old = $r->fetch()) {
+                $available += in_array($old['type'], ['sale', 'used'], true) ? (float) $old['quantity'] : -(float) $old['quantity'];
+            }
+        }
+        if ($quantity - $available > 0.0000001) {
+            $avail = rtrim(rtrim(number_format($available, 3, '.', ''), '0'), '.');
+            json_error('Not enough stock. Only ' . $avail . ' in stock.', 422, 'insufficient_stock');
+        }
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, note)
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?)'
+        )->execute([$material['id'], (int) $material['book_id'], $type, $quantity, $price, $total, $note !== '' ? $note : null]);
+        if ($replaces > 0) {
+            $pdo->prepare('DELETE FROM material_transactions WHERE id = ? AND material_id = ?')
+                ->execute([$replaces, (int) $material['id']]);
+        }
+        recomputeMaterial($pdo, (int) $material['id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save transaction.', 500);
+    }
+
+    json_response([
+        'success'  => true,
+        'material' => shapeMaterial(findMaterial($pdo, (int) $material['id'])),
+    ], 201);
+});
+
+on('DELETE', '/material-transactions/{id}', function ($a) {
+    $pdo = db();
+    $stmt = $pdo->prepare(
+        'SELECT t.* FROM material_transactions t JOIN books b ON b.id = t.book_id
+         WHERE t.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([(int) $a['id'], authUser()['id']]);
+    $tx = $stmt->fetch();
+    if (!$tx) {
+        json_error('Transaction not found.', 404, 'not_found');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM material_transactions WHERE id = ?')->execute([(int) $a['id']]);
+        recomputeMaterial($pdo, (int) $tx['material_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to delete transaction.', 500);
+    }
+
+    json_response([
+        'success'  => true,
+        'material' => shapeMaterial(findMaterial($pdo, (int) $tx['material_id'])),
+    ]);
+});
+
+// ---- Operation costs (store books) ----
+on('GET', '/books/{id}/operation-costs', function ($a) {
+    $pdo    = db();
+    $bookId = (int) $a['id'];
+    requireOwnedBook($pdo, $bookId);
+    $stmt = $pdo->prepare('SELECT * FROM operation_costs WHERE book_id = ? ORDER BY reason ASC');
+    $stmt->execute([$bookId]);
+    $items = array_map('shapeOperationCost', $stmt->fetchAll());
+    json_response([
+        'operation_costs' => $items,
+        'total'           => round(array_sum(array_column($items, 'amount')), 2),
+    ]);
+});
+
+on('POST', '/books/{id}/operation-costs', function ($a) {
+    $pdo    = db();
+    $bookId = (int) $a['id'];
+    requireOwnedBook($pdo, $bookId);
+    $body   = read_json_body();
+    $reason = v_string($body['reason'] ?? '', 100, true, 'Reason');
+    $note   = v_string($body['note'] ?? '', 255, false, 'Note');
+
+    // Reasons are unique within a book; amounts are added over time as entries.
+    $dup = $pdo->prepare('SELECT COUNT(*) FROM operation_costs WHERE book_id = ? AND reason = ?');
+    $dup->execute([$bookId, $reason]);
+    if ((int) $dup->fetchColumn() > 0) {
+        json_error('An operation cost named "' . $reason . '" already exists.', 409, 'duplicate');
+    }
+
+    $pdo->prepare('INSERT INTO operation_costs (book_id, reason, note) VALUES (?, ?, ?)')
+        ->execute([$bookId, $reason, $note]);
+    $id = (int) $pdo->lastInsertId();
+
+    json_response(['success' => true, 'operation_cost' => shapeOperationCost(findOperationCost($pdo, $id))], 201);
+});
+
+on('PUT', '/operation-costs/{id}', function ($a) {
+    $pdo  = db();
+    $id   = (int) $a['id'];
+    $op   = findOperationCost($pdo, $id);
+    $body = read_json_body();
+    $reason = v_string($body['reason'] ?? '', 100, true, 'Reason');
+    $note   = v_string($body['note'] ?? '', 255, false, 'Note');
+
+    $dup = $pdo->prepare('SELECT COUNT(*) FROM operation_costs WHERE book_id = ? AND reason = ? AND id <> ?');
+    $dup->execute([(int) $op['book_id'], $reason, $id]);
+    if ((int) $dup->fetchColumn() > 0) {
+        json_error('Another operation cost named "' . $reason . '" already exists.', 409, 'duplicate');
+    }
+
+    // Editing only renames/renotes the reason; amount entries are untouched.
+    $pdo->prepare('UPDATE operation_costs SET reason = ?, note = ? WHERE id = ?')
+        ->execute([$reason, $note, $id]);
+
+    json_response(['success' => true, 'operation_cost' => shapeOperationCost(findOperationCost($pdo, $id))]);
+});
+
+on('DELETE', '/operation-costs/{id}', function ($a) {
+    $pdo = db();
+    findOperationCost($pdo, (int) $a['id']);
+    // Entries cascade-delete with the parent.
+    $pdo->prepare('DELETE FROM operation_costs WHERE id = ?')->execute([(int) $a['id']]);
+    json_response(['success' => true]);
+});
+
+// Add one dated amount entry to an operation cost (the recurring "cost over time").
+on('POST', '/operation-costs/{id}/entries', function ($a) {
+    $pdo    = db();
+    $op     = findOperationCost($pdo, (int) $a['id']);
+    $body   = read_json_body();
+    $amount = v_amount($body['amount'] ?? null, 'Amount');
+    $note   = v_string($body['note'] ?? '', 255, false, 'Note');
+
+    $timestamp = date('Y-m-d H:i:s');
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            'INSERT INTO operation_cost_entries (id, operation_cost_id, book_id, amount, note, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute([uuid4(), (int) $op['id'], (int) $op['book_id'], $amount, $note !== '' ? $note : null, $timestamp]);
+        recomputeOperationCost($pdo, (int) $op['id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to add amount.', 500);
+    }
+
+    json_response([
+        'success'        => true,
+        'operation_cost' => shapeOperationCost(findOperationCost($pdo, (int) $op['id'])),
+    ], 201);
+});
+
+on('DELETE', '/operation-cost-entries/{id}', function ($a) {
+    $pdo = db();
+    $stmt = $pdo->prepare(
+        'SELECT e.* FROM operation_cost_entries e JOIN books b ON b.id = e.book_id
+         WHERE e.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$a['id'], authUser()['id']]);
+    $entry = $stmt->fetch();
+    if (!$entry) {
+        json_error('Entry not found.', 404, 'not_found');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM operation_cost_entries WHERE id = ?')->execute([$a['id']]);
+        recomputeOperationCost($pdo, (int) $entry['operation_cost_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to delete entry.', 500);
+    }
+
+    json_response(['success' => true]);
+});
+
+on('GET', '/operation-costs/{id}/history', function ($a) {
+    $pdo = db();
+    findOperationCost($pdo, (int) $a['id']);
+    $stmt = $pdo->prepare(
+        'SELECT * FROM operation_cost_entries WHERE operation_cost_id = ? ORDER BY seq DESC'
+    );
+    $stmt->execute([(int) $a['id']]);
+    json_response([
+        'operation_cost_id' => (int) $a['id'],
+        'history'           => array_map('shapeOperationEntry', $stmt->fetchAll()),
     ]);
 });
 

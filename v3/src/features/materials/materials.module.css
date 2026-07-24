@@ -1,0 +1,485 @@
+/* Materials share the product list's visual language (raw stock, not linked to
+   products). Kept as its own module so the two features stay decoupled. */
+
+.main {
+  max-width: 46rem;
+  margin: 0 auto;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1.25rem 3rem;
+}
+
+/* ---- Row ---- */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.85rem;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+  animation: rowIn var(--dur-fast) ease both;
+}
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.row:hover {
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
+}
+
+.row:active {
+  transform: scale(0.99);
+}
+
+.thumbWrap {
+  flex-shrink: 0;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 0.75rem;
+  background: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbIcon {
+  color: var(--muted-foreground);
+  font-size: 1.6rem;
+}
+
+.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.name {
+  font-size: var(--fs-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--foreground);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.right {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.stockWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.stockValue {
+  font-size: var(--fs-amount);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+.stockUnit {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  text-transform: capitalize;
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.05rem;
+}
+
+/* ---- Form modal ---- */
+.imageUpload {
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: 1rem;
+  border: 1px dashed var(--border);
+  background: var(--input-background);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+
+.imageUpload:hover {
+  background: var(--muted);
+  border-color: var(--primary);
+}
+
+.imagePreview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.formError {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+  border-radius: var(--radius);
+  padding: 0.55rem 0.75rem;
+  font-size: var(--fs-sm);
+}
+
+/* ---- Action (stock/sale) modal ---- */
+.actionHeader {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 1.25rem 1.25rem 0.85rem;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+
+.headerInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.actionThumb {
+  width: 2.85rem;
+  height: 2.85rem;
+  border-radius: 0.7rem;
+  object-fit: cover;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.actionName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actionStock {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+
+.tabSwitch {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  background: var(--input-background);
+  padding: 0.3rem;
+  border-radius: var(--radius);
+}
+
+.tabBtn {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: calc(var(--radius) - 0.2rem);
+  border: none;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--fs-sm);
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.tabBtn.activeStock {
+  background: var(--orange-600);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.tabBtn.activeSale {
+  background: var(--green-600);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.tabBtn.activeUsed {
+  background: var(--muted-foreground);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Price entry: one input whose meaning (total vs per-unit) the toggle sets,
+   with the derived figure shown beneath. */
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.priceHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.priceHeaderLabel {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+.priceToggle {
+  display: inline-flex;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  background: var(--input-background);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.priceToggleBtn {
+  border: none;
+  background: transparent;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.priceToggleActive {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+}
+
+.priceInput {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-background);
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.priceInput input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0.65rem 0;
+  font-size: var(--fs-base);
+  color: var(--foreground);
+  font-family: inherit;
+}
+
+.priceInput input:focus {
+  outline: none;
+}
+
+.priceInput:focus-within {
+  border-color: var(--ring);
+  background: var(--muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+}
+
+.priceCurrency {
+  flex-shrink: 0;
+  font-size: var(--fs-base);
+  color: var(--muted-foreground);
+}
+
+.priceReadout {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0 0.1rem;
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+.priceReadoutValue {
+  font-weight: var(--font-weight-medium);
+  color: var(--foreground);
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--fs-amount);
+  padding: 0.25rem 0.1rem;
+}
+
+.totalRow .totalValue {
+  font-size: var(--fs-heading-sm);
+}
+
+.saveStock {
+  background: var(--orange-600) !important;
+  color: #fff !important;
+}
+.saveStock:hover {
+  background: var(--orange-700) !important;
+}
+.saveSale {
+  background: var(--green-600) !important;
+  color: #fff !important;
+}
+.saveSale:hover {
+  background: var(--green-700) !important;
+}
+.saveUsed {
+  background: var(--muted-foreground) !important;
+  color: #fff !important;
+}
+.saveUsed:hover {
+  background: var(--foreground) !important;
+}
+
+/* ---- History list ---- */
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.entry {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  animation: rowIn var(--dur-fast) ease both;
+}
+
+.entryLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.typePill {
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+}
+
+.typePill.stock {
+  background: color-mix(in srgb, var(--orange-600) 14%, transparent);
+  color: var(--orange-700);
+}
+
+.typePill.sale {
+  background: color-mix(in srgb, var(--green-600) 14%, transparent);
+  color: var(--green-700);
+}
+
+.typePill.used {
+  background: color-mix(in srgb, var(--muted-foreground) 16%, transparent);
+  color: var(--muted-foreground);
+}
+
+.entryActions {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.entryDetail {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+.entryAmount {
+  font-weight: var(--font-weight-medium);
+  font-size: var(--fs-amount);
+}
+
+.entryNote {
+  font-size: var(--fs-sm);
+  color: var(--foreground);
+}
+
+.entryFoot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+
+@media (max-width: 640px) {
+  .list {
+    padding: 0.85rem 0.9rem 2rem;
+  }
+  .row {
+    gap: 0.65rem;
+    padding: 0.65rem 0.7rem;
+  }
+  .thumbWrap {
+    width: 2.85rem;
+    height: 2.85rem;
+  }
+  .rowActions button {
+    padding: 0.25rem;
+  }
+}

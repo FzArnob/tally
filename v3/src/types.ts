@@ -210,6 +210,91 @@ export interface SaveTransactionResponse {
   product: Product;
 }
 
+// ---- Materials (store books) — raw stock, not linked to products ----
+export interface Material {
+  id: number;
+  book_id: number;
+  name: string;
+  quantity_type: string;
+  image_url: string | null;
+  current_stock: number;
+  total_stock_in: number;
+  total_stock_out: number;
+  last_purchase_price: number | null;
+  last_sale_price: number | null;
+  transaction_count: number;
+  last_transaction_time: string | null;
+}
+
+export interface MaterialsResponse {
+  materials: Material[];
+}
+
+/** Material moves: stock-in / sale (priced) or used (consumption, no price). */
+export type MaterialTransactionType = 'stock' | 'sale' | 'used';
+
+export interface MaterialTransaction {
+  id: number;
+  material_id: number;
+  type: MaterialTransactionType;
+  quantity: number;
+  price_per_unit: number;
+  total_amount: number;
+  stock_after: number;
+  note: string | null;
+  created_at: string;
+}
+
+export interface MaterialTransactionsResponse {
+  material_id: number;
+  transactions: MaterialTransaction[];
+}
+
+export interface SaveMaterialResponse {
+  success: boolean;
+  material: Material;
+}
+
+export interface SaveMaterialTransactionResponse {
+  success: boolean;
+  material: Material;
+}
+
+// ---- Operation costs (store books) — named recurring cost with amount history ----
+export interface OperationCost {
+  id: number;
+  book_id: number;
+  reason: string;
+  note: string;
+  amount: number; // current (latest) amount
+  entry_count: number;
+  last_entry_time: string | null;
+}
+
+export interface OperationCostsResponse {
+  operation_costs: OperationCost[];
+  total: number;
+}
+
+export interface SaveOperationCostResponse {
+  success: boolean;
+  operation_cost: OperationCost;
+}
+
+/** One immutable amount snapshot recorded on an operation cost add/edit. */
+export interface OperationCostEntry {
+  id: string;
+  operation_cost_id: number;
+  amount: number;
+  note: string | null;
+  timestamp: string;
+}
+
+export interface OperationCostHistoryResponse {
+  operation_cost_id: number;
+  history: OperationCostEntry[];
+}
+
 /** Thrown by the API layer; carries the server's machine-readable `code`. */
 export class ApiError extends Error {
   code?: string;

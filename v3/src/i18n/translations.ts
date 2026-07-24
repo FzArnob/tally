@@ -226,6 +226,55 @@ export interface Translation {
   lastSale: string;
   transactions: string;
 
+  // Materials (v3) — raw stock, store books
+  materialsTitle: string;
+  searchMaterials: string;
+  failedLoadMaterials: string;
+  noMaterials: string;
+  addFirstMaterial: string;
+  addMaterial: string;
+  editMaterial: string;
+  materialImage: string;
+  materialName: string;
+  materialNamePlaceholder: string;
+  enterMaterialName: string;
+  duplicateMaterial: string;
+  failedSaveMaterial: string;
+  deleteMaterial: string;
+  deleteMaterialConfirm: string;
+  failedDeleteMaterial: string;
+  stockUsed: string;
+  quantityUsed: string;
+  price: string;
+  totalPrice: string;
+  pricePerUnit: string;
+  enterValidTotalPrice: string;
+
+  // Operation costs (v3) — store books
+  operationsTitle: string;
+  searchOperations: string;
+  failedLoadOperations: string;
+  noOperations: string;
+  addFirstOperation: string;
+  addOperation: string;
+  editOperation: string;
+  addAmount: string;
+  entries: string;
+  noAmountEntries: string;
+  failedAddAmount: string;
+  failedDeleteEntry: string;
+  reason: string;
+  reasonPlaceholder: string;
+  amount: string;
+  note: string;
+  enterReason: string;
+  duplicateOperation: string;
+  failedSaveOperation: string;
+  deleteOperation: string;
+  deleteOperationConfirm: string;
+  failedDeleteOperation: string;
+  totalOperationCost: string;
+
   // Common
   close: string;
   allClear: string;
@@ -439,6 +488,53 @@ const en: Translation = {
   lastSale: 'Last sale',
   transactions: 'txns',
 
+  materialsTitle: 'Material Costs',
+  searchMaterials: 'Search materials',
+  failedLoadMaterials: 'Failed to load materials. Please refresh the page.',
+  noMaterials: 'No materials yet.',
+  addFirstMaterial: 'Add your first material to get started.',
+  addMaterial: 'Add Material',
+  editMaterial: 'Edit Material',
+  materialImage: 'Material Image',
+  materialName: 'Material Name',
+  materialNamePlaceholder: 'e.g. Flour',
+  enterMaterialName: 'Please enter a material name.',
+  duplicateMaterial: 'A material with this name already exists in this book.',
+  failedSaveMaterial: 'Failed to save material. Please try again.',
+  deleteMaterial: 'Delete Material',
+  deleteMaterialConfirm: 'Delete this material and all its stock/sale history? This cannot be undone.',
+  failedDeleteMaterial: 'Failed to delete material. Please try again.',
+  stockUsed: 'Stock Used',
+  quantityUsed: 'Quantity Used',
+  price: 'Price',
+  totalPrice: 'Total',
+  pricePerUnit: 'Unit price',
+  enterValidTotalPrice: 'Please enter a valid price.',
+
+  operationsTitle: 'Operation Costs',
+  searchOperations: 'Search operation costs',
+  failedLoadOperations: 'Failed to load operation costs. Please refresh the page.',
+  noOperations: 'No operation costs yet.',
+  addFirstOperation: 'Add your first operation cost to get started.',
+  addOperation: 'Add Operation Cost',
+  editOperation: 'Edit Operation Cost',
+  addAmount: 'Add Amount',
+  entries: 'entries',
+  noAmountEntries: 'No amounts added yet.',
+  failedAddAmount: 'Failed to add amount. Please try again.',
+  failedDeleteEntry: 'Failed to delete entry. Please try again.',
+  reason: 'Reason',
+  reasonPlaceholder: 'e.g. Rent, Electricity, Wages',
+  amount: 'Amount',
+  note: 'Note',
+  enterReason: 'Please enter a reason.',
+  duplicateOperation: 'An operation cost with this reason already exists in this book.',
+  failedSaveOperation: 'Failed to save operation cost. Please try again.',
+  deleteOperation: 'Delete Operation Cost',
+  deleteOperationConfirm: 'Delete this operation cost and its entire amount history? This cannot be undone.',
+  failedDeleteOperation: 'Failed to delete operation cost. Please try again.',
+  totalOperationCost: 'Total operation cost',
+
   close: 'Close',
   allClear: 'AC',
 };
@@ -650,6 +746,53 @@ const bn: Translation = {
   lastPurchase: 'সর্বশেষ ক্রয়',
   lastSale: 'সর্বশেষ বিক্রয়',
   transactions: 'লেনদেন',
+
+  materialsTitle: 'কাঁচামাল খরচ',
+  searchMaterials: 'কাঁচামাল খুঁজুন',
+  failedLoadMaterials: 'কাঁচামাল লোড করা যায়নি। অনুগ্রহ করে পৃষ্ঠাটি রিফ্রেশ করুন।',
+  noMaterials: 'এখনো কোন কাঁচামাল নেই।',
+  addFirstMaterial: 'শুরু করতে আপনার প্রথম কাঁচামাল যোগ করুন।',
+  addMaterial: 'কাঁচামাল যোগ করুন',
+  editMaterial: 'কাঁচামাল সম্পাদনা',
+  materialImage: 'কাঁচামালের ছবি',
+  materialName: 'কাঁচামালের নাম',
+  materialNamePlaceholder: 'যেমন ময়দা',
+  enterMaterialName: 'অনুগ্রহ করে কাঁচামালের নাম লিখুন।',
+  duplicateMaterial: 'এই নামে একটি কাঁচামাল ইতিমধ্যে এই বইতে আছে।',
+  failedSaveMaterial: 'কাঁচামাল সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+  deleteMaterial: 'কাঁচামাল মুছুন',
+  deleteMaterialConfirm: 'এই কাঁচামাল ও তার সম্পূর্ণ স্টক/বিক্রয় ইতিহাস মুছে ফেলবেন? এটি ফেরানো যাবে না।',
+  failedDeleteMaterial: 'কাঁচামাল মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
+  stockUsed: 'স্টক ব্যবহৃত',
+  quantityUsed: 'ব্যবহৃত পরিমাণ',
+  price: 'মূল্য',
+  totalPrice: 'মোট',
+  pricePerUnit: 'একক মূল্য',
+  enterValidTotalPrice: 'অনুগ্রহ করে একটি সঠিক মূল্য লিখুন।',
+
+  operationsTitle: 'পরিচালন খরচ',
+  searchOperations: 'পরিচালন খরচ খুঁজুন',
+  failedLoadOperations: 'পরিচালন খরচ লোড করা যায়নি। অনুগ্রহ করে পৃষ্ঠাটি রিফ্রেশ করুন।',
+  noOperations: 'এখনো কোন পরিচালন খরচ নেই।',
+  addFirstOperation: 'শুরু করতে আপনার প্রথম পরিচালন খরচ যোগ করুন।',
+  addOperation: 'পরিচালন খরচ যোগ করুন',
+  editOperation: 'পরিচালন খরচ সম্পাদনা',
+  addAmount: 'পরিমাণ যোগ করুন',
+  entries: 'এন্ট্রি',
+  noAmountEntries: 'এখনো কোন পরিমাণ যোগ করা হয়নি।',
+  failedAddAmount: 'পরিমাণ যোগ করা যায়নি। আবার চেষ্টা করুন।',
+  failedDeleteEntry: 'এন্ট্রি মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
+  reason: 'কারণ',
+  reasonPlaceholder: 'যেমন ভাড়া, বিদ্যুৎ, মজুরি',
+  amount: 'পরিমাণ',
+  note: 'নোট',
+  enterReason: 'অনুগ্রহ করে একটি কারণ লিখুন।',
+  duplicateOperation: 'এই কারণে একটি পরিচালন খরচ ইতিমধ্যে এই বইতে আছে।',
+  failedSaveOperation: 'পরিচালন খরচ সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+  deleteOperation: 'পরিচালন খরচ মুছুন',
+  deleteOperationConfirm: 'এই পরিচালন খরচ ও তার সম্পূর্ণ পরিমাণ ইতিহাস মুছে ফেলবেন? এটি ফেরানো যাবে না।',
+  failedDeleteOperation: 'পরিচালন খরচ মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
+  totalOperationCost: 'মোট পরিচালন খরচ',
 
   close: 'বন্ধ',
   allClear: 'AC',

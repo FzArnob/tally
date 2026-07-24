@@ -37,7 +37,8 @@ export function ProductFormModal({
   const [type, setType] = useState<string>('piece');
   const [customType, setCustomType] = useState('');
   const [productType, setProductType] = useState<ProductType>('ready_made');
-  const [costItems, setCostItems] = useState<string[]>(['']);
+  const [costItems, setCostItems] = useState<string[]>([]);
+  const [costDraft, setCostDraft] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -50,6 +51,7 @@ export function ProductFormModal({
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setCostDraft('');
     if (product) {
       setName(product.name);
       const qt = product.quantity_type || 'piece';
@@ -63,9 +65,7 @@ export function ProductFormModal({
       setImage(product.image_url && product.image_url !== 'null' ? product.image_url : null);
       setProductType(product.product_type || 'ready_made');
       setCostItems(
-        product.product_type === 'manufacture' && product.cost_items.length > 0
-          ? product.cost_items.map((c) => c.name)
-          : [''],
+        product.product_type === 'manufacture' ? product.cost_items.map((c) => c.name) : [],
       );
     } else {
       setName('');
@@ -73,15 +73,21 @@ export function ProductFormModal({
       setCustomType('');
       setImage(null);
       setProductType('ready_made');
-      setCostItems(['']);
+      setCostItems([]);
     }
   }, [open, product]);
 
-  const setCostItemAt = (i: number, value: string) =>
-    setCostItems((prev) => prev.map((c, idx) => (idx === i ? value : c)));
-  const addCostItem = () => setCostItems((prev) => [...prev, '']);
+  // Commit the typed draft as a new tag, ignoring blanks and case-insensitive duplicates.
+  const addCostItem = () => {
+    const name = costDraft.trim();
+    setCostDraft('');
+    if (!name) return;
+    setCostItems((prev) =>
+      prev.some((c) => c.toLowerCase() === name.toLowerCase()) ? prev : [...prev, name],
+    );
+  };
   const removeCostItem = (i: number) =>
-    setCostItems((prev) => (prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== i)));
+    setCostItems((prev) => prev.filter((_, idx) => idx !== i));
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,7 +116,13 @@ export function ProductFormModal({
     }
     let cleanCostItems: string[] = [];
     if (productType === 'manufacture') {
-      cleanCostItems = costItems.map((c) => c.trim()).filter(Boolean);
+      // Include an unadded draft so a typed-but-not-clicked value isn't lost.
+      const pending = costDraft.trim();
+      const merged =
+        pending && !costItems.some((c) => c.toLowerCase() === pending.toLowerCase())
+          ? [...costItems, pending]
+          : costItems;
+      cleanCostItems = merged.map((c) => c.trim()).filter(Boolean);
       if (cleanCostItems.length === 0) {
         setError(t.enterCostItem);
         return;
@@ -251,31 +263,47 @@ export function ProductFormModal({
         {productType === 'manufacture' && (
           <div className="field">
             <label>{t.rawMaterials}</label>
-            <span className={styles.fieldHint}>{t.rawMaterialsHint}</span>
             <div className={styles.costEditor}>
-              {costItems.map((item, i) => (
-                <div key={i} className={styles.costEditRow}>
-                  <input
-                    className="input"
-                    value={item}
-                    onChange={(e) => setCostItemAt(i, e.target.value)}
-                    placeholder={t.costItemPlaceholder}
-                  />
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label={t.removeLine}
-                    onClick={() => removeCostItem(i)}
-                    disabled={costItems.length <= 1}
-                  >
-                    <span className="material-symbols-outlined icon-md">close</span>
-                  </button>
+              <div className={styles.costEditRow}>
+                <input
+                  className="input"
+                  value={costDraft}
+                  onChange={(e) => setCostDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addCostItem();
+                    }
+                  }}
+                  placeholder={t.costItemPlaceholder}
+                />
+                <button
+                  type="button"
+                  className={styles.addCostBtn}
+                  onClick={addCostItem}
+                  disabled={!costDraft.trim()}
+                >
+                  <span className="material-symbols-outlined icon-md">add</span>
+                  {t.add}
+                </button>
+              </div>
+              {costItems.length > 0 && (
+                <div className={styles.costTags}>
+                  {costItems.map((item, i) => (
+                    <span key={i} className={styles.costTag}>
+                      {item}
+                      <button
+                        type="button"
+                        className={styles.costTagRemove}
+                        aria-label={t.removeLine}
+                        onClick={() => removeCostItem(i)}
+                      >
+                        <span className="material-symbols-outlined icon-sm">close</span>
+                      </button>
+                    </span>
+                  ))}
                 </div>
-              ))}
-              <button type="button" className={styles.addCostBtn} onClick={addCostItem}>
-                <span className="material-symbols-outlined icon-md">add</span>
-                {t.addCostLine}
-              </button>
+              )}
             </div>
           </div>
         )}

@@ -497,20 +497,63 @@
 .addCostBtn {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  align-self: flex-start;
-  padding: 0.4rem 0.6rem;
-  border: 1px dashed var(--border);
+  gap: 0.25rem;
+  flex-shrink: 0;
+  align-self: stretch;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: transparent;
-  color: var(--muted-foreground);
+  background: var(--input-background);
+  color: var(--foreground);
   font-size: var(--fs-sm);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease,
+    opacity var(--dur-fast) ease;
 }
-.addCostBtn:hover {
-  color: var(--foreground);
+.addCostBtn:hover:not(:disabled) {
   border-color: var(--muted-foreground);
+}
+.addCostBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Confirmed cost lines, shown as removable tags below the input. */
+.costTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.costTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.3rem 0.4rem 0.3rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--input-background);
+  color: var(--foreground);
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.costTagRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.1rem;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+.costTagRemove:hover {
+  color: var(--foreground);
+  background: var(--muted);
 }
 
 /* ---- Manufacture stock-in cost breakdown (action modal) ---- */

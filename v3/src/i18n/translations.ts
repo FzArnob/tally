@@ -134,7 +134,6 @@ export interface Translation {
   typeReadyMadeHint: string;
   typeManufactureHint: string;
   rawMaterials: string;
-  rawMaterialsHint: string;
   costItemPlaceholder: string;
   addCostLine: string;
   removeLine: string;
@@ -353,7 +352,6 @@ const en: Translation = {
   typeReadyMadeHint: 'Bought from a vendor and resold — one buying price per stock-in.',
   typeManufactureHint: 'Made from raw materials — enter each cost when stocking in.',
   rawMaterials: 'Raw materials & costs',
-  rawMaterialsHint: 'These cost lines appear each time you stock in. Fill their prices then.',
   costItemPlaceholder: 'e.g. Flour, Labour, Packaging',
   addCostLine: 'Add cost line',
   removeLine: 'Remove line',
@@ -566,7 +564,6 @@ const bn: Translation = {
   typeReadyMadeHint: 'সরবরাহকারীর কাছ থেকে কিনে পুনরায় বিক্রি — প্রতি স্টকে একটি ক্রয়মূল্য।',
   typeManufactureHint: 'কাঁচামাল দিয়ে তৈরি — স্টক করার সময় প্রতিটি খরচ লিখুন।',
   rawMaterials: 'কাঁচামাল ও খরচ',
-  rawMaterialsHint: 'এই খরচের লাইনগুলো প্রতিবার স্টক করার সময় আসবে। তখন দাম লিখবেন।',
   costItemPlaceholder: 'যেমন ময়দা, মজুরি, প্যাকেজিং',
   addCostLine: 'খরচের লাইন যোগ করুন',
   removeLine: 'লাইন সরান',

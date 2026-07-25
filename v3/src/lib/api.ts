@@ -18,6 +18,7 @@ import {
   type CustomersResponse,
   type DeleteBalanceResponse,
   type ProductTransactionsResponse,
+  type ProductMaterialsResponse,
   type ProductsResponse,
   type MaterialsResponse,
   type MaterialTransactionsResponse,
@@ -199,6 +200,11 @@ export function getProducts(bookId = BOOK_ID): Promise<ProductsResponse> {
 
 export function getProductTransactions(productId: number): Promise<ProductTransactionsResponse> {
   return request<ProductTransactionsResponse>(`products/${productId}/transactions`);
+}
+
+/** A manufacture product's linked materials with stock details (fetched on demand). */
+export function getProductMaterials(productId: number): Promise<ProductMaterialsResponse> {
+  return request<ProductMaterialsResponse>(`products/${productId}/materials`);
 }
 
 export function saveProduct(params: {

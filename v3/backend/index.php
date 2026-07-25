@@ -976,30 +976,9 @@ on('GET', '/books/{id}/products', function ($a) {
     $stmt->execute([$bookId]);
     $products = $stmt->fetchAll();
 
-    // One grouped query for the whole book's product→material links (avoids N+1).
-    $pm = $pdo->prepare(
-        'SELECT pm.product_id, m.id, m.name, m.quantity_type, m.current_stock, m.last_purchase_price
-         FROM product_materials pm JOIN materials m ON m.id = pm.material_id
-         WHERE pm.book_id = ? ORDER BY pm.product_id, m.name'
-    );
-    $pm->execute([$bookId]);
-    $byProduct = [];
-    foreach ($pm->fetchAll() as $r) {
-        $byProduct[(int) $r['product_id']][] = [
-            'id'                  => (int) $r['id'],
-            'name'                => $r['name'],
-            'quantity_type'       => $r['quantity_type'],
-            'current_stock'       => (float) $r['current_stock'],
-            'last_purchase_price' => $r['last_purchase_price'] !== null ? (float) $r['last_purchase_price'] : null,
-        ];
-    }
-
-    json_response([
-        'products' => array_map(
-            fn($p) => shapeProduct($p, $byProduct[(int) $p['id']] ?? []),
-            $products
-        ),
-    ]);
+    // The list intentionally omits each product's linked materials (no JOIN) —
+    // they're fetched on demand via GET /products/{id}/materials when needed.
+    json_response(['products' => array_map('shapeProduct', $products)]);
 });
 
 on('POST', '/books/{id}/products', function ($a) {
@@ -1047,6 +1026,15 @@ on('GET', '/products/{id}', function ($a) {
     $pdo = db();
     $id  = (int) $a['id'];
     json_response(['product' => shapeProduct(findProduct($pdo, $id), loadProductMaterials($pdo, $id))]);
+});
+
+// A manufacture product's linked materials (with stock details) — fetched on
+// demand so the product list stays lean (no per-product materials JOIN).
+on('GET', '/products/{id}/materials', function ($a) {
+    $pdo = db();
+    $id  = (int) $a['id'];
+    findProduct($pdo, $id); // ownership guard
+    json_response(['product_id' => $id, 'materials' => loadProductMaterials($pdo, $id)]);
 });
 
 on('PUT', '/products/{id}', function ($a) {

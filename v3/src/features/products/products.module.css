@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  padding: 1rem 1.25rem 3rem;
+  padding: 0.85rem 0.9rem 2rem;
 }
 
 /* ---- Product row ---- */
@@ -77,7 +77,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.9rem;
 }
 
 .name {
@@ -104,7 +104,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.1rem;
+  gap: 0.9rem;
 }
 
 .stockWrap {
@@ -128,7 +128,7 @@
 
 .rowActions {
   display: flex;
-  gap: 0.05rem;
+  gap: 0.5rem;
 }
 
 /* ---- Form modal ---- */
@@ -345,6 +345,133 @@
   background: var(--green-600);
   color: #fff;
   box-shadow: var(--shadow-sm);
+}
+
+/* Price entry: one input whose meaning (total vs per-unit) the toggle sets,
+   with the derived figure shown beneath. Mirrors the materials action modal. */
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.priceHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.priceHeaderLabel {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+/* Contextual recent reference (last buy / last sale) beside the price toggle,
+   with a history icon on the left. */
+.lastPrice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lastPricesIcon {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+
+.lastPrice b {
+  color: var(--foreground);
+  font-weight: var(--font-weight-semibold);
+}
+
+.priceToggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  background: var(--input-background);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.priceToggleBtn {
+  border: none;
+  background: transparent;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.priceToggleActive {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+}
+
+.priceInput {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-background);
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.priceInput input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0.65rem 0;
+  font-size: var(--fs-base);
+  color: var(--foreground);
+  font-family: inherit;
+}
+
+.priceInput input:focus {
+  outline: none;
+}
+
+.priceInput:focus-within {
+  border-color: var(--ring);
+  background: var(--muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+}
+
+.priceCurrency {
+  flex-shrink: 0;
+  font-size: var(--fs-base);
+  color: var(--muted-foreground);
+}
+
+.priceReadout {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0 0.1rem;
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+.priceReadoutValue {
+  font-weight: var(--font-weight-medium);
+  color: var(--foreground);
 }
 
 .totalRow {
@@ -597,8 +724,24 @@
   max-height: 14.5rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0.15rem 1rem 0.15rem 0.15rem;
+  padding: 0.75rem 1rem 0.75rem 0.15rem;
   margin: 0 -0.15rem;
+  /* Fade both edges so rows dissolve in/out, hinting more content above & below.
+     The mask is pinned to the scroll viewport, not the content. */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 1.75rem,
+    #000 calc(100% - 1.75rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 1.75rem,
+    #000 calc(100% - 1.75rem),
+    transparent 100%
+  );
 }
 .materialScroll::-webkit-scrollbar {
   width: 6px;

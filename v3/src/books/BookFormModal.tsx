@@ -70,6 +70,18 @@ export function BookFormModal({ open, book, onClose, onSaved }: BookFormModalPro
           closeLabel={t.close}
         />
       }
+      footer={
+        <>
+          {error && (
+            <div className={styles.formError} style={{ marginBottom: '0.75rem' }}>
+              {error}
+            </div>
+          )}
+          <button className="btn btn-primary btn-block btn-margin" onClick={submit} disabled={saving}>
+            {isEdit ? t.saveChanges : t.createBook}
+          </button>
+        </>
+      }
     >
       <div className={styles.form}>
         <div className="field">
@@ -104,11 +116,6 @@ export function BookFormModal({ open, book, onClose, onSaved }: BookFormModalPro
           </div>
         </div>
 
-        {error && <div className={styles.formError}>{error}</div>}
-
-        <button className="btn btn-primary btn-block" onClick={submit} disabled={saving}>
-          {isEdit ? t.saveChanges : t.createBook}
-        </button>
       </div>
     </Modal>
   );

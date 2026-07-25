@@ -108,6 +108,18 @@ export function CustomerFormModal({
           closeLabel={t.close}
         />
       }
+      footer={
+        <>
+          {error && (
+            <div className={styles.formError} style={{ marginBottom: '0.75rem' }}>
+              {error}
+            </div>
+          )}
+          <button className="btn btn-primary btn-block btn-margin" onClick={submit} disabled={busy}>
+            {editing ? t.saveCustomer : t.addCustomer}
+          </button>
+        </>
+      }
     >
       <div className={styles.form}>
         <div className="field">
@@ -171,11 +183,6 @@ export function CustomerFormModal({
           />
         </div>
 
-        {error && <div className={styles.formError}>{error}</div>}
-
-        <button className="btn btn-primary btn-block" onClick={submit} disabled={busy}>
-          {editing ? t.saveCustomer : t.addCustomer}
-        </button>
       </div>
     </Modal>
   );

@@ -16,6 +16,11 @@ interface ModalProps {
   header?: ReactNode;
   /** Fixed footer pinned to the bottom of the sheet, below the scrollable body. */
   footer?: ReactNode;
+  /**
+   * Fade the body's bottom edge into the footer while there's more to scroll to.
+   * Defaults to on whenever a `footer` is present; pass `false` to opt out.
+   */
+  scrollFade?: boolean;
 }
 
 const EXIT_MS = 280;
@@ -34,10 +39,17 @@ export function Modal({
   labelledBy,
   header,
   footer,
+  scrollFade,
 }: ModalProps) {
   const [mounted, setMounted] = useState(open);
   const [entered, setEntered] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | null>(null);
+
+  // A footered modal fades its body into the footer by default; `scrollFade`
+  // overrides that either way.
+  const fade = scrollFade ?? !!footer;
 
   useEffect(() => {
     if (open) {
@@ -74,6 +86,25 @@ export function Modal({
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // Bottom fade: show only while the body can still scroll down (hidden at the
+  // very bottom and when the content doesn't overflow at all). Recomputes on
+  // scroll and whenever the body's size/content changes.
+  useEffect(() => {
+    if (!mounted || !fade) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setCanScrollDown(el.scrollHeight - el.scrollTop - el.clientHeight > 1);
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild); // catch content growth
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [mounted, fade, open]);
+
   if (!mounted) return null;
 
   // Portal to <body> so a modal is never trapped by an ancestor that creates a
@@ -96,7 +127,14 @@ export function Modal({
         ) : (
           <>
             {header}
-            <div className={styles.scroll}>{children}</div>
+            <div
+              ref={scrollRef}
+              className={`${styles.scroll} ${footer ? '' : styles.scrollNoFooter} ${
+                fade && canScrollDown ? styles.scrollFade : ''
+              }`}
+            >
+              {children}
+            </div>
             {footer}
           </>
         )}

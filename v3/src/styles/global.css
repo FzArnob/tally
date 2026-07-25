@@ -215,9 +215,14 @@ input[type='number']::-webkit-inner-spin-button {
 .btn-block {
   width: 100%;
 }
+.btn-margin {
+  margin: 1.25rem;
+  width: calc(100% - 2.5rem);
+}
 
 /* Round icon button (header / close) */
 .icon-btn {
+  flex-shrink: 0;
   width: 3rem;
   height: 3rem;
   border: none;

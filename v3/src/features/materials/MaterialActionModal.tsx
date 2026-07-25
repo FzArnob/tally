@@ -64,6 +64,10 @@ export function MaterialActionModal({
   const hasImage = material.image_url && material.image_url !== 'null';
   const unit = material.quantity_type || 'piece';
 
+  // Contextual recent reference: last buy for a stock-in, last sale for a sale.
+  const refPrice = isStock ? material.last_purchase_price : material.last_sale_price;
+  const refLabel = isStock ? t.lastPurchase : t.lastSale;
+
   // Derive the total and per-unit from whichever basis the toggle is on.
   const totalNum = priceMode === 'total' ? priceNum : priceNum * qtyNum;
   const unitNum = priceMode === 'unit' ? priceNum : qtyNum > 0 ? priceNum / qtyNum : 0;
@@ -143,12 +147,6 @@ export function MaterialActionModal({
               </h3>
               <span className={styles.actionStock}>
                 {t.stock}: {formatNumber(material.current_stock || 0)} {unit}
-                {material.last_purchase_price != null && (
-                  <> · {t.lastPurchase} {formatCurrency(material.last_purchase_price)}</>
-                )}
-                {material.last_sale_price != null && (
-                  <> · {t.lastSale} {formatCurrency(material.last_sale_price)}</>
-                )}
               </span>
             </div>
           </div>
@@ -156,6 +154,11 @@ export function MaterialActionModal({
             <span className="material-symbols-outlined icon-lg">close</span>
           </button>
         </div>
+      }
+      footer={
+        <button className={`btn btn-block btn-margin ${saveClass}`} onClick={submit} disabled={saving}>
+          {editTx ? t.update : t.save}
+        </button>
       }
     >
       <div className={styles.body} style={{ gap: '1rem' }}>
@@ -223,6 +226,15 @@ export function MaterialActionModal({
               </div>
             </div>
 
+            {refPrice != null && (
+              <span className={styles.lastPrice}>
+                <span className={`material-symbols-outlined icon-sm ${styles.lastPricesIcon}`}>
+                  history
+                </span>
+                {refLabel} <b>{formatCurrency(refPrice)}</b> / {unit}
+              </span>
+            )}
+
             <div className={styles.priceInput}>
               <span className={styles.priceCurrency}>৳</span>
               <input
@@ -247,10 +259,6 @@ export function MaterialActionModal({
             </div>
           </div>
         )}
-
-        <button className={`btn btn-block ${saveClass}`} onClick={submit} disabled={saving}>
-          {editTx ? t.update : t.save}
-        </button>
       </div>
     </Modal>
   );

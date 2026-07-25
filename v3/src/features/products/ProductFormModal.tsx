@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useI18n } from '../../i18n/LanguageContext';
-import { getMaterials, saveProduct } from '../../lib/api';
+import { getMaterials, getProductMaterials, saveProduct } from '../../lib/api';
 import { ApiError, type Material, type Product, type ProductType } from '../../types';
 import type { Translation } from '../../i18n/translations';
 import { ImageCropperModal } from './ImageCropperModal';
@@ -77,9 +77,8 @@ export function ProductFormModal({
       }
       setImage(product.image_url && product.image_url !== 'null' ? product.image_url : null);
       setProductType(product.product_type || 'ready_made');
-      setLinkedIds(
-        product.product_type === 'manufacture' ? product.materials.map((m) => m.id) : [],
-      );
+      // Linked ids are fetched on demand (see effect below) — the list omits them.
+      setLinkedIds([]);
     } else {
       setName('');
       setType('piece');
@@ -88,6 +87,23 @@ export function ProductFormModal({
       setProductType('ready_made');
       setLinkedIds([]);
     }
+  }, [open, product]);
+
+  // Seed the linked set when editing a manufacture product (fetched on demand).
+  useEffect(() => {
+    if (!open || !product || product.product_type !== 'manufacture') return;
+    let alive = true;
+    (async () => {
+      try {
+        const data = await getProductMaterials(product.id);
+        if (alive) setLinkedIds(data.materials.map((m) => m.id));
+      } catch (err) {
+        console.error('Failed to load linked materials:', err);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [open, product]);
 
   // Load the book's materials the first time the manufacture section is shown.
@@ -207,6 +223,18 @@ export function ProductFormModal({
           onClose={onClose}
           closeLabel={t.close}
         />
+      }
+      footer={
+        <>
+          {error && (
+            <div className={styles.formError} style={{ marginBottom: '0.75rem' }}>
+              {error}
+            </div>
+          )}
+          <button className="btn btn-primary btn-block btn-margin" onClick={submit} disabled={saving}>
+            {isEdit ? t.saveChanges : t.addProduct}
+          </button>
+        </>
       }
     >
       <div className={styles.body}>
@@ -390,12 +418,6 @@ export function ProductFormModal({
             </div>
           </div>
         )}
-
-        {error && <div className={styles.formError}>{error}</div>}
-
-        <button className="btn btn-primary btn-block" onClick={submit} disabled={saving}>
-          {isEdit ? t.saveChanges : t.addProduct}
-        </button>
       </div>
 
       <ImageCropperModal
@@ -412,7 +434,7 @@ export function ProductFormModal({
         open={!!pendingUnlink}
         title={t.unlinkMaterial}
         message={t.unlinkMaterialConfirm}
-        confirmLabel={t.deleteAction}
+        confirmLabel={t.removeAction}
         onConfirm={confirmUnlink}
         onCancel={() => setPendingUnlink(null)}
       />

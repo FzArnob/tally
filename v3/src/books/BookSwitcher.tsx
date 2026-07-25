@@ -90,7 +90,7 @@ export function BookSwitcher({ current }: { current: Book }) {
           {current.name}
         </span>
         <span
-          className={`material-symbols-outlined icon-md ${styles.chevron} ${open ? styles.chevronUp : ''}`}
+          className={`material-symbols-outlined icon-sm ${styles.chevron} ${open ? styles.chevronUp : ''}`}
         >
           expand_more
         </span>

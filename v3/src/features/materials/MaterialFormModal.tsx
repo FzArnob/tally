@@ -128,6 +128,18 @@ export function MaterialFormModal({
           closeLabel={t.close}
         />
       }
+      footer={
+        <>
+          {error && (
+            <div className={styles.formError} style={{ marginBottom: '0.75rem' }}>
+              {error}
+            </div>
+          )}
+          <button className="btn btn-primary btn-block btn-margin" onClick={submit} disabled={saving}>
+            {isEdit ? t.saveChanges : t.addMaterial}
+          </button>
+        </>
+      }
     >
       <div className={styles.body}>
         <div className="field">
@@ -184,11 +196,6 @@ export function MaterialFormModal({
           )}
         </div>
 
-        {error && <div className={styles.formError}>{error}</div>}
-
-        <button className="btn btn-primary btn-block" onClick={submit} disabled={saving}>
-          {isEdit ? t.saveChanges : t.addMaterial}
-        </button>
       </div>
 
       <ImageCropperModal

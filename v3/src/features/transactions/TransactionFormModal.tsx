@@ -105,6 +105,22 @@ export function TransactionFormModal({
           closeLabel={t.close}
         />
       }
+      footer={
+        <>
+          {error && (
+            <div className={styles.formError} style={{ marginBottom: '0.75rem' }}>
+              {error}
+            </div>
+          )}
+          <button
+            className="btn btn-primary btn-block btn-margin"
+            onClick={submit}
+            disabled={saving || options.length === 0}
+          >
+            {isEdit ? t.saveChanges : t.addTransaction}
+          </button>
+        </>
+      }
     >
       <div className={styles.form}>
         <div className="field">
@@ -191,15 +207,6 @@ export function TransactionFormModal({
           />
         </div>
 
-        {error && <div className={styles.formError}>{error}</div>}
-
-        <button
-          className="btn btn-primary btn-block"
-          onClick={submit}
-          disabled={saving || options.length === 0}
-        >
-          {isEdit ? t.saveChanges : t.addTransaction}
-        </button>
       </div>
     </Modal>
   );

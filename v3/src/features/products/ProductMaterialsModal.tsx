@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
-import type { Product } from '../../types';
+import { getProductMaterials } from '../../lib/api';
+import type { Product, ProductMaterial } from '../../types';
 import styles from './products.module.css';
 
 interface ProductMaterialsModalProps {
@@ -12,11 +14,36 @@ interface ProductMaterialsModalProps {
 /**
  * Read-only stock details of the materials a manufacture product is made from.
  * The product's own stock is unknown (analytics later), so this is where the
- * user checks the raw-material stock behind it.
+ * user checks the raw-material stock behind it. Materials are fetched on demand
+ * (the product list doesn't carry them) each time the sheet opens.
  */
 export function ProductMaterialsModal({ open, product, onClose }: ProductMaterialsModalProps) {
   const { t, formatNumber, formatCurrency, localizeDigits } = useI18n();
-  const materials = product?.materials ?? [];
+  const [materials, setMaterials] = useState<ProductMaterial[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const productId = product?.id ?? null;
+
+  useEffect(() => {
+    if (!open || productId == null) return;
+    let alive = true;
+    setLoading(true);
+    setMaterials([]);
+    (async () => {
+      try {
+        const data = await getProductMaterials(productId);
+        if (alive) setMaterials(data.materials);
+      } catch (err) {
+        console.error('Failed to load product materials:', err);
+        if (alive) setMaterials([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [open, productId]);
 
   return (
     <Modal
@@ -33,7 +60,9 @@ export function ProductMaterialsModal({ open, product, onClose }: ProductMateria
       }
     >
       <div className={styles.materialCards}>
-        {materials.length === 0 ? (
+        {loading ? (
+          <div className="empty-state">…</div>
+        ) : materials.length === 0 ? (
           <div className="empty-state">{t.noLinkedMaterials}</div>
         ) : (
           materials.map((m) => {

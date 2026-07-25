@@ -83,6 +83,18 @@ export function OperationActionModal({
           </button>
         </div>
       }
+      footer={
+        <>
+          {error && (
+            <div className={styles.formError} style={{ marginBottom: '0.75rem' }}>
+              {error}
+            </div>
+          )}
+          <button className="btn btn-primary btn-block btn-margin" onClick={submit} disabled={saving}>
+            {t.addAmount}
+          </button>
+        </>
+      }
     >
       <div className={styles.body}>
         <div className="field">
@@ -113,11 +125,6 @@ export function OperationActionModal({
           />
         </div>
 
-        {error && <div className={styles.formError}>{error}</div>}
-
-        <button className="btn btn-primary btn-block" onClick={submit} disabled={saving}>
-          {t.addAmount}
-        </button>
       </div>
     </Modal>
   );

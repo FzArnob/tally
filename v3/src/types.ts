@@ -174,7 +174,11 @@ export interface Product {
   name: string;
   quantity_type: string;
   product_type: ProductType;
-  /** Linked raw materials; empty for ready-made products. */
+  /**
+   * Linked raw materials. The products LIST omits these (empty) to stay lean —
+   * fetch them on demand with getProductMaterials(). Populated on the single
+   * product/save responses.
+   */
   materials: ProductMaterial[];
   image_url: string | null;
   /** null for manufacture products (reserved for future analytics). */
@@ -189,6 +193,11 @@ export interface Product {
 
 export interface ProductsResponse {
   products: Product[];
+}
+
+export interface ProductMaterialsResponse {
+  product_id: number;
+  materials: ProductMaterial[];
 }
 
 export interface ProductTransactionsResponse {

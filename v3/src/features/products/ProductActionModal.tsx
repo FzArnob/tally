@@ -13,6 +13,9 @@ interface ProductActionModalProps {
   onSaved: () => void;
 }
 
+/** Round a money value to 2 decimals, returned as a clean input string. */
+const money = (n: number) => String(Math.round(n * 100) / 100);
+
 export function ProductActionModal({
   open,
   product,
@@ -23,6 +26,9 @@ export function ProductActionModal({
   const { t, formatCurrency, formatNumber } = useI18n();
   const [tab, setTab] = useState<TransactionType>('stock');
   const [qty, setQty] = useState('');
+  // A single price field; the toggle decides whether it means the whole batch's
+  // total or the per-unit price. The other figure is derived for the readout.
+  const [priceMode, setPriceMode] = useState<'total' | 'unit'>('total');
   const [price, setPrice] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -34,10 +40,12 @@ export function ProductActionModal({
     if (editTx) {
       setTab(editTx.type);
       setQty(String(editTx.quantity));
-      setPrice(String(editTx.price_per_unit));
+      setPriceMode('total');
+      setPrice(money(editTx.total_amount));
     } else {
       setTab(product.product_type === 'manufacture' ? 'sale' : 'stock');
       setQty('');
+      setPriceMode('total');
       setPrice('');
     }
   }, [open, editTx, product]);
@@ -46,9 +54,17 @@ export function ProductActionModal({
 
   const isStock = tab === 'stock';
   const qtyNum = parseFloat(qty) || 0;
-  const total = qtyNum * (parseFloat(price) || 0);
+  const priceNum = parseFloat(price) || 0;
   const hasImage = product.image_url && product.image_url !== 'null';
   const unit = product.quantity_type || 'piece';
+
+  // Derive the total and per-unit from whichever basis the toggle is on.
+  const totalNum = priceMode === 'total' ? priceNum : priceNum * qtyNum;
+  const unitNum = priceMode === 'unit' ? priceNum : qtyNum > 0 ? priceNum / qtyNum : 0;
+
+  // Contextual recent reference: last buy for a stock-in, last sale for a sale.
+  const refPrice = isStock ? product.last_purchase_price : product.last_sale_price;
+  const refLabel = isStock ? t.lastPurchase : t.lastSale;
 
   // Stock available for a sale (ready-made only). When editing, reverse the edited
   // entry's effect so lowering/raising it validates against the true baseline.
@@ -56,14 +72,22 @@ export function ProductActionModal({
     (product.current_stock || 0) +
     (editTx ? (editTx.type === 'sale' ? editTx.quantity : -editTx.quantity) : 0);
 
+  // Flip the toggle, converting the current value so it stays equivalent.
+  const switchMode = (m: 'total' | 'unit') => {
+    if (m === priceMode) return;
+    if (qtyNum > 0 && price.trim() !== '') {
+      setPrice(m === 'unit' ? money(unitNum) : money(totalNum));
+    }
+    setPriceMode(m);
+  };
+
   const submit = async () => {
     const q = parseFloat(qty);
     if (!q || q <= 0) {
       alert(t.enterValidQuantity);
       return;
     }
-    const p = parseFloat(price);
-    if (isNaN(p) || p < 0) {
+    if (isNaN(priceNum) || priceNum < 0 || price.trim() === '') {
       alert(t.enterValidPrice);
       return;
     }
@@ -79,7 +103,8 @@ export function ProductActionModal({
         productId: product.id,
         type: tab,
         quantity: q,
-        pricePerUnit: p,
+        // The API stores the per-unit price and derives the total from it.
+        pricePerUnit: Math.round(unitNum * 100) / 100,
         replaces: editTx?.id ?? null,
       });
       onSaved();
@@ -118,20 +143,10 @@ export function ProductActionModal({
               </div>
               <span className={styles.actionStock}>
                 {isManufacture ? (
-                  product.last_sale_price != null ? (
-                    <>{t.lastSale} {formatCurrency(product.last_sale_price)}</>
-                  ) : (
-                    t.typeManufacture
-                  )
+                  t.typeManufacture
                 ) : (
                   <>
                     {t.stock}: {formatNumber(product.current_stock || 0)} {unit}
-                    {product.last_purchase_price != null && (
-                      <> · {t.lastPurchase} {formatCurrency(product.last_purchase_price)}</>
-                    )}
-                    {product.last_sale_price != null && (
-                      <> · {t.lastSale} {formatCurrency(product.last_sale_price)}</>
-                    )}
                   </>
                 )}
               </span>
@@ -141,6 +156,15 @@ export function ProductActionModal({
             <span className="material-symbols-outlined icon-lg">close</span>
           </button>
         </div>
+      }
+      footer={
+        <button
+          className={`btn btn-block btn-margin ${isStock ? styles.saveStock : styles.saveSale}`}
+          onClick={submit}
+          disabled={saving}
+        >
+          {editTx ? t.update : t.save}
+        </button>
       }
     >
       <div className={styles.body} style={{ gap: '1rem' }}>
@@ -176,33 +200,63 @@ export function ProductActionModal({
           />
         </div>
 
-        <div className="field">
-          <label htmlFor="price">{isStock ? t.buyingPrice : t.sellingPrice}</label>
-          <input
-            id="price"
-            className="input"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="any"
-            placeholder="0.00"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-          />
-        </div>
+        <div className={styles.priceBlock}>
+          <div className={styles.priceHeader}>
+            <span className={styles.priceHeaderLabel}>{t.price}</span>
+            <div className={styles.priceToggle} role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={priceMode === 'total'}
+                className={`${styles.priceToggleBtn} ${priceMode === 'total' ? styles.priceToggleActive : ''}`}
+                onClick={() => switchMode('total')}
+              >
+                {t.totalPrice}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={priceMode === 'unit'}
+                className={`${styles.priceToggleBtn} ${priceMode === 'unit' ? styles.priceToggleActive : ''}`}
+                onClick={() => switchMode('unit')}
+              >
+                {t.pricePerUnit}
+              </button>
+            </div>
+          </div>
 
-        <div className={styles.totalRow}>
-          <span>{t.total}</span>
-          <span className={styles.totalValue}>{formatCurrency(total)}</span>
-        </div>
+          {refPrice != null && (
+            <span className={styles.lastPrice}>
+              <span className={`material-symbols-outlined icon-sm ${styles.lastPricesIcon}`}>
+                history
+              </span>
+              {refLabel} <b>{formatCurrency(refPrice)}</b> / {unit}
+            </span>
+          )}
 
-        <button
-          className={`btn btn-block ${isStock ? styles.saveStock : styles.saveSale}`}
-          onClick={submit}
-          disabled={saving}
-        >
-          {editTx ? t.update : t.save}
-        </button>
+          <div className={styles.priceInput}>
+            <span className={styles.priceCurrency}>৳</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="any"
+              placeholder="0.00"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              aria-label={priceMode === 'total' ? t.totalPrice : t.pricePerUnit}
+            />
+          </div>
+
+          <div className={styles.priceReadout}>
+            <span>{priceMode === 'total' ? t.pricePerUnit : t.totalPrice}</span>
+            <span className={styles.priceReadoutValue}>
+              {priceMode === 'total'
+                ? `${formatCurrency(unitNum)} / ${unit}`
+                : formatCurrency(totalNum)}
+            </span>
+          </div>
+        </div>
       </div>
     </Modal>
   );

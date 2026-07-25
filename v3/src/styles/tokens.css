@@ -36,22 +36,22 @@
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
 
-  /* Typography scale */
-  --fs-xs: 0.7rem;
-  --fs-sm: 0.8rem;
-  --fs-base: 0.95rem;
-  --fs-btn: 0.95rem;
-  --fs-amount: 1.05rem;
-  --fs-heading-sm: 1.2rem;
-  --fs-heading-md: 1.3rem;
+  /* Typography scale — distributed across a 1rem (smallest) → 1.75rem (largest) band. */
+  --fs-xs: 1rem;
+  --fs-sm: 1.1rem;
+  --fs-base: 1.2rem;
+  --fs-btn: 1.2rem;
+  --fs-amount: 1.3rem;
+  --fs-heading-sm: 1.35rem;
+  --fs-heading-md: 1.5rem;
   --fs-display: 1.75rem;
-  --fs-key: 1.2rem;
+  --fs-key: 1.5rem;
 
   /* Icon sizes */
-  --icon-sm: 1rem;
-  --icon-md: 1.25rem;
-  --icon-lg: 1.5rem;
-  --icon-xl: 1.75rem;
+  --icon-sm: 1.65rem;
+  --icon-md: 1.9rem;
+  --icon-lg: 2.15rem;
+  --icon-xl: 2.4rem;
 
   /* Elevation */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05);

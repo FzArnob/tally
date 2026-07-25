@@ -46,7 +46,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 1rem 1.25rem 3rem;
+  padding: 0.85rem 0.9rem 2rem;
 }
 
 .row {
@@ -77,7 +77,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.9rem;
 }
 
 .amount {

@@ -76,20 +76,14 @@ export function ProductHistoryModal({
                     </button>
                   </div>
                 </div>
-                {tx.costs.length > 0 && (
-                  <ul className={styles.costBreakdown}>
-                    {tx.costs.map((c, i) => (
-                      <li key={i}>
-                        <span className={styles.costBreakName}>{c.name}</span>
-                        <span>{formatCurrency(c.amount)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
                 <div className={styles.entryFoot}>
-                  <span>
-                    {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}
-                  </span>
+                  {tx.stock_after != null ? (
+                    <span>
+                      {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
                   <span>{localizeDigits(formatTimeFull(tx.created_at))}</span>
                 </div>
               </div>

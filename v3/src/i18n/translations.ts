@@ -127,27 +127,30 @@ export interface Translation {
   failedDeleteProduct: string;
   duplicateProduct: string;
 
-  // Product type (ready-made / manufacture) + cost template
+  // Product type (ready-made / manufacture) + linked materials
   productType: string;
   typeReadyMade: string;
   typeManufacture: string;
   typeReadyMadeHint: string;
   typeManufactureHint: string;
   rawMaterials: string;
-  costItemPlaceholder: string;
-  addCostLine: string;
-  removeLine: string;
-  enterCostItem: string;
+  materialSearchPlaceholder: string;
+  searchAction: string;
+  addedMaterials: string;
+  availableMaterials: string;
+  noMaterialsToLink: string;
+  unlinkMaterial: string;
+  unlinkMaterialConfirm: string;
+  selectMaterialFirst: string;
+  enterAtLeastOneMaterial: string;
+  viewMaterials: string;
+  relatedMaterials: string;
+  noLinkedMaterials: string;
 
   // Action (stock/sale) modal
   stockIn: string;
   sale: string;
   quantity: string;
-  quantityProduced: string;
-  cost: string;
-  costPerUnit: string;
-  totalCost: string;
-  enterCostAmount: string;
   buyingPrice: string;
   sellingPrice: string;
   total: string;
@@ -399,18 +402,20 @@ const en: Translation = {
   typeReadyMade: 'Ready Made',
   typeManufacture: 'Manufacture',
   typeReadyMadeHint: 'Bought from a vendor and resold — one buying price per stock-in.',
-  typeManufactureHint: 'Made from raw materials — enter each cost when stocking in.',
-  rawMaterials: 'Raw materials & costs',
-  costItemPlaceholder: 'e.g. Flour, Labour, Packaging',
-  addCostLine: 'Add cost line',
-  removeLine: 'Remove line',
-  enterCostItem: 'Add at least one raw material or cost line.',
-
-  quantityProduced: 'Quantity Produced',
-  cost: 'Cost',
-  costPerUnit: 'Cost per unit',
-  totalCost: 'Total Cost',
-  enterCostAmount: 'Enter at least one cost amount for this batch.',
+  typeManufactureHint: 'Made from raw materials — link the materials it uses.',
+  rawMaterials: 'Raw materials',
+  materialSearchPlaceholder: 'Search materials',
+  searchAction: 'Search',
+  addedMaterials: 'Added materials',
+  availableMaterials: 'Available materials',
+  noMaterialsToLink: 'No materials found — add them in Material Costs first.',
+  unlinkMaterial: 'Remove material',
+  unlinkMaterialConfirm: 'Remove this material from the product?',
+  selectMaterialFirst: 'Select a material to add.',
+  enterAtLeastOneMaterial: 'Add at least one material.',
+  viewMaterials: 'View materials',
+  relatedMaterials: 'Materials',
+  noLinkedMaterials: 'No materials linked to this product.',
 
   stockIn: 'Stock In',
   sale: 'Sale',
@@ -658,18 +663,20 @@ const bn: Translation = {
   typeReadyMade: 'রেডিমেড',
   typeManufacture: 'উৎপাদিত',
   typeReadyMadeHint: 'সরবরাহকারীর কাছ থেকে কিনে পুনরায় বিক্রি — প্রতি স্টকে একটি ক্রয়মূল্য।',
-  typeManufactureHint: 'কাঁচামাল দিয়ে তৈরি — স্টক করার সময় প্রতিটি খরচ লিখুন।',
-  rawMaterials: 'কাঁচামাল ও খরচ',
-  costItemPlaceholder: 'যেমন ময়দা, মজুরি, প্যাকেজিং',
-  addCostLine: 'খরচের লাইন যোগ করুন',
-  removeLine: 'লাইন সরান',
-  enterCostItem: 'অন্তত একটি কাঁচামাল বা খরচের লাইন যোগ করুন।',
-
-  quantityProduced: 'উৎপাদিত পরিমাণ',
-  cost: 'খরচ',
-  costPerUnit: 'প্রতি এককের খরচ',
-  totalCost: 'মোট খরচ',
-  enterCostAmount: 'এই ব্যাচের জন্য অন্তত একটি খরচের পরিমাণ লিখুন।',
+  typeManufactureHint: 'কাঁচামাল দিয়ে তৈরি — যে কাঁচামাল ব্যবহৃত হয় তা যুক্ত করুন।',
+  rawMaterials: 'কাঁচামাল',
+  materialSearchPlaceholder: 'কাঁচামাল খুঁজুন',
+  searchAction: 'খুঁজুন',
+  addedMaterials: 'যুক্ত কাঁচামাল',
+  availableMaterials: 'উপলব্ধ কাঁচামাল',
+  noMaterialsToLink: 'কোনো কাঁচামাল নেই — প্রথমে কাঁচামাল খরচে যোগ করুন।',
+  unlinkMaterial: 'কাঁচামাল সরান',
+  unlinkMaterialConfirm: 'এই কাঁচামালটি পণ্য থেকে সরিয়ে ফেলবেন?',
+  selectMaterialFirst: 'যোগ করতে একটি কাঁচামাল নির্বাচন করুন।',
+  enterAtLeastOneMaterial: 'অন্তত একটি কাঁচামাল যোগ করুন।',
+  viewMaterials: 'কাঁচামাল দেখুন',
+  relatedMaterials: 'কাঁচামাল',
+  noLinkedMaterials: 'এই পণ্যের সাথে কোনো কাঁচামাল যুক্ত নেই।',
 
   stockIn: 'স্টক ইন',
   sale: 'বিক্রয়',

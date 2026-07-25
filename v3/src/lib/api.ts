@@ -34,7 +34,6 @@ import {
   type TransactionsResponse,
   type BalanceType,
   type ProductType,
-  type TransactionCost,
   type TransactionType,
 } from '../types';
 
@@ -207,8 +206,8 @@ export function saveProduct(params: {
   name: string;
   quantityType: string;
   productType?: ProductType;
-  /** Cost-line labels for a manufacture product (ignored for ready-made). */
-  costItems?: string[];
+  /** Linked material ids for a manufacture product (ignored for ready-made). */
+  materialIds?: number[];
   imageUrl?: string | null;
   bookId?: number;
 }): Promise<SaveProductResponse> {
@@ -217,7 +216,7 @@ export function saveProduct(params: {
     name,
     quantityType,
     productType = 'ready_made',
-    costItems = [],
+    materialIds = [],
     imageUrl = null,
     bookId = BOOK_ID,
   } = params;
@@ -225,7 +224,7 @@ export function saveProduct(params: {
     name,
     quantity_type: quantityType,
     product_type: productType,
-    cost_items: costItems,
+    material_ids: materialIds,
     image_url: imageUrl,
   };
   return productId
@@ -242,16 +241,14 @@ export function saveProductTransaction(params: {
   type: TransactionType;
   quantity: number;
   pricePerUnit: number;
-  /** Per-line cost breakdown for a manufacture stock-in (price is derived from it server-side). */
-  costs?: TransactionCost[];
   note?: string | null;
   /** When editing, the id of the transaction this one replaces (insert+delete atomically). */
   replaces?: number | null;
 }): Promise<SaveTransactionResponse> {
-  const { productId, type, quantity, pricePerUnit, costs = [], note = null, replaces = null } = params;
+  const { productId, type, quantity, pricePerUnit, note = null, replaces = null } = params;
   return request<SaveTransactionResponse>(
     `products/${productId}/transactions`,
-    jsonInit('POST', { type, quantity, price_per_unit: pricePerUnit, costs, note, replaces }),
+    jsonInit('POST', { type, quantity, price_per_unit: pricePerUnit, note, replaces }),
   );
 }
 

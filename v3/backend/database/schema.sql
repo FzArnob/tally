@@ -20,9 +20,8 @@ DROP TABLE IF EXISTS materials;
 DROP TABLE IF EXISTS personal_transactions;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS customer_balance_history;
-DROP TABLE IF EXISTS product_transaction_costs;
+DROP TABLE IF EXISTS product_materials;
 DROP TABLE IF EXISTS product_transactions;
-DROP TABLE IF EXISTS product_cost_items;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS products;
 DROP TABLE IF EXISTS sessions;
@@ -134,14 +133,16 @@ CREATE TABLE products (
     book_id               INT           NOT NULL,
     name                  VARCHAR(100)  NOT NULL,
     quantity_type         VARCHAR(50)   NOT NULL DEFAULT 'piece',
-    -- 'ready_made' products are bought and resold (one buying price per stock-in);
-    -- 'manufacture' products are produced from raw materials/costs, so a stock-in
-    -- carries a per-line cost breakdown (see product_cost_items / _transaction_costs)
-    -- and price_per_unit is the derived per-unit production cost.
+    -- 'ready_made' products are bought and resold (one buying price per stock-in),
+    -- so their stock/purchase columns are derived from stock-in + sale entries.
+    -- 'manufacture' products are produced from linked raw materials (product_materials)
+    -- and are SALE-ONLY: there is no stock-in. Because a single sale's material
+    -- consumption is unknown until analytics lands, current_stock/total_stock_in/
+    -- last_purchase_price stay NULL for them; only sale-derived columns are filled.
     product_type          ENUM('ready_made','manufacture') NOT NULL DEFAULT 'ready_made',
     image_url             MEDIUMTEXT     NULL,
-    current_stock         DECIMAL(14,3) NOT NULL DEFAULT 0,
-    total_stock_in        DECIMAL(14,3) NOT NULL DEFAULT 0,
+    current_stock         DECIMAL(14,3) NULL,          -- NULL for manufacture (analytics later)
+    total_stock_in        DECIMAL(14,3) NULL,          -- NULL for manufacture (analytics later)
     total_stock_out       DECIMAL(14,3) NOT NULL DEFAULT 0,
     last_purchase_price   DECIMAL(14,2) NULL,
     last_sale_price       DECIMAL(14,2) NULL,
@@ -158,28 +159,9 @@ CREATE TABLE products (
 CREATE INDEX idx_products_book_last_txn ON products(book_id, last_transaction_time DESC);
 
 -- ---------------------------------------------------------------------------
--- Product cost items (manufacture products only) — the reusable *template* of
--- cost-line labels defined when the product is added/edited (e.g. Flour, Sugar,
--- Labour). During a stock-in the user fills an amount for each; the entered
--- amounts live in product_transaction_costs. Empty for ready-made products.
--- ---------------------------------------------------------------------------
-CREATE TABLE product_cost_items (
-    id         INT AUTO_INCREMENT PRIMARY KEY,
-    product_id INT          NOT NULL,
-    book_id    INT          NOT NULL,
-    name       VARCHAR(100) NOT NULL,
-    sort_order INT          NOT NULL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_pci_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-    CONSTRAINT fk_pci_book    FOREIGN KEY (book_id)    REFERENCES books(id)    ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE INDEX idx_pci_product ON product_cost_items(product_id, sort_order);
-
--- ---------------------------------------------------------------------------
--- Product transactions — stock in / sale. total_amount and stock_after are
--- precomputed running values. For a manufacture stock-in, total_amount is the
--- sum of the batch's cost lines and price_per_unit = total_amount / quantity.
+-- Product transactions — stock in / sale. total_amount is a precomputed running
+-- value. stock_after is the running stock for ready-made products; it is NULL
+-- for manufacture products (sale-only, stock unknown until analytics lands).
 -- ---------------------------------------------------------------------------
 CREATE TABLE product_transactions (
     id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -189,7 +171,7 @@ CREATE TABLE product_transactions (
     quantity       DECIMAL(14,3)         NOT NULL,
     price_per_unit DECIMAL(14,2)         NOT NULL,
     total_amount   DECIMAL(14,2)         NOT NULL,   -- quantity * price_per_unit
-    stock_after    DECIMAL(14,3)         NOT NULL DEFAULT 0,
+    stock_after    DECIMAL(14,3)         NULL,       -- running stock (NULL for manufacture)
     note           VARCHAR(255)          NULL,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_pt_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
@@ -197,24 +179,6 @@ CREATE TABLE product_transactions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_pt_product ON product_transactions(product_id, id DESC);
-
--- ---------------------------------------------------------------------------
--- Product transaction costs — the per-line cost breakdown entered for one
--- manufacture stock-in. name is a DENORMALISED snapshot of the cost-item label
--- at entry time, so history renders even after the template is edited/deleted.
--- Rows cascade-delete with their transaction (which is how an edit's swap works).
--- ---------------------------------------------------------------------------
-CREATE TABLE product_transaction_costs (
-    id             INT AUTO_INCREMENT PRIMARY KEY,
-    transaction_id INT           NOT NULL,
-    name           VARCHAR(100)  NOT NULL,           -- denormalised label snapshot
-    amount         DECIMAL(14,2) NOT NULL,
-    sort_order     INT           NOT NULL DEFAULT 0,
-    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_ptc_txn FOREIGN KEY (transaction_id) REFERENCES product_transactions(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE INDEX idx_ptc_txn ON product_transaction_costs(transaction_id, sort_order);
 
 -- ---------------------------------------------------------------------------
 -- Categories (personal books) — income/expense buckets. transaction_count is
@@ -312,6 +276,29 @@ CREATE TABLE material_transactions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_mt_material ON material_transactions(material_id, id DESC);
+
+-- ---------------------------------------------------------------------------
+-- Product ↔ material links (manufacture products) — the many-to-many relation
+-- of which materials a manufacture product is made from. One product links many
+-- materials; one material is reusable across many products. This is the ONLY
+-- coupling between products and materials: consumption per sale is deferred to a
+-- future analytics feature. Rows cascade-delete with either side.
+-- ---------------------------------------------------------------------------
+CREATE TABLE product_materials (
+    product_id  INT NOT NULL,
+    material_id INT NOT NULL,
+    book_id     INT NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    -- Composite PK enforces uniqueness and serves the "materials of a product" lookup.
+    PRIMARY KEY (product_id, material_id),
+    CONSTRAINT fk_pm_product  FOREIGN KEY (product_id)  REFERENCES products(id)  ON DELETE CASCADE,
+    CONSTRAINT fk_pm_material FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pm_book     FOREIGN KEY (book_id)     REFERENCES books(id)     ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Reverse lookup: every product a given material is used in (a material delete
+-- cascades here; analytics will read this direction too).
+CREATE INDEX idx_pm_material ON product_materials(material_id);
 
 -- ---------------------------------------------------------------------------
 -- Operation costs (store books) — a named recurring cost (reason) with a

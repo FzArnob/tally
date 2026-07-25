@@ -206,9 +206,21 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
     return ['total_balance' => round($running, 2), 'transaction_count' => count($entries), 'last_transaction_time' => $lastTime];
 }
 
-/** Recompute a product's stock/totals/last prices + per-row running stock. */
+/**
+ * Recompute a product's denormalised stock/totals/last prices + per-row running
+ * stock. Branches on product_type:
+ *  - ready_made: stock-in and sale entries drive stock/totals as usual.
+ *  - manufacture: SALE-ONLY. Only sales are counted (total_stock_out, last_sale_price,
+ *    transaction_count, last_transaction_time). current_stock/total_stock_in/
+ *    last_purchase_price stay NULL and each row's stock_after is NULL, because a
+ *    sale's material consumption is unknown until the analytics feature lands.
+ */
 function recomputeProduct(PDO $pdo, int $productId): array
 {
+    $typeStmt = $pdo->prepare('SELECT product_type FROM products WHERE id = ?');
+    $typeStmt->execute([$productId]);
+    $isManufacture = $typeStmt->fetchColumn() === 'manufacture';
+
     $rows = $pdo->prepare(
         'SELECT id, type, quantity, price_per_unit, created_at FROM product_transactions
          WHERE product_id = ? ORDER BY id ASC'
@@ -216,9 +228,34 @@ function recomputeProduct(PDO $pdo, int $productId): array
     $rows->execute([$productId]);
     $entries = $rows->fetchAll();
 
+    $update = $pdo->prepare('UPDATE product_transactions SET stock_after = ? WHERE id = ?');
+
+    if ($isManufacture) {
+        // Sale-only: ignore any stray stock rows, keep running stock NULL.
+        $out = 0.0; $lastSale = null; $lastTime = null; $saleCount = 0;
+        foreach ($entries as $e) {
+            if ($e['type'] === 'sale') {
+                $out += (float) $e['quantity'];
+                $lastSale = (float) $e['price_per_unit'];
+                $lastTime = $e['created_at'];
+                $saleCount++;
+            }
+            $update->execute([null, $e['id']]);
+        }
+        $pdo->prepare(
+            'UPDATE products SET current_stock = NULL, total_stock_in = NULL, total_stock_out = ?,
+                 last_purchase_price = NULL, last_sale_price = ?, transaction_count = ?, last_transaction_time = ?
+             WHERE id = ?'
+        )->execute([$out, $lastSale, $saleCount, $lastTime, $productId]);
+
+        return [
+            'current_stock' => null, 'total_stock_in' => null,
+            'total_stock_out' => round($out, 3), 'transaction_count' => $saleCount,
+        ];
+    }
+
     $stock = 0.0; $in = 0.0; $out = 0.0;
     $lastPurchase = null; $lastSale = null; $lastTime = null;
-    $update = $pdo->prepare('UPDATE product_transactions SET stock_after = ? WHERE id = ?');
     foreach ($entries as $e) {
         $qty = (float) $e['quantity'];
         if ($e['type'] === 'stock') {
@@ -343,7 +380,7 @@ function shapeCustomer(array $c): array
     ];
 }
 
-function shapeProduct(array $p, array $costItems = []): array
+function shapeProduct(array $p, array $materials = []): array
 {
     return [
         'id'                    => (int) $p['id'],
@@ -351,10 +388,12 @@ function shapeProduct(array $p, array $costItems = []): array
         'name'                  => $p['name'],
         'quantity_type'         => $p['quantity_type'],
         'product_type'          => $p['product_type'] ?? 'ready_made',
-        'cost_items'            => $costItems,
+        // Linked raw materials (manufacture products); empty for ready-made.
+        'materials'             => $materials,
         'image_url'             => ($p['image_url'] ?? '') !== '' ? $p['image_url'] : null,
-        'current_stock'         => (float) $p['current_stock'],
-        'total_stock_in'        => (float) $p['total_stock_in'],
+        // NULL for manufacture products (reserved for future analytics).
+        'current_stock'         => $p['current_stock'] !== null ? (float) $p['current_stock'] : null,
+        'total_stock_in'        => $p['total_stock_in'] !== null ? (float) $p['total_stock_in'] : null,
         'total_stock_out'       => (float) $p['total_stock_out'],
         'last_purchase_price'   => $p['last_purchase_price'] !== null ? (float) $p['last_purchase_price'] : null,
         'last_sale_price'       => $p['last_sale_price'] !== null ? (float) $p['last_sale_price'] : null,
@@ -363,7 +402,7 @@ function shapeProduct(array $p, array $costItems = []): array
     ];
 }
 
-function shapeTransaction(array $t, array $costs = []): array
+function shapeTransaction(array $t): array
 {
     return [
         'id'             => (int) $t['id'],
@@ -372,9 +411,9 @@ function shapeTransaction(array $t, array $costs = []): array
         'quantity'       => (float) $t['quantity'],
         'price_per_unit' => (float) $t['price_per_unit'],
         'total_amount'   => (float) $t['total_amount'],
-        'stock_after'    => (float) $t['stock_after'],
+        // NULL for manufacture sale rows (running stock is unknown).
+        'stock_after'    => $t['stock_after'] !== null ? (float) $t['stock_after'] : null,
         'note'           => $t['note'],
-        'costs'          => $costs,
         'created_at'     => $t['created_at'],
     ];
 }
@@ -564,92 +603,69 @@ function findPersonalTx(PDO $pdo, int $id): array
     return $t;
 }
 
-// ---- Manufacture cost helpers ----------------------------------------------
+// ---- Manufacture material-link helpers --------------------------------------
 
-/** A manufacture product's cost-item template (labels), ordered for display. */
-function loadCostItems(PDO $pdo, int $productId): array
+/**
+ * The materials a manufacture product is linked to, with just enough denormalised
+ * material info for the stock-details card. No image_url — the product list stays
+ * lean; the product form fetches full materials (with images) separately.
+ */
+function loadProductMaterials(PDO $pdo, int $productId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, name FROM product_cost_items WHERE product_id = ? ORDER BY sort_order ASC, id ASC'
+        'SELECT m.id, m.name, m.quantity_type, m.current_stock, m.last_purchase_price
+         FROM product_materials pm JOIN materials m ON m.id = pm.material_id
+         WHERE pm.product_id = ? ORDER BY m.name ASC'
     );
     $stmt->execute([$productId]);
-    return array_map(fn($r) => ['id' => (int) $r['id'], 'name' => $r['name']], $stmt->fetchAll());
+    return array_map(fn($r) => [
+        'id'                  => (int) $r['id'],
+        'name'                => $r['name'],
+        'quantity_type'       => $r['quantity_type'],
+        'current_stock'       => (float) $r['current_stock'],
+        'last_purchase_price' => $r['last_purchase_price'] !== null ? (float) $r['last_purchase_price'] : null,
+    ], $stmt->fetchAll());
 }
 
-/** The per-line cost breakdown recorded for one stock-in transaction. */
-function loadTxCosts(PDO $pdo, int $txId): array
-{
-    $stmt = $pdo->prepare(
-        'SELECT name, amount FROM product_transaction_costs WHERE transaction_id = ? ORDER BY sort_order ASC, id ASC'
-    );
-    $stmt->execute([$txId]);
-    return array_map(fn($r) => ['name' => $r['name'], 'amount' => (float) $r['amount']], $stmt->fetchAll());
-}
-
-/** Normalise an incoming cost-item template to a clean list of label strings. */
-function parseCostItemNames($raw): array
+/**
+ * Normalise incoming material ids to a unique, book-scoped, validated int list.
+ * Ids that don't belong to $bookId are silently dropped (capped at 50).
+ */
+function parseMaterialIds($raw, PDO $pdo, int $bookId): array
 {
     if (!is_array($raw)) {
         return [];
     }
-    $names = [];
-    foreach ($raw as $item) {
-        $name = is_array($item) ? ($item['name'] ?? '') : $item;
-        $name = is_string($name) ? trim($name) : '';
-        if ($name === '') {
-            continue;
-        }
-        $names[] = mb_substr($name, 0, 100);
-        if (count($names) >= 50) {
-            break;
+    $ids = [];
+    foreach ($raw as $v) {
+        if (is_numeric($v)) {
+            $ids[(int) $v] = true;   // dedupe via keys
         }
     }
-    return $names;
+    $ids = array_slice(array_keys($ids), 0, 50);
+    if (!$ids) {
+        return [];
+    }
+    // Keep only ids that are real materials in this book.
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT id FROM materials WHERE book_id = ? AND id IN ($ph)");
+    $stmt->execute([$bookId, ...$ids]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 }
 
-/** Replace a product's cost-item template with the given labels (order preserved). */
-function saveCostItems(PDO $pdo, int $productId, int $bookId, array $names): void
+/** Replace a product's linked-material set with the given ids. */
+function syncProductMaterials(PDO $pdo, int $productId, int $bookId, array $ids): void
 {
-    $pdo->prepare('DELETE FROM product_cost_items WHERE product_id = ?')->execute([$productId]);
+    $pdo->prepare('DELETE FROM product_materials WHERE product_id = ?')->execute([$productId]);
+    if (!$ids) {
+        return;
+    }
     $ins = $pdo->prepare(
-        'INSERT INTO product_cost_items (product_id, book_id, name, sort_order) VALUES (?, ?, ?, ?)'
+        'INSERT INTO product_materials (product_id, material_id, book_id) VALUES (?, ?, ?)'
     );
-    $order = 0;
-    foreach ($names as $name) {
-        $ins->execute([$productId, $bookId, $name, $order++]);
+    foreach ($ids as $materialId) {
+        $ins->execute([$productId, $materialId, $bookId]);
     }
-}
-
-/** Normalise an incoming stock-in cost breakdown to [['name'=>, 'amount'=>float], ...]. */
-function parseCosts($raw): array
-{
-    $out = [];
-    if (!is_array($raw)) {
-        return $out;
-    }
-    foreach ($raw as $item) {
-        if (!is_array($item)) {
-            continue;
-        }
-        $amtRaw = $item['amount'] ?? null;
-        // A blank line (no amount typed) is simply omitted from the breakdown.
-        if ($amtRaw === '' || $amtRaw === null || !is_numeric($amtRaw)) {
-            continue;
-        }
-        $amt = round((float) $amtRaw, 2);
-        if ($amt < 0) {
-            json_error('Cost amount must be 0 or more.', 422, 'validation');
-        }
-        $name = is_string($item['name'] ?? null) ? trim($item['name']) : '';
-        if ($name === '') {
-            $name = 'Cost';
-        }
-        $out[] = ['name' => mb_substr($name, 0, 100), 'amount' => $amt];
-        if (count($out) >= 50) {
-            break;
-        }
-    }
-    return $out;
 }
 
 // ===========================================================================
@@ -960,14 +976,22 @@ on('GET', '/books/{id}/products', function ($a) {
     $stmt->execute([$bookId]);
     $products = $stmt->fetchAll();
 
-    // One grouped query for the whole book's cost-item templates (avoids N+1).
-    $ci = $pdo->prepare(
-        'SELECT id, product_id, name FROM product_cost_items WHERE book_id = ? ORDER BY product_id, sort_order, id'
+    // One grouped query for the whole book's product→material links (avoids N+1).
+    $pm = $pdo->prepare(
+        'SELECT pm.product_id, m.id, m.name, m.quantity_type, m.current_stock, m.last_purchase_price
+         FROM product_materials pm JOIN materials m ON m.id = pm.material_id
+         WHERE pm.book_id = ? ORDER BY pm.product_id, m.name'
     );
-    $ci->execute([$bookId]);
+    $pm->execute([$bookId]);
     $byProduct = [];
-    foreach ($ci->fetchAll() as $r) {
-        $byProduct[(int) $r['product_id']][] = ['id' => (int) $r['id'], 'name' => $r['name']];
+    foreach ($pm->fetchAll() as $r) {
+        $byProduct[(int) $r['product_id']][] = [
+            'id'                  => (int) $r['id'],
+            'name'                => $r['name'],
+            'quantity_type'       => $r['quantity_type'],
+            'current_stock'       => (float) $r['current_stock'],
+            'last_purchase_price' => $r['last_purchase_price'] !== null ? (float) $r['last_purchase_price'] : null,
+        ];
     }
 
     json_response([
@@ -989,9 +1013,9 @@ on('POST', '/books/{id}/products', function ($a) {
     if (!in_array($productType, ['ready_made', 'manufacture'], true)) {
         json_error('Product type must be "ready_made" or "manufacture".', 422, 'validation');
     }
-    $costNames = $productType === 'manufacture' ? parseCostItemNames($body['cost_items'] ?? null) : [];
-    if ($productType === 'manufacture' && count($costNames) === 0) {
-        json_error('Add at least one raw material or cost line.', 422, 'validation');
+    $materialIds = $productType === 'manufacture' ? parseMaterialIds($body['material_ids'] ?? null, $pdo, $bookId) : [];
+    if ($productType === 'manufacture' && count($materialIds) === 0) {
+        json_error('Add at least one material.', 422, 'validation');
     }
     $imageUrl     = isset($body['image_url']) && is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null;
 
@@ -1007,20 +1031,22 @@ on('POST', '/books/{id}/products', function ($a) {
         $pdo->prepare('INSERT INTO products (book_id, name, quantity_type, product_type, image_url) VALUES (?, ?, ?, ?, ?)')
             ->execute([$bookId, $name, $quantityType, $productType, $imageUrl]);
         $id = (int) $pdo->lastInsertId();
-        saveCostItems($pdo, $id, $bookId, $costNames);
+        syncProductMaterials($pdo, $id, $bookId, $materialIds);
+        // Set the denormalised stock columns correctly for the type (NULLs for manufacture).
+        recomputeProduct($pdo, $id);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
         json_error('Failed to save product.', 500);
     }
 
-    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, $id), loadCostItems($pdo, $id))], 201);
+    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, $id), loadProductMaterials($pdo, $id))], 201);
 });
 
 on('GET', '/products/{id}', function ($a) {
     $pdo = db();
     $id  = (int) $a['id'];
-    json_response(['product' => shapeProduct(findProduct($pdo, $id), loadCostItems($pdo, $id))]);
+    json_response(['product' => shapeProduct(findProduct($pdo, $id), loadProductMaterials($pdo, $id))]);
 });
 
 on('PUT', '/products/{id}', function ($a) {
@@ -1034,9 +1060,10 @@ on('PUT', '/products/{id}', function ($a) {
     if (!in_array($productType, ['ready_made', 'manufacture'], true)) {
         json_error('Product type must be "ready_made" or "manufacture".', 422, 'validation');
     }
-    $costNames = $productType === 'manufacture' ? parseCostItemNames($body['cost_items'] ?? null) : [];
-    if ($productType === 'manufacture' && count($costNames) === 0) {
-        json_error('Add at least one raw material or cost line.', 422, 'validation');
+    $bookId = (int) $product['book_id'];
+    $materialIds = $productType === 'manufacture' ? parseMaterialIds($body['material_ids'] ?? null, $pdo, $bookId) : [];
+    if ($productType === 'manufacture' && count($materialIds) === 0) {
+        json_error('Add at least one material.', 422, 'validation');
     }
     $imageUrl     = array_key_exists('image_url', $body)
         ? (is_string($body['image_url']) && $body['image_url'] !== '' ? $body['image_url'] : null)
@@ -1044,7 +1071,7 @@ on('PUT', '/products/{id}', function ($a) {
 
     // Product names are unique within a book (excluding this product itself).
     $dup = $pdo->prepare('SELECT COUNT(*) FROM products WHERE book_id = ? AND name = ? AND id <> ?');
-    $dup->execute([(int) $product['book_id'], $name, $id]);
+    $dup->execute([$bookId, $name, $id]);
     if ((int) $dup->fetchColumn() > 0) {
         json_error('Another product named "' . $name . '" already exists.', 409, 'duplicate');
     }
@@ -1053,16 +1080,17 @@ on('PUT', '/products/{id}', function ($a) {
     try {
         $pdo->prepare('UPDATE products SET name = ?, quantity_type = ?, product_type = ?, image_url = ? WHERE id = ?')
             ->execute([$name, $quantityType, $productType, $imageUrl, $id]);
-        // Replace the template. Past transactions keep their own snapshot in
-        // product_transaction_costs, so editing/clearing the template is safe.
-        saveCostItems($pdo, $id, (int) $product['book_id'], $costNames);
+        // Replace the linked-material set (ready-made clears it).
+        syncProductMaterials($pdo, $id, $bookId, $materialIds);
+        // Re-derive the denormalised stock columns for the (possibly changed) type.
+        recomputeProduct($pdo, $id);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
         json_error('Failed to save product.', 500);
     }
 
-    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, $id), loadCostItems($pdo, $id))]);
+    json_response(['success' => true, 'product' => shapeProduct(findProduct($pdo, $id), loadProductMaterials($pdo, $id))]);
 });
 
 on('DELETE', '/products/{id}', function ($a) {
@@ -1079,27 +1107,9 @@ on('GET', '/products/{id}/transactions', function ($a) {
     $stmt->execute([(int) $a['id']]);
     $txns = $stmt->fetchAll();
 
-    // One grouped query for every transaction's cost breakdown (avoids N+1).
-    $costsByTx = [];
-    $ids = array_map(fn($t) => (int) $t['id'], $txns);
-    if ($ids) {
-        $ph = implode(',', array_fill(0, count($ids), '?'));
-        $cs = $pdo->prepare(
-            "SELECT transaction_id, name, amount FROM product_transaction_costs
-             WHERE transaction_id IN ($ph) ORDER BY sort_order, id"
-        );
-        $cs->execute($ids);
-        foreach ($cs->fetchAll() as $r) {
-            $costsByTx[(int) $r['transaction_id']][] = ['name' => $r['name'], 'amount' => (float) $r['amount']];
-        }
-    }
-
     json_response([
         'product_id'   => (int) $a['id'],
-        'transactions' => array_map(
-            fn($t) => shapeTransaction($t, $costsByTx[(int) $t['id']] ?? []),
-            $txns
-        ),
+        'transactions' => array_map('shapeTransaction', $txns),
     ]);
 });
 
@@ -1112,35 +1122,29 @@ on('POST', '/products/{id}/transactions', function ($a) {
     if (!in_array($type, ['stock', 'sale'], true)) {
         json_error('Type must be "stock" or "sale".', 422, 'validation');
     }
+    $isManufacture = ($product['product_type'] ?? 'ready_made') === 'manufacture';
+    // Manufacture products are sale-only: their stock is never a stock-in.
+    if ($isManufacture && $type === 'stock') {
+        json_error('Manufacture products do not take stock in.', 422, 'validation');
+    }
     $quantity = v_amount($body['quantity'] ?? null, 'Quantity');
     $note     = v_string($body['note'] ?? '', 255, false, 'Note');
 
-    // A manufacture stock-in derives its price from a per-line cost breakdown:
-    // total_amount = Σ costs, price_per_unit = total / quantity produced. Every
-    // other case (ready-made stock, any sale) uses the single price_per_unit.
-    $isManufactureStock = $type === 'stock' && ($product['product_type'] ?? 'ready_made') === 'manufacture';
-    $costs = [];
-    if ($isManufactureStock) {
-        $costs = parseCosts($body['costs'] ?? null);
-        $total = round(array_sum(array_column($costs, 'amount')), 2);
-        if (count($costs) === 0 || $total <= 0) {
-            json_error('Enter at least one cost amount for this batch.', 422, 'validation');
-        }
-        $price = round($total / $quantity, 2);
-    } else {
-        if (!isset($body['price_per_unit']) || !is_numeric($body['price_per_unit']) || (float) $body['price_per_unit'] < 0) {
-            json_error('Price per unit must be 0 or more.', 422, 'validation');
-        }
-        $price = round((float) $body['price_per_unit'], 2);
-        $total = round($quantity * $price, 2);
+    // Single price for every case: total = quantity * price_per_unit.
+    if (!isset($body['price_per_unit']) || !is_numeric($body['price_per_unit']) || (float) $body['price_per_unit'] < 0) {
+        json_error('Price per unit must be 0 or more.', 422, 'validation');
     }
+    $price = round((float) $body['price_per_unit'], 2);
+    $total = round($quantity * $price, 2);
+
     // When editing, this entry replaces an existing one (insert + delete happen
     // atomically below), so no update endpoint is needed.
     $replaces = isset($body['replaces']) && is_numeric($body['replaces']) ? (int) $body['replaces'] : 0;
 
-    // Stock guard: a sale can never exceed the stock in hand, so stock stays >= 0.
-    // For an edit, reverse the replaced entry's effect to get the true baseline.
-    if ($type === 'sale') {
+    // Stock guard (ready-made only): a sale can never exceed the stock in hand.
+    // Manufacture stock is unknown, so no guard applies. For an edit, reverse the
+    // replaced entry's effect to get the true baseline.
+    if ($type === 'sale' && !$isManufacture) {
         $available = (float) $product['current_stock'];
         if ($replaces > 0) {
             $r = $pdo->prepare('SELECT type, quantity FROM product_transactions WHERE id = ? AND product_id = ?');
@@ -1157,23 +1161,13 @@ on('POST', '/products/{id}/transactions', function ($a) {
 
     $pdo->beginTransaction();
     try {
+        // stock_after is set by recomputeProduct (NULL for manufacture).
         $pdo->prepare(
-            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, note)
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?)'
+            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, note)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
         )->execute([$product['id'], (int) $product['book_id'], $type, $quantity, $price, $total, $note !== '' ? $note : null]);
         $txId = (int) $pdo->lastInsertId();
-        // Persist the batch's cost breakdown (manufacture stock-in only).
-        if ($costs) {
-            $insCost = $pdo->prepare(
-                'INSERT INTO product_transaction_costs (transaction_id, name, amount, sort_order) VALUES (?, ?, ?, ?)'
-            );
-            $order = 0;
-            foreach ($costs as $c) {
-                $insCost->execute([$txId, $c['name'], $c['amount'], $order++]);
-            }
-        }
         if ($replaces > 0) {
-            // The old row's cost lines cascade-delete with it.
             $pdo->prepare('DELETE FROM product_transactions WHERE id = ? AND product_id = ?')
                 ->execute([$replaces, (int) $product['id']]);
         }
@@ -1188,8 +1182,8 @@ on('POST', '/products/{id}/transactions', function ($a) {
     $stmt->execute([$txId]);
     json_response([
         'success'     => true,
-        'transaction' => shapeTransaction($stmt->fetch(), loadTxCosts($pdo, $txId)),
-        'product'     => shapeProduct(findProduct($pdo, (int) $product['id']), loadCostItems($pdo, (int) $product['id'])),
+        'transaction' => shapeTransaction($stmt->fetch()),
+        'product'     => shapeProduct(findProduct($pdo, (int) $product['id']), loadProductMaterials($pdo, (int) $product['id'])),
     ], 201);
 });
 
@@ -1217,7 +1211,7 @@ on('DELETE', '/product-transactions/{id}', function ($a) {
 
     json_response([
         'success' => true,
-        'product' => shapeProduct(findProduct($pdo, (int) $tx['product_id']), loadCostItems($pdo, (int) $tx['product_id'])),
+        'product' => shapeProduct(findProduct($pdo, (int) $tx['product_id']), loadProductMaterials($pdo, (int) $tx['product_id'])),
     ]);
 });
 

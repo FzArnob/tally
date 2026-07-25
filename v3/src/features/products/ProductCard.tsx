@@ -9,6 +9,8 @@ interface ProductCardProps {
   onHistory: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  /** Open the linked-material stock details (manufacture products). */
+  onMaterials: () => void;
 }
 
 export function ProductCard({
@@ -18,8 +20,10 @@ export function ProductCard({
   onHistory,
   onEdit,
   onDelete,
+  onMaterials,
 }: ProductCardProps) {
   const { t, formatNumber, formatTimeShort, localizeDigits } = useI18n();
+  const isManufacture = product.product_type === 'manufacture';
   const stock = product.current_stock || 0;
   const inStock = stock > 0;
   const hasImage = product.image_url && product.image_url !== 'null';
@@ -63,12 +67,25 @@ export function ProductCard({
       </div>
 
       <div className={styles.right}>
-        <span className={styles.stockWrap}>
-          <span className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}>
-            {formatNumber(stock)}
+        {isManufacture ? (
+          <button
+            className={styles.manufactureBtn}
+            aria-label={t.viewMaterials}
+            onClick={(e) => {
+              stop(e);
+              onMaterials();
+            }}
+          >
+            <span className="material-symbols-outlined icon-md">precision_manufacturing</span>
+          </button>
+        ) : (
+          <span className={styles.stockWrap}>
+            <span className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}>
+              {formatNumber(stock)}
+            </span>
+            <span className={styles.stockUnit}>{unit}</span>
           </span>
-          <span className={styles.stockUnit}>{unit}</span>
-        </span>
+        )}
         <div className={styles.rowActions} onClick={stop}>
           <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
             <span className="material-symbols-outlined icon-md">history</span>

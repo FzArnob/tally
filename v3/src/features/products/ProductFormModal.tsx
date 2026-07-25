@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useI18n } from '../../i18n/LanguageContext';
-import { saveProduct } from '../../lib/api';
-import { ApiError, type Product, type ProductType } from '../../types';
+import { getMaterials, saveProduct } from '../../lib/api';
+import { ApiError, type Material, type Product, type ProductType } from '../../types';
 import type { Translation } from '../../i18n/translations';
 import { ImageCropperModal } from './ImageCropperModal';
 import styles from './products.module.css';
@@ -32,13 +33,21 @@ export function ProductFormModal({
   onClose,
   onSaved,
 }: ProductFormModalProps) {
-  const { t } = useI18n();
+  const { t, formatNumber } = useI18n();
   const [name, setName] = useState('');
   const [type, setType] = useState<string>('piece');
   const [customType, setCustomType] = useState('');
   const [productType, setProductType] = useState<ProductType>('ready_made');
-  const [costItems, setCostItems] = useState<string[]>([]);
-  const [costDraft, setCostDraft] = useState('');
+
+  // Manufacture material picker.
+  const [allMaterials, setAllMaterials] = useState<Material[]>([]);
+  const [materialsLoaded, setMaterialsLoaded] = useState(false);
+  const [linkedIds, setLinkedIds] = useState<number[]>([]);
+  const [search, setSearch] = useState('');
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [pendingUnlink, setPendingUnlink] = useState<Material | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
   const [image, setImage] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -51,7 +60,11 @@ export function ProductFormModal({
   useEffect(() => {
     if (!open) return;
     setError(null);
-    setCostDraft('');
+    setSearch('');
+    setSelectedId(null);
+    setPendingUnlink(null);
+    setAllMaterials([]);
+    setMaterialsLoaded(false);
     if (product) {
       setName(product.name);
       const qt = product.quantity_type || 'piece';
@@ -64,8 +77,8 @@ export function ProductFormModal({
       }
       setImage(product.image_url && product.image_url !== 'null' ? product.image_url : null);
       setProductType(product.product_type || 'ready_made');
-      setCostItems(
-        product.product_type === 'manufacture' ? product.cost_items.map((c) => c.name) : [],
+      setLinkedIds(
+        product.product_type === 'manufacture' ? product.materials.map((m) => m.id) : [],
       );
     } else {
       setName('');
@@ -73,21 +86,57 @@ export function ProductFormModal({
       setCustomType('');
       setImage(null);
       setProductType('ready_made');
-      setCostItems([]);
+      setLinkedIds([]);
     }
   }, [open, product]);
 
-  // Commit the typed draft as a new tag, ignoring blanks and case-insensitive duplicates.
-  const addCostItem = () => {
-    const name = costDraft.trim();
-    setCostDraft('');
-    if (!name) return;
-    setCostItems((prev) =>
-      prev.some((c) => c.toLowerCase() === name.toLowerCase()) ? prev : [...prev, name],
+  // Load the book's materials the first time the manufacture section is shown.
+  useEffect(() => {
+    if (!open || productType !== 'manufacture' || materialsLoaded) return;
+    let alive = true;
+    (async () => {
+      try {
+        const data = await getMaterials(bookId);
+        if (alive) {
+          setAllMaterials(data.materials || []);
+          setMaterialsLoaded(true);
+        }
+      } catch (err) {
+        console.error('Failed to load materials:', err);
+        if (alive) setMaterialsLoaded(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [open, productType, materialsLoaded, bookId]);
+
+  const linkedMaterials = useMemo(
+    () => allMaterials.filter((m) => linkedIds.includes(m.id)),
+    [allMaterials, linkedIds],
+  );
+  const availableMaterials = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allMaterials.filter(
+      (m) => !linkedIds.includes(m.id) && (!q || m.name.toLowerCase().includes(q)),
     );
+  }, [allMaterials, linkedIds, search]);
+
+  const addSelected = () => {
+    if (selectedId == null) {
+      setError(t.selectMaterialFirst);
+      return;
+    }
+    setError(null);
+    setLinkedIds((prev) => (prev.includes(selectedId) ? prev : [...prev, selectedId]));
+    setSelectedId(null);
   };
-  const removeCostItem = (i: number) =>
-    setCostItems((prev) => prev.filter((_, idx) => idx !== i));
+
+  const confirmUnlink = () => {
+    if (!pendingUnlink) return;
+    setLinkedIds((prev) => prev.filter((id) => id !== pendingUnlink.id));
+    setPendingUnlink(null);
+  };
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,19 +163,9 @@ export function ProductFormModal({
         return;
       }
     }
-    let cleanCostItems: string[] = [];
-    if (productType === 'manufacture') {
-      // Include an unadded draft so a typed-but-not-clicked value isn't lost.
-      const pending = costDraft.trim();
-      const merged =
-        pending && !costItems.some((c) => c.toLowerCase() === pending.toLowerCase())
-          ? [...costItems, pending]
-          : costItems;
-      cleanCostItems = merged.map((c) => c.trim()).filter(Boolean);
-      if (cleanCostItems.length === 0) {
-        setError(t.enterCostItem);
-        return;
-      }
+    if (productType === 'manufacture' && linkedIds.length === 0) {
+      setError(t.enterAtLeastOneMaterial);
+      return;
     }
     setSaving(true);
     setError(null);
@@ -136,7 +175,7 @@ export function ProductFormModal({
         name: trimmed,
         quantityType,
         productType,
-        costItems: cleanCostItems,
+        materialIds: linkedIds,
         imageUrl: image,
         bookId,
       });
@@ -263,46 +302,90 @@ export function ProductFormModal({
         {productType === 'manufacture' && (
           <div className="field">
             <label>{t.rawMaterials}</label>
-            <div className={styles.costEditor}>
-              <div className={styles.costEditRow}>
-                <input
-                  className="input"
-                  value={costDraft}
-                  onChange={(e) => setCostDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addCostItem();
-                    }
-                  }}
-                  placeholder={t.costItemPlaceholder}
-                />
-                <button
-                  type="button"
-                  className={styles.addCostBtn}
-                  onClick={addCostItem}
-                  disabled={!costDraft.trim()}
-                >
-                  <span className="material-symbols-outlined icon-md">add</span>
-                  {t.add}
-                </button>
-              </div>
-              {costItems.length > 0 && (
-                <div className={styles.costTags}>
-                  {costItems.map((item, i) => (
-                    <span key={i} className={styles.costTag}>
-                      {item}
+
+            <div className={styles.materialSearchRow}>
+              <input
+                ref={searchRef}
+                className="input"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t.materialSearchPlaceholder}
+                aria-label={t.materialSearchPlaceholder}
+              />
+              <button
+                type="button"
+                className={styles.searchIconBtn}
+                aria-label={t.searchAction}
+                onClick={() => searchRef.current?.focus()}
+              >
+                <span className="material-symbols-outlined icon-md">search</span>
+              </button>
+              <button
+                type="button"
+                className={styles.materialAddBtn}
+                onClick={addSelected}
+                disabled={selectedId == null}
+              >
+                <span className="material-symbols-outlined icon-md">add</span>
+                {t.add}
+              </button>
+            </div>
+
+            {/* Already-added materials first, as compact removable chips. */}
+            {linkedMaterials.length > 0 && (
+              <>
+                <span className={styles.materialSubLabel}>{t.addedMaterials}</span>
+                <div className={styles.materialChips}>
+                  {linkedMaterials.map((m) => (
+                    <span
+                      key={m.id}
+                      className={styles.materialChip}
+                      title={`${m.name} · ${formatNumber(m.current_stock || 0)} ${m.quantity_type || 'piece'}`}
+                    >
+                      <span className={styles.materialChipName}>{m.name}</span>
                       <button
                         type="button"
-                        className={styles.costTagRemove}
-                        aria-label={t.removeLine}
-                        onClick={() => removeCostItem(i)}
+                        className={styles.materialChipRemove}
+                        aria-label={t.unlinkMaterial}
+                        onClick={() => setPendingUnlink(m)}
                       >
                         <span className="material-symbols-outlined icon-sm">close</span>
                       </button>
                     </span>
                   ))}
                 </div>
+              </>
+            )}
+
+            {/* Remaining materials to pick from (click to select, then Add). */}
+            <span className={styles.materialSubLabel}>{t.availableMaterials}</span>
+            <div className={`${styles.materialList} ${styles.materialScroll}`}>
+              {!materialsLoaded ? (
+                <div className={styles.materialEmpty}>…</div>
+              ) : availableMaterials.length === 0 ? (
+                <div className={styles.materialEmpty}>{t.noMaterialsToLink}</div>
+              ) : (
+                availableMaterials.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`${styles.materialRow} ${selectedId === m.id ? styles.materialRowSelected : ''}`}
+                    onClick={() => setSelectedId((cur) => (cur === m.id ? null : m.id))}
+                    aria-pressed={selectedId === m.id}
+                  >
+                    <div className={styles.materialRowMain}>
+                      <span className={styles.materialRowName} title={m.name}>
+                        {m.name}
+                      </span>
+                      <span className={styles.materialRowMeta}>
+                        {formatNumber(m.current_stock || 0)} {m.quantity_type || 'piece'}
+                      </span>
+                    </div>
+                    {selectedId === m.id && (
+                      <span className="material-symbols-outlined icon-md">check_circle</span>
+                    )}
+                  </button>
+                ))
               )}
             </div>
           </div>
@@ -323,6 +406,15 @@ export function ProductFormModal({
           setImage(dataUrl);
           setCropSrc(null);
         }}
+      />
+
+      <ConfirmDialog
+        open={!!pendingUnlink}
+        title={t.unlinkMaterial}
+        message={t.unlinkMaterialConfirm}
+        confirmLabel={t.deleteAction}
+        onConfirm={confirmUnlink}
+        onCancel={() => setPendingUnlink(null)}
       />
     </Modal>
   );

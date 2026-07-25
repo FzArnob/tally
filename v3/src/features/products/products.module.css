@@ -478,71 +478,102 @@
   box-shadow: var(--shadow-sm);
 }
 
-.costEditor {
+/* ---- Manufacture material picker (form modal) ---- */
+.materialSearchRow {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.costEditRow {
-  display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0.4rem;
 }
 
-.costEditRow .input {
+.materialSearchRow .input {
   flex: 1;
+  min-width: 0;
 }
 
-.addCostBtn {
+.searchIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-background);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+.searchIconBtn:hover {
+  border-color: var(--muted-foreground);
+  color: var(--foreground);
+}
+
+.materialAddBtn {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   flex-shrink: 0;
-  align-self: stretch;
   padding: 0 0.85rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--primary);
   border-radius: var(--radius);
-  background: var(--input-background);
-  color: var(--foreground);
+  background: var(--primary);
+  color: var(--primary-foreground);
   font-size: var(--fs-sm);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
-  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease,
-    opacity var(--dur-fast) ease;
+  transition: opacity var(--dur-fast) ease, filter var(--dur-fast) ease;
 }
-.addCostBtn:hover:not(:disabled) {
-  border-color: var(--muted-foreground);
+.materialAddBtn:hover:not(:disabled) {
+  filter: brightness(0.95);
 }
-.addCostBtn:disabled {
+.materialAddBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* Confirmed cost lines, shown as removable tags below the input. */
-.costTags {
+.materialSubLabel {
+  display: block;
+  margin: 0.65rem 0 0.3rem;
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+}
+
+/* Added materials — compact removable chips that wrap (no scroll). */
+.materialChips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
 }
 
-.costTag {
+.materialChip {
   display: inline-flex;
   align-items: center;
-  gap: 0.15rem;
-  padding: 0.3rem 0.4rem 0.3rem 0.65rem;
-  border: 1px solid var(--border);
+  gap: 0.2rem;
+  max-width: 100%;
+  padding: 0.25rem 0.3rem 0.25rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
   border-radius: 999px;
-  background: var(--input-background);
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
   color: var(--foreground);
   font-size: var(--fs-sm);
   font-weight: var(--font-weight-medium);
 }
 
-.costTagRemove {
+.materialChipName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.materialChipRemove {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   padding: 0.1rem;
   border: none;
   border-radius: 50%;
@@ -551,73 +582,181 @@
   cursor: pointer;
   transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease;
 }
-.costTagRemove:hover {
-  color: var(--foreground);
-  background: var(--muted);
+.materialChipRemove:hover {
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 14%, transparent);
 }
 
-/* ---- Manufacture stock-in cost breakdown (action modal) ---- */
-.costList {
+/* Available materials — the only scrolling list; compact single-line rows. */
+.materialList {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
+}
+.materialScroll {
+  max-height: 14.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.15rem 1rem 0.15rem 0.15rem;
+  margin: 0 -0.15rem;
+}
+.materialScroll::-webkit-scrollbar {
+  width: 6px;
+}
+.materialScroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
+  border-radius: 3px;
 }
 
-.costLineRow {
+.materialRow {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease;
+}
+.materialRow:hover {
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+}
+.materialRowSelected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  color: var(--primary);
 }
 
-.costLineName {
+/* Name on the left, stock meta pushed to the right — one tidy line. */
+.materialRowMain {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.materialRowName {
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-sm);
-  color: var(--foreground);
 }
 
-.costLineInput {
-  width: 8rem;
-  flex: none;
-  text-align: right;
-}
-
-.perUnitRow {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.6rem;
-  font-size: var(--fs-sm);
-  color: var(--muted-foreground);
-}
-
-/* ---- Cost breakdown in history ---- */
-.costBreakdown {
-  list-style: none;
-  margin: 0.5rem 0 0;
-  padding: 0.5rem 0.65rem;
-  background: var(--input-background);
-  border-radius: calc(var(--radius) - 0.2rem);
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.costBreakdown li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
+.materialRowMeta {
+  flex-shrink: 0;
+  margin-left: auto;
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
 }
 
-.costBreakName {
+.materialEmpty {
+  padding: 0.8rem 0.5rem;
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+/* ---- Manufacture list-row button (opens material stock details) ---- */
+.manufactureBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--input-background);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease;
+}
+.manufactureBtn:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--input-background));
+}
+
+/* ---- Material stock-details cards (ProductMaterialsModal) ---- */
+.materialCards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.materialCard {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  animation: rowIn var(--dur-fast) ease both;
+}
+
+.materialCardIcon {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.materialCardIcon .material-symbols-outlined {
+  font-size: 1.4rem;
+}
+
+.materialCardMain {
+  flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.materialCardName {
+  font-size: var(--fs-base);
+  font-weight: var(--font-weight-semibold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.materialCardMeta {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+.materialCardStock {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.materialCardValue {
+  font-size: var(--fs-amount);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+}
+
+.materialCardUnit {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  text-transform: capitalize;
 }
 
 @media (max-width: 640px) {

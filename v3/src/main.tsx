@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+// import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { LanguageProvider } from './i18n/LanguageContext';
@@ -14,7 +14,7 @@ import './styles/global.css';
 applyTheme(readStoredTheme());
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+  // <StrictMode>
     <ThemeProvider>
       <LanguageProvider>
         <AuthProvider>
@@ -28,5 +28,5 @@ createRoot(document.getElementById('root')!).render(
         </AuthProvider>
       </LanguageProvider>
     </ThemeProvider>
-  </StrictMode>,
+  // </StrictMode>,
 );

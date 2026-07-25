@@ -13,11 +13,6 @@ interface ProductActionModalProps {
   onSaved: () => void;
 }
 
-interface CostLine {
-  name: string;
-  amount: string;
-}
-
 export function ProductActionModal({
   open,
   product,
@@ -29,53 +24,34 @@ export function ProductActionModal({
   const [tab, setTab] = useState<TransactionType>('stock');
   const [qty, setQty] = useState('');
   const [price, setPrice] = useState('');
-  const [costLines, setCostLines] = useState<CostLine[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // Manufacture products are sale-only (no stock-in).
+  const isManufacture = product?.product_type === 'manufacture';
 
   useEffect(() => {
     if (!open || !product) return;
-    // Cost lines come from the transaction being edited (its own snapshot), or
-    // from the product's current template for a fresh stock-in.
-    const templateLines: CostLine[] =
-      product.cost_items.length > 0
-        ? product.cost_items.map((c) => ({ name: c.name, amount: '' }))
-        : [{ name: '', amount: '' }];
     if (editTx) {
       setTab(editTx.type);
       setQty(String(editTx.quantity));
       setPrice(String(editTx.price_per_unit));
-      setCostLines(
-        editTx.costs.length > 0
-          ? editTx.costs.map((c) => ({ name: c.name, amount: String(c.amount) }))
-          : templateLines,
-      );
     } else {
-      setTab('stock');
+      setTab(product.product_type === 'manufacture' ? 'sale' : 'stock');
       setQty('');
       setPrice('');
-      setCostLines(templateLines);
     }
   }, [open, editTx, product]);
 
   if (!product) return null;
 
   const isStock = tab === 'stock';
-  const isManufacture = product.product_type === 'manufacture';
-  // A manufacture stock-in is costed from its line breakdown; everything else
-  // (ready-made stock, any sale) uses the single price field.
-  const showCostBreakdown = isStock && isManufacture;
-  const costTotal = costLines.reduce((s, l) => s + (parseFloat(l.amount) || 0), 0);
   const qtyNum = parseFloat(qty) || 0;
-  const perUnit = qtyNum > 0 ? costTotal / qtyNum : 0;
-  const total = showCostBreakdown ? costTotal : qtyNum * (parseFloat(price) || 0);
+  const total = qtyNum * (parseFloat(price) || 0);
   const hasImage = product.image_url && product.image_url !== 'null';
-
-  const setCostAmount = (i: number, value: string) =>
-    setCostLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, amount: value } : l)));
-
-  // Stock available for a sale. When editing, reverse the edited entry's effect
-  // so lowering/raising it validates against the true baseline (mirrors the API).
   const unit = product.quantity_type || 'piece';
+
+  // Stock available for a sale (ready-made only). When editing, reverse the edited
+  // entry's effect so lowering/raising it validates against the true baseline.
   const available =
     (product.current_stock || 0) +
     (editTx ? (editTx.type === 'sale' ? editTx.quantity : -editTx.quantity) : 0);
@@ -86,25 +62,13 @@ export function ProductActionModal({
       alert(t.enterValidQuantity);
       return;
     }
-
-    // Manufacture stock-in: build the cost breakdown; price is derived server-side.
-    let costs: { name: string; amount: number }[] = [];
-    let p = parseFloat(price);
-    if (showCostBreakdown) {
-      costs = costLines
-        .filter((l) => l.amount.trim() !== '' && !isNaN(parseFloat(l.amount)))
-        .map((l) => ({ name: l.name.trim(), amount: parseFloat(l.amount) }));
-      if (costTotal <= 0) {
-        alert(t.enterCostAmount);
-        return;
-      }
-      p = perUnit;
-    } else if (isNaN(p) || p < 0) {
+    const p = parseFloat(price);
+    if (isNaN(p) || p < 0) {
       alert(t.enterValidPrice);
       return;
     }
-    // A sale cannot exceed the stock in hand (stock never goes below 0).
-    if (tab === 'sale' && q - available > 1e-9) {
+    // A ready-made sale cannot exceed the stock in hand (manufacture stock is unknown).
+    if (tab === 'sale' && !isManufacture && q - available > 1e-9) {
       alert(`${t.notEnoughStock} ${formatNumber(available)} ${unit}`);
       return;
     }
@@ -116,7 +80,6 @@ export function ProductActionModal({
         type: tab,
         quantity: q,
         pricePerUnit: p,
-        costs,
         replaces: editTx?.id ?? null,
       });
       onSaved();
@@ -154,12 +117,22 @@ export function ProductActionModal({
                 </h3>
               </div>
               <span className={styles.actionStock}>
-                {t.stock}: {formatNumber(product.current_stock || 0)} {product.quantity_type || 'piece'}
-                {product.last_purchase_price != null && (
-                  <> · {t.lastPurchase} {formatCurrency(product.last_purchase_price)}</>
-                )}
-                {product.last_sale_price != null && (
-                  <> · {t.lastSale} {formatCurrency(product.last_sale_price)}</>
+                {isManufacture ? (
+                  product.last_sale_price != null ? (
+                    <>{t.lastSale} {formatCurrency(product.last_sale_price)}</>
+                  ) : (
+                    t.typeManufacture
+                  )
+                ) : (
+                  <>
+                    {t.stock}: {formatNumber(product.current_stock || 0)} {unit}
+                    {product.last_purchase_price != null && (
+                      <> · {t.lastPurchase} {formatCurrency(product.last_purchase_price)}</>
+                    )}
+                    {product.last_sale_price != null && (
+                      <> · {t.lastSale} {formatCurrency(product.last_sale_price)}</>
+                    )}
+                  </>
                 )}
               </span>
             </div>
@@ -171,7 +144,7 @@ export function ProductActionModal({
       }
     >
       <div className={styles.body} style={{ gap: '1rem' }}>
-        {!editTx && (
+        {!editTx && !isManufacture && (
           <div className={styles.tabSwitch}>
             <button
               className={`${styles.tabBtn} ${isStock ? styles.activeStock : ''}`}
@@ -189,7 +162,7 @@ export function ProductActionModal({
         )}
 
         <div className="field">
-          <label htmlFor="qty">{showCostBreakdown ? t.quantityProduced : t.quantity}</label>
+          <label htmlFor="qty">{t.quantity}</label>
           <input
             id="qty"
             className="input"
@@ -203,54 +176,23 @@ export function ProductActionModal({
           />
         </div>
 
-        {showCostBreakdown ? (
-          <div className="field">
-            <label>{t.rawMaterials}</label>
-            <div className={styles.costList}>
-              {costLines.map((line, i) => (
-                <div key={i} className={styles.costLineRow}>
-                  <span className={styles.costLineName} title={line.name || t.cost}>
-                    {line.name || t.cost}
-                  </span>
-                  <input
-                    className={`input ${styles.costLineInput}`}
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="any"
-                    placeholder="0.00"
-                    value={line.amount}
-                    onChange={(e) => setCostAmount(i, e.target.value)}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className={styles.perUnitRow}>
-              <span>{t.costPerUnit}</span>
-              <span>
-                {formatCurrency(perUnit)} / {unit}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="field">
-            <label htmlFor="price">{isStock ? t.buyingPrice : t.sellingPrice}</label>
-            <input
-              id="price"
-              className="input"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="any"
-              placeholder="0.00"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-            />
-          </div>
-        )}
+        <div className="field">
+          <label htmlFor="price">{isStock ? t.buyingPrice : t.sellingPrice}</label>
+          <input
+            id="price"
+            className="input"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="any"
+            placeholder="0.00"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+          />
+        </div>
 
         <div className={styles.totalRow}>
-          <span>{showCostBreakdown ? t.totalCost : t.total}</span>
+          <span>{t.total}</span>
           <span className={styles.totalValue}>{formatCurrency(total)}</span>
         </div>
 

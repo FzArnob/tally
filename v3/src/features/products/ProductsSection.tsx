@@ -11,6 +11,7 @@ import { ProductCard } from './ProductCard';
 import { ProductFormModal } from './ProductFormModal';
 import { ProductActionModal } from './ProductActionModal';
 import { ProductHistoryModal } from './ProductHistoryModal';
+import { ProductMaterialsModal } from './ProductMaterialsModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Toolbar } from '../../components/Toolbar';
 import styles from './products.module.css';
@@ -32,6 +33,8 @@ export function ProductsSection({ bookId }: { bookId: number }) {
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
   const [historyTx, setHistoryTx] = useState<ProductTransaction[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  const [materialsProduct, setMaterialsProduct] = useState<Product | null>(null);
 
   const [pendingDeleteTx, setPendingDeleteTx] = useState<ProductTransaction | null>(null);
   const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
@@ -173,6 +176,7 @@ export function ProductsSection({ bookId }: { bookId: number }) {
               setFormOpen(true);
             }}
             onDelete={() => setPendingDeleteProduct(product)}
+            onMaterials={() => setMaterialsProduct(product)}
           />
         ))}
       </div>
@@ -201,6 +205,12 @@ export function ProductsSection({ bookId }: { bookId: number }) {
         onClose={() => setHistoryOpen(false)}
         onEdit={editFromHistory}
         onDelete={(tx) => setPendingDeleteTx(tx)}
+      />
+
+      <ProductMaterialsModal
+        open={!!materialsProduct}
+        product={materialsProduct}
+        onClose={() => setMaterialsProduct(null)}
       />
 
       <ConfirmDialog

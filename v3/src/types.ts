@@ -144,12 +144,6 @@ export interface SavePersonalTxResponse {
 
 export type TransactionType = 'stock' | 'sale';
 
-/** One line of a manufacture stock-in's cost breakdown (snapshot at entry time). */
-export interface TransactionCost {
-  name: string;
-  amount: number;
-}
-
 export interface ProductTransaction {
   id: number;
   product_id: number;
@@ -157,19 +151,21 @@ export interface ProductTransaction {
   quantity: number;
   price_per_unit: number;
   total_amount: number;
-  stock_after: number;
+  /** Running stock; null for manufacture sale rows (stock unknown). */
+  stock_after: number | null;
   note: string | null;
-  /** Present (non-empty) only for a manufacture stock-in. */
-  costs: TransactionCost[];
   created_at: string;
 }
 
 export type ProductType = 'ready_made' | 'manufacture';
 
-/** A reusable cost-line label in a manufacture product's template. */
-export interface CostItem {
+/** A material a manufacture product is linked to, with denormalised stock info. */
+export interface ProductMaterial {
   id: number;
   name: string;
+  quantity_type: string;
+  current_stock: number;
+  last_purchase_price: number | null;
 }
 
 export interface Product {
@@ -178,11 +174,12 @@ export interface Product {
   name: string;
   quantity_type: string;
   product_type: ProductType;
-  /** The cost-line template; empty for ready-made products. */
-  cost_items: CostItem[];
+  /** Linked raw materials; empty for ready-made products. */
+  materials: ProductMaterial[];
   image_url: string | null;
-  current_stock: number;
-  total_stock_in: number;
+  /** null for manufacture products (reserved for future analytics). */
+  current_stock: number | null;
+  total_stock_in: number | null;
   total_stock_out: number;
   last_purchase_price: number | null;
   last_sale_price: number | null;

@@ -149,10 +149,12 @@ export function ProductsSection({ bookId }: { bookId: number }) {
       />
 
       <div className={styles.list}>
-        {status === 'loading' && <div className="empty-state">…</div>}
-        {status === 'error' && <div className="empty-state">{t.failedLoadProducts}</div>}
+        {status === 'loading' && <div className={`empty-state ${styles.listMessage}`}>…</div>}
+        {status === 'error' && (
+          <div className={`empty-state ${styles.listMessage}`}>{t.failedLoadProducts}</div>
+        )}
         {status === 'ready' && filtered.length === 0 && (
-          <div className="empty-state">
+          <div className={`empty-state ${styles.listMessage}`}>
             {products.length === 0 ? (
               <>
                 {t.noProducts}

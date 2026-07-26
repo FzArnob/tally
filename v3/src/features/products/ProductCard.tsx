@@ -37,7 +37,7 @@ export function ProductCard({
 
   return (
     <div
-      className={styles.row}
+      className={styles.card}
       style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
       onClick={onOpen}
       role="button"
@@ -49,58 +49,52 @@ export function ProductCard({
         ) : (
           <span className={`material-symbols-outlined ${styles.thumbIcon}`}>inventory_2</span>
         )}
+        {count > 0 && (
+          <span className={styles.countBadge} title={`${count} ${t.transactions}`}>
+            <span className="material-symbols-outlined icon-sm">swap_vert</span>
+            {localizeDigits(String(count))}
+          </span>
+        )}
       </div>
 
-      <div className={styles.lines}>
-        <div className={styles.line}>
-          <span className={styles.name} title={product.name}>
-            {product.name}
-          </span>
-          {isManufacture ? (
-            <button
-              className={styles.manufactureBtn}
-              aria-label={t.viewMaterials}
-              onClick={(e) => {
-                stop(e);
-                onMaterials();
-              }}
-            >
-              <span className="material-symbols-outlined icon-md">precision_manufacturing</span>
-            </button>
-          ) : (
-            <span className={styles.stockWrap}>
-              <span
-                className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}
-              >
-                {formatNumber(stock)}
-              </span>
-              <span className={styles.stockUnit}>{unit}</span>
-            </span>
-          )}
-        </div>
+      <span className={styles.name} title={product.name}>
+        {product.name}
+      </span>
 
-        <div className={styles.line}>
-          <span className={styles.meta}>
-            <span className={styles.metaTime}>{last}</span>
-            {count > 0 && (
-              <span className={styles.metaCount} title={`${count} ${t.transactions}`}>
-                <span className="material-symbols-outlined icon-sm">swap_vert</span>
-                {localizeDigits(String(count))}
-              </span>
-            )}
+      <span className={styles.meta}>{last}</span>
+
+      {/* Manufacture products have no stock of their own — their figure lives in
+          the linked materials, so the slot becomes a way in to those. */}
+      {isManufacture ? (
+        <button
+          className={styles.viewStockBtn}
+          onClick={(e) => {
+            stop(e);
+            onMaterials();
+          }}
+        >
+          <span className="material-symbols-outlined icon-sm">show_chart</span>
+          <span className={styles.viewStockLabel}>{t.viewStock}</span>
+        </button>
+      ) : (
+        <span className={styles.stockWrap}>
+          <span className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}>
+            {formatNumber(stock)}
           </span>
-          <div className={styles.rowActions} onClick={stop}>
-            <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
-              <span className="material-symbols-outlined icon-md">history</span>
-            </button>
-            <button className="ghost-btn" aria-label={t.editProduct} onClick={onEdit}>
-              <span className="material-symbols-outlined icon-md">edit</span>
-            </button>
-            <button className="ghost-btn" aria-label={t.deleteProduct} onClick={onDelete}>
-              <span className="material-symbols-outlined icon-md">delete</span>
-            </button>
-          </div>
-        </div>
+          <span className={styles.stockUnit}>{unit}</span>
+        </span>
+      )}
+
+      <div className={styles.rowActions} onClick={stop}>
+        <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
+          <span className="material-symbols-outlined icon-md">history</span>
+        </button>
+        <button className="ghost-btn" aria-label={t.editProduct} onClick={onEdit}>
+          <span className="material-symbols-outlined icon-md">edit</span>
+        </button>
+        <button className="ghost-btn" aria-label={t.deleteProduct} onClick={onDelete}>
+          <span className="material-symbols-outlined icon-md">delete</span>
+        </button>
       </div>
     </div>
   );

@@ -145,6 +145,7 @@ export interface Translation {
   selectMaterialFirst: string;
   enterAtLeastOneMaterial: string;
   viewMaterials: string;
+  viewStock: string;
   relatedMaterials: string;
   noLinkedMaterials: string;
 
@@ -410,13 +411,15 @@ const en: Translation = {
   searchAction: 'Search',
   addedMaterials: 'Added materials',
   availableMaterials: 'Available materials',
-  noMaterialsToLink: 'No materials found — add them in Material Costs first.',
+  // {link} is replaced with a link to the Material Costs page (see ProductFormModal).
+  noMaterialsToLink: 'No materials found — add them in {link} first.',
   unlinkMaterial: 'Remove material',
   removeAction: 'Remove',
   unlinkMaterialConfirm: 'Remove this material from the product?',
   selectMaterialFirst: 'Select a material to add.',
   enterAtLeastOneMaterial: 'Add at least one material.',
   viewMaterials: 'View materials',
+  viewStock: 'Material Stock',
   relatedMaterials: 'Materials',
   noLinkedMaterials: 'No materials linked to this product.',
 
@@ -673,13 +676,14 @@ const bn: Translation = {
   searchAction: 'খুঁজুন',
   addedMaterials: 'যুক্ত কাঁচামাল',
   availableMaterials: 'উপলব্ধ কাঁচামাল',
-  noMaterialsToLink: 'কোনো কাঁচামাল নেই — প্রথমে কাঁচামাল খরচে যোগ করুন।',
+  noMaterialsToLink: 'কোনো কাঁচামাল নেই — প্রথমে {link} পেজে যোগ করুন।',
   unlinkMaterial: 'কাঁচামাল সরান',
   removeAction: 'সরান',
   unlinkMaterialConfirm: 'এই কাঁচামালটি পণ্য থেকে সরিয়ে ফেলবেন?',
   selectMaterialFirst: 'যোগ করতে একটি কাঁচামাল নির্বাচন করুন।',
   enterAtLeastOneMaterial: 'অন্তত একটি কাঁচামাল যোগ করুন।',
   viewMaterials: 'কাঁচামাল দেখুন',
+  viewStock: 'কাঁচামাল স্টক',
   relatedMaterials: 'কাঁচামাল',
   noLinkedMaterials: 'এই পণ্যের সাথে কোনো কাঁচামাল যুক্ত নেই।',
 

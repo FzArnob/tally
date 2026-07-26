@@ -4,22 +4,44 @@
   margin: 0 auto;
 }
 
+/* Tile grid. Never fewer than two cards per row; each track is capped at the
+   170px card width and the whole grid centres, so wide screens gain columns
+   rather than stretching the cards. */
 .list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 170px));
+  justify-content: center;
+  gap: 0.7rem;
   padding: 0.85rem 0.9rem 2rem;
 }
 
-/* ---- Product row ---- */
-.row {
+@media (min-width: 30rem) {
+  .list {
+    grid-template-columns: repeat(3, minmax(120px, 170px));
+  }
+}
+
+@media (min-width: 40rem) {
+  .list {
+    grid-template-columns: repeat(4, minmax(120px, 170px));
+  }
+}
+
+/* Status/empty messages sit in the grid — let them span the full width. */
+.listMessage {
+  grid-column: 1 / -1;
+}
+
+/* ---- Product card ---- */
+.card {
   display: flex;
-  align-items: center;
-  gap: 0.85rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 0.9rem;
-  padding: 0.7rem 0.85rem;
+  padding: 0.55rem;
   box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition: transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease,
@@ -38,21 +60,23 @@
   }
 }
 
-.row:hover {
+.card:hover {
   box-shadow: var(--shadow-md);
   border-color: color-mix(in srgb, var(--primary) 22%, var(--border));
 }
 
-.row:active {
+.card:active {
   transform: scale(0.99);
 }
 
-/* Thumbnail / placeholder */
+/* Square cover. Capped at 150px so a card never grows past its 170px track. */
 .thumbWrap {
-  flex-shrink: 0;
-  width: 3.25rem;
-  height: 3.25rem;
-  border-radius: 0.75rem;
+  position: relative;
+  width: 100%;
+  max-width: 150px;
+  margin-inline: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 0.7rem;
   background: var(--muted);
   display: flex;
   align-items: center;
@@ -68,23 +92,27 @@
 
 .thumbIcon {
   color: var(--muted-foreground);
-  font-size: 1.6rem;
+  font-size: 2rem;
 }
 
-/* Name + meta */
-/* Card body: a stack of lines. Every line pairs one left block with one right
-   block, so both columns stay aligned down the whole card — list rows and
-   history entries in this feature are all built this way. */
-.lines {
-  flex: 1;
-  min-width: 0;
-  align-self: stretch; /* fill the thumbnail's height … */
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between; /* … so the lines sit flush top and bottom */
-  gap: 0.5rem;
+/* Transaction count, tucked into the cover's corner to keep a line free. */
+.countBadge {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.05rem 0.35rem 0.05rem 0.2rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 62%, transparent);
+  color: var(--background);
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  backdrop-filter: blur(4px);
 }
 
+/* Pairs a left block with a right block on one line (history entries). */
 .line {
   display: flex;
   align-items: center;
@@ -99,64 +127,105 @@
   min-width: 0;
 }
 
+/* Two lines tall whatever the name's length, so every card in a row matches. */
 .name {
-  font-size: var(--fs-base);
+  font-size: var(--fs-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--foreground);
   line-height: 1.3;
+  min-height: 2.6em;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
-/* Meta line: last activity, then the entry count as an icon + number. */
 .meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-xs);
   color: var(--muted-foreground);
-}
-
-.metaTime {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.metaCount {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15rem;
-}
-
-.stockWrap {
-  flex-shrink: 0;
+/* Stock strip and the manufacture button share a footprint so both card kinds
+   line up in the grid. */
+.stockWrap,
+.viewStockBtn {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.25rem;
-  white-space: nowrap;
+  min-width: 0;
+  height: 1.9rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--input-background);
+  overflow: hidden;
 }
 
+/* The figure always survives; the unit gives up room first. */
 .stockValue {
+  flex-shrink: 0;
   font-size: var(--fs-amount);
   font-weight: var(--font-weight-semibold);
   line-height: 1;
 }
 
 .stockUnit {
+  min-width: 0;
   font-size: var(--fs-xs);
+  line-height: 1;
   color: var(--muted-foreground);
   text-transform: capitalize;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.rowActions {
+.viewStockBtn {
+  justify-content: center;
+  width: 100%;
+  color: var(--muted-foreground);
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    background-color var(--dur-fast) ease;
+}
+
+/* Icon holds its size; the label truncates on the narrowest cards. */
+.viewStockBtn .material-symbols-outlined {
   flex-shrink: 0;
+}
+
+.viewStockLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewStockBtn:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--input-background));
+}
+
+/* Footer actions share the width evenly and stay inside a 120px card. */
+.rowActions {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
+  margin-top: auto;
+  padding-top: 0.1rem;
+}
+
+.rowActions button {
+  flex: 1;
+  min-width: 0;
+  padding: 0.25rem;
 }
 
 /* ---- Form modal ---- */
@@ -831,28 +900,26 @@
   color: var(--muted-foreground);
 }
 
-/* ---- Manufacture list-row button (opens material stock details) ---- */
-.manufactureBtn {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.2rem;
-  height: 2.2rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  background: var(--input-background);
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: border-color var(--dur-fast) ease, color var(--dur-fast) ease,
-    background-color var(--dur-fast) ease;
-}
-.manufactureBtn:hover {
-  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+/* Inline shortcut inside the empty message — jumps to Material Costs. */
+.materialEmptyLink {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
   color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 8%, var(--input-background));
+  font-weight: var(--font-weight-medium);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: 0.2rem;
+  cursor: pointer;
+  transition: opacity var(--dur-fast) ease;
 }
 
+.materialEmptyLink:hover {
+  opacity: 0.75;
+}
+
+/* ---- Manufacture list-row button (opens material stock details) ---- */
 /* ---- Material stock-details cards (ProductMaterialsModal) ---- */
 .materialCards {
   display: flex;
@@ -935,10 +1002,6 @@
   .row {
     gap: 0.65rem;
     padding: 0.65rem 0.7rem;
-  }
-  .thumbWrap {
-    width: 2.85rem;
-    height: 2.85rem;
   }
   .rowActions button {
     padding: 0.25rem;

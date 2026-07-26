@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n/LanguageContext';
 import { Header, HeaderBackButton } from '../../components/Header';
 import { UserMenu } from '../../auth/UserMenu';
@@ -21,6 +21,7 @@ import styles from './materials.module.css';
 export function MaterialsPage({ book }: { book: Book }) {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const location = useLocation();
   const bookId = book.id;
 
   const [materials, setMaterials] = useState<Material[]>([]);
@@ -57,6 +58,15 @@ export function MaterialsPage({ book }: { book: Book }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Arriving from the product form's "Material Costs" link opens the add form
+  // straight away. The flag is consumed so a back/refresh doesn't reopen it.
+  useEffect(() => {
+    if (!(location.state as { addMaterial?: boolean } | null)?.addMaterial) return;
+    setFormMaterial(null);
+    setFormOpen(true);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location, navigate]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

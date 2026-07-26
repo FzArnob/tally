@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useI18n } from '../../i18n/LanguageContext';
@@ -34,6 +35,7 @@ export function ProductFormModal({
   onSaved,
 }: ProductFormModalProps) {
   const { t, formatNumber } = useI18n();
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [type, setType] = useState<string>('piece');
   const [customType, setCustomType] = useState('');
@@ -137,6 +139,15 @@ export function ProductFormModal({
       (m) => !linkedIds.includes(m.id) && (!q || m.name.toLowerCase().includes(q)),
     );
   }, [allMaterials, linkedIds, search]);
+
+  // "No materials found — add them in {link} first." The placeholder becomes a
+  // link to the Material Costs page, which opens its add form on arrival.
+  const [emptyBefore, emptyAfter = ''] = t.noMaterialsToLink.split('{link}');
+
+  const goToMaterials = () => {
+    onClose();
+    navigate(`/${bookId}/materials`, { state: { addMaterial: true } });
+  };
 
   const addSelected = () => {
     if (selectedId == null) {
@@ -391,7 +402,17 @@ export function ProductFormModal({
               {!materialsLoaded ? (
                 <div className={styles.materialEmpty}>…</div>
               ) : availableMaterials.length === 0 ? (
-                <div className={styles.materialEmpty}>{t.noMaterialsToLink}</div>
+                <div className={styles.materialEmpty}>
+                  {emptyBefore}
+                  <button
+                    type="button"
+                    className={styles.materialEmptyLink}
+                    onClick={goToMaterials}
+                  >
+                    {t.materialsTitle}
+                  </button>
+                  {emptyAfter}
+                </div>
               ) : (
                 availableMaterials.map((m) => (
                   <button

@@ -35,38 +35,43 @@ export function OperationCard({
       role="button"
       tabIndex={0}
     >
-      <div className={styles.info}>
-        <span className={styles.reason} title={operation.reason}>
-          {operation.reason}
-        </span>
-        {operation.note && (
-          <span className={styles.note} title={operation.note}>
-            {operation.note}
+      <div className={styles.lines}>
+        <div className={styles.line}>
+          <span className={styles.reason} title={operation.reason}>
+            {operation.reason}
           </span>
-        )}
-        <span className={styles.meta}>
-          {last}
-          {count > 0 && (
-            <>
-              {' · '}
-              {localizeDigits(String(count))} {t.entries}
-            </>
-          )}
-        </span>
-      </div>
+          <span className={styles.amount}>{formatCurrency(operation.amount)}</span>
+        </div>
 
-      <div className={styles.right}>
-        <span className={styles.amount}>{formatCurrency(operation.amount)}</span>
-        <div className={styles.rowActions} onClick={stop}>
-          <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
-            <span className="material-symbols-outlined icon-md">history</span>
-          </button>
-          <button className="ghost-btn" aria-label={t.editOperation} onClick={onEdit}>
-            <span className="material-symbols-outlined icon-md">edit</span>
-          </button>
-          <button className="ghost-btn" aria-label={t.deleteOperation} onClick={onDelete}>
-            <span className="material-symbols-outlined icon-md">delete</span>
-          </button>
+        {operation.note && (
+          <div className={styles.line}>
+            <span className={styles.note} title={operation.note}>
+              {operation.note}
+            </span>
+          </div>
+        )}
+
+        <div className={styles.line}>
+          <span className={styles.meta}>
+            <span className={styles.metaTime}>{last}</span>
+            {count > 0 && (
+              <span className={styles.metaCount} title={`${count} ${t.entries}`}>
+                <span className="material-symbols-outlined icon-sm">swap_vert</span>
+                {localizeDigits(String(count))}
+              </span>
+            )}
+          </span>
+          <div className={styles.rowActions} onClick={stop}>
+            <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
+              <span className="material-symbols-outlined icon-md">history</span>
+            </button>
+            <button className="ghost-btn" aria-label={t.editOperation} onClick={onEdit}>
+              <span className="material-symbols-outlined icon-md">edit</span>
+            </button>
+            <button className="ghost-btn" aria-label={t.deleteOperation} onClick={onDelete}>
+              <span className="material-symbols-outlined icon-md">delete</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

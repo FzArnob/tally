@@ -189,6 +189,21 @@ export function createCustomerBalance(params: {
   );
 }
 
+/** Edit an existing balance entry in place (keeps its slot in the history). */
+export function updateCustomerBalance(params: {
+  historyId: string;
+  type: BalanceType;
+  amount: number;
+  reason?: string | null;
+  expression?: string | null;
+}): Promise<CreateBalanceResponse> {
+  const { historyId, type, amount, reason = null, expression = null } = params;
+  return request<CreateBalanceResponse>(
+    `balance-history/${historyId}`,
+    jsonInit('PUT', { type, amount, reason, expression }),
+  );
+}
+
 export function deleteCustomerBalanceHistory(historyId: string): Promise<DeleteBalanceResponse> {
   return request<DeleteBalanceResponse>(`balance-history/${historyId}`, { method: 'DELETE' });
 }
@@ -348,6 +363,18 @@ export function addOperationCostEntry(
   return request<SaveOperationCostResponse>(
     `operation-costs/${operationCostId}/entries`,
     jsonInit('POST', { amount, note }),
+  );
+}
+
+/** Edit an existing amount entry in place (keeps its slot in the history). */
+export function updateOperationCostEntry(
+  entryId: string,
+  params: { amount: number; note: string },
+): Promise<SaveOperationCostResponse> {
+  const { amount, note } = params;
+  return request<SaveOperationCostResponse>(
+    `operation-cost-entries/${entryId}`,
+    jsonInit('PUT', { amount, note }),
   );
 }
 

@@ -1,21 +1,26 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
-import { addOperationCostEntry } from '../../lib/api';
-import { ApiError, type OperationCost } from '../../types';
+import { addOperationCostEntry, updateOperationCostEntry } from '../../lib/api';
+import { ApiError, type OperationCost, type OperationCostEntry } from '../../types';
 import styles from './operations.module.css';
 
 interface OperationActionModalProps {
   open: boolean;
   operation: OperationCost | null;
+  editEntry: OperationCostEntry | null; // non-null => edit that entry instead of adding
   onClose: () => void;
   onSaved: () => void;
 }
 
-/** Add one dated amount entry (a cost incurred over time) to an operation cost. */
+/**
+ * Add one dated amount entry (a cost incurred over time) to an operation cost —
+ * or, with `editEntry`, correct an existing one in place.
+ */
 export function OperationActionModal({
   open,
   operation,
+  editEntry,
   onClose,
   onSaved,
 }: OperationActionModalProps) {
@@ -27,10 +32,10 @@ export function OperationActionModal({
 
   useEffect(() => {
     if (!open) return;
-    setAmount('');
-    setNote('');
+    setAmount(editEntry ? String(editEntry.amount) : '');
+    setNote(editEntry?.note ?? '');
     setError(null);
-  }, [open, operation]);
+  }, [open, operation, editEntry]);
 
   if (!operation) return null;
 
@@ -43,15 +48,17 @@ export function OperationActionModal({
     setSaving(true);
     setError(null);
     try {
-      await addOperationCostEntry(operation.id, { amount: amt, note: note.trim() });
+      const body = { amount: amt, note: note.trim() };
+      if (editEntry) await updateOperationCostEntry(editEntry.id, body);
+      else await addOperationCostEntry(operation.id, body);
       onSaved();
       onClose();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'validation') {
         setError(err.message);
       } else {
-        console.error('Failed to add amount:', err);
-        setError(t.failedAddAmount);
+        console.error('Failed to save amount:', err);
+        setError(editEntry ? t.failedUpdateEntry : t.failedAddAmount);
       }
     } finally {
       setSaving(false);
@@ -91,7 +98,7 @@ export function OperationActionModal({
             </div>
           )}
           <button className="btn btn-primary btn-block btn-margin" onClick={submit} disabled={saving}>
-            {t.addAmount}
+            {editEntry ? t.update : t.addAmount}
           </button>
         </>
       }

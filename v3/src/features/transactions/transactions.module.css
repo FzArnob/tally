@@ -72,12 +72,28 @@
   }
 }
 
-.info {
+/* Card body: a stack of lines. Every line pairs one left block with one right
+   block, so both columns stay aligned down the whole card. */
+.lines {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 0.5rem;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/* The left block takes the slack and truncates; the right block keeps its
+   intrinsic width so the right edge lines up on every line. */
+.line > :first-child {
+  min-width: 0;
 }
 
 .amount {
@@ -98,17 +114,13 @@
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
   text-transform: capitalize;
-}
-
-.right {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chip {
+  flex-shrink: 0;
   max-width: 8rem;
   font-size: var(--fs-xs);
   font-weight: var(--font-weight-medium);
@@ -130,8 +142,10 @@
 }
 
 .actions {
+  flex-shrink: 0;
   display: flex;
-  gap: 0.05rem;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 /* ---- Form modal ---- */

@@ -10,10 +10,16 @@ import styles from './customers.module.css';
 interface CustomerHistoryModalProps {
   customer: Customer | null; // non-null => open
   onClose: () => void;
+  onEdit: (entry: BalanceHistoryEntry) => void;
   onChanged: () => void;
 }
 
-export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerHistoryModalProps) {
+export function CustomerHistoryModal({
+  customer,
+  onClose,
+  onEdit,
+  onChanged,
+}: CustomerHistoryModalProps) {
   const { t, formatCurrency, formatSignedCurrency, formatTimeFull, localizeDigits } = useI18n();
   const [current, setCurrent] = useState<Customer | null>(null);
   const [entries, setEntries] = useState<BalanceHistoryEntry[]>([]);
@@ -94,39 +100,55 @@ export function CustomerHistoryModal({ customer, onClose, onChanged }: CustomerH
               key={entry.id}
               className={`${styles.entry} ${removingId === entry.id ? styles.removing : ''}`}
             >
-              <div className={styles.entryLeft}>
+              <div className={styles.line}>
                 <span
                   className={`${styles.entryAmount} ${isPaid ? 'text-positive' : 'text-negative'}`}
                 >
                   {isPaid ? '+' : '-'}
                   {formatCurrency(entry.amount)}
                 </span>
-                {showExpr && (
-                  <span className={styles.entryExpr}>
-                    {localizeDigits(formatDisplayExpression(entry.expression as string))} ={' '}
-                    {formatCurrency(entry.amount)}
-                  </span>
-                )}
-                <span className={styles.entryTime}>
-                  {localizeDigits(formatTimeFull(entry.timestamp))}
-                </span>
-              </div>
-
-              <div className={styles.entryRight}>
                 <span className={styles.entryBalance}>
                   {t.balanceLabel}{' '}
                   <span className={entry.balance_after >= 0 ? 'text-positive' : 'text-negative'}>
                     {formatSignedCurrency(entry.balance_after)}
                   </span>
                 </span>
-                {entry.reason && <span className={styles.entryReason}>{entry.reason}</span>}
-                <button
-                  className="ghost-btn"
-                  aria-label={t.deleteAction}
-                  onClick={() => setPendingDelete(entry)}
-                >
-                  <span className="material-symbols-outlined icon-md">delete</span>
-                </button>
+              </div>
+
+              {(showExpr || entry.reason) && (
+                <div className={styles.line}>
+                  {showExpr ? (
+                    <span className={styles.entryExpr}>
+                      {localizeDigits(formatDisplayExpression(entry.expression as string))} ={' '}
+                      {formatCurrency(entry.amount)}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  {entry.reason && (
+                    <span className={styles.entryReason} title={entry.reason}>
+                      {entry.reason}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className={styles.line}>
+                <span className={styles.entryTime}>
+                  {localizeDigits(formatTimeFull(entry.timestamp))}
+                </span>
+                <div className={styles.entryActions}>
+                  <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(entry)}>
+                    <span className="material-symbols-outlined icon-md">edit</span>
+                  </button>
+                  <button
+                    className="ghost-btn"
+                    aria-label={t.deleteAction}
+                    onClick={() => setPendingDelete(entry)}
+                  >
+                    <span className="material-symbols-outlined icon-md">delete</span>
+                  </button>
+                </div>
               </div>
             </div>
           );

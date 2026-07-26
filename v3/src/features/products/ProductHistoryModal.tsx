@@ -48,17 +48,17 @@ export function ProductHistoryModal({
             const isStock = tx.type === 'stock';
             return (
               <div key={tx.id} className={styles.entry}>
-                <div className={styles.entryLine}>
+                <div className={styles.line}>
                   <span className={`${styles.typePill} ${isStock ? styles.stock : styles.sale}`}>
                     {isStock ? t.stockIn : t.sale}
                   </span>
                   <span
-                    className={`${styles.entryAmount} ${isStock ? 'text-negative' : 'text-positive'}`}
+                    className={`${styles.entryAmount} ${isStock ? 'text-invest' : 'text-positive'}`}
                   >
                     {formatCurrency(tx.total_amount)}
                   </span>
                 </div>
-                <div className={styles.entryLine}>
+                <div className={styles.line}>
                   <span className={styles.entryDetail}>
                     {localizeDigits(`${formatNumber(tx.quantity)} ${unit} × `)}
                     {formatCurrency(tx.price_per_unit)}
@@ -76,7 +76,7 @@ export function ProductHistoryModal({
                     </button>
                   </div>
                 </div>
-                <div className={styles.entryFoot}>
+                <div className={`${styles.line} ${styles.entryFoot}`}>
                   {tx.stock_after != null ? (
                     <span>
                       {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}

@@ -266,6 +266,7 @@ export interface Translation {
   entries: string;
   noAmountEntries: string;
   failedAddAmount: string;
+  failedUpdateEntry: string;
   failedDeleteEntry: string;
   reason: string;
   reasonPlaceholder: string;
@@ -529,6 +530,7 @@ const en: Translation = {
   entries: 'entries',
   noAmountEntries: 'No amounts added yet.',
   failedAddAmount: 'Failed to add amount. Please try again.',
+  failedUpdateEntry: 'Failed to update entry. Please try again.',
   failedDeleteEntry: 'Failed to delete entry. Please try again.',
   reason: 'Reason',
   reasonPlaceholder: 'e.g. Rent, Electricity, Wages',
@@ -791,6 +793,7 @@ const bn: Translation = {
   entries: 'এন্ট্রি',
   noAmountEntries: 'এখনো কোন পরিমাণ যোগ করা হয়নি।',
   failedAddAmount: 'পরিমাণ যোগ করা যায়নি। আবার চেষ্টা করুন।',
+  failedUpdateEntry: 'এন্ট্রি আপডেট করা যায়নি। আবার চেষ্টা করুন।',
   failedDeleteEntry: 'এন্ট্রি মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
   reason: 'কারণ',
   reasonPlaceholder: 'যেমন ভাড়া, বিদ্যুৎ, মজুরি',

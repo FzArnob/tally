@@ -51,17 +51,19 @@ export function MaterialHistoryModal({
             const label = isStock ? t.stockIn : isUsed ? t.stockUsed : t.sale;
             return (
               <div key={tx.id} className={styles.entry}>
-                <div className={styles.entryLine}>
+                <div className={styles.line}>
                   <span className={`${styles.typePill} ${pillClass}`}>{label}</span>
-                  {!isUsed && (
+                  {isUsed ? (
+                    <span />
+                  ) : (
                     <span
-                      className={`${styles.entryAmount} ${isStock ? 'text-negative' : 'text-positive'}`}
+                      className={`${styles.entryAmount} ${isStock ? 'text-invest' : 'text-positive'}`}
                     >
                       {formatCurrency(tx.total_amount)}
                     </span>
                   )}
                 </div>
-                <div className={styles.entryLine}>
+                <div className={styles.line}>
                   <span className={styles.entryDetail}>
                     {isUsed
                       ? localizeDigits(`${formatNumber(tx.quantity)} ${unit}`)
@@ -85,7 +87,7 @@ export function MaterialHistoryModal({
                     </button>
                   </div>
                 </div>
-                <div className={styles.entryFoot}>
+                <div className={`${styles.line} ${styles.entryFoot}`}>
                   <span>
                     {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}
                   </span>

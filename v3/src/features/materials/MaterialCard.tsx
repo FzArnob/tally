@@ -47,38 +47,40 @@ export function MaterialCard({
         )}
       </div>
 
-      <div className={styles.info}>
-        <span className={styles.name} title={material.name}>
-          {material.name}
-        </span>
-        <span className={styles.meta}>
-          {last}
-          {count > 0 && (
-            <>
-              {' · '}
-              {localizeDigits(String(count))} {t.transactions}
-            </>
-          )}
-        </span>
-      </div>
-
-      <div className={styles.right}>
-        <span className={styles.stockWrap}>
-          <span className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}>
-            {formatNumber(stock)}
+      <div className={styles.lines}>
+        <div className={styles.line}>
+          <span className={styles.name} title={material.name}>
+            {material.name}
           </span>
-          <span className={styles.stockUnit}>{unit}</span>
-        </span>
-        <div className={styles.rowActions} onClick={stop}>
-          <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
-            <span className="material-symbols-outlined icon-md">history</span>
-          </button>
-          <button className="ghost-btn" aria-label={t.editMaterial} onClick={onEdit}>
-            <span className="material-symbols-outlined icon-md">edit</span>
-          </button>
-          <button className="ghost-btn" aria-label={t.deleteMaterial} onClick={onDelete}>
-            <span className="material-symbols-outlined icon-md">delete</span>
-          </button>
+          <span className={styles.stockWrap}>
+            <span className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}>
+              {formatNumber(stock)}
+            </span>
+            <span className={styles.stockUnit}>{unit}</span>
+          </span>
+        </div>
+
+        <div className={styles.line}>
+          <span className={styles.meta}>
+            <span className={styles.metaTime}>{last}</span>
+            {count > 0 && (
+              <span className={styles.metaCount} title={`${count} ${t.transactions}`}>
+                <span className="material-symbols-outlined icon-sm">swap_vert</span>
+                {localizeDigits(String(count))}
+              </span>
+            )}
+          </span>
+          <div className={styles.rowActions} onClick={stop}>
+            <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
+              <span className="material-symbols-outlined icon-md">history</span>
+            </button>
+            <button className="ghost-btn" aria-label={t.editMaterial} onClick={onEdit}>
+              <span className="material-symbols-outlined icon-md">edit</span>
+            </button>
+            <button className="ghost-btn" aria-label={t.deleteMaterial} onClick={onDelete}>
+              <span className="material-symbols-outlined icon-md">delete</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

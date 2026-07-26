@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
-import { createCustomerBalance } from '../../lib/api';
+import { createCustomerBalance, updateCustomerBalance } from '../../lib/api';
 import {
   INITIAL_CALC,
   backspace,
@@ -13,17 +13,18 @@ import {
   resolveAmount,
   type CalcState,
 } from '../../lib/calculator';
-import type { Customer } from '../../types';
+import type { BalanceHistoryEntry, Customer } from '../../types';
 import { Calculator } from './Calculator';
 import styles from './customers.module.css';
 
 interface BalanceModalProps {
   customer: Customer | null; // non-null => open
+  editEntry?: BalanceHistoryEntry | null; // non-null => edit that entry instead of adding
   onClose: () => void;
   onChanged: () => void;
 }
 
-export function BalanceModal({ customer, onClose, onChanged }: BalanceModalProps) {
+export function BalanceModal({ customer, editEntry = null, onClose, onChanged }: BalanceModalProps) {
   const { t, formatSignedCurrency } = useI18n();
   const [current, setCurrent] = useState<Customer | null>(null);
   const [balance, setBalance] = useState(0);
@@ -33,16 +34,24 @@ export function BalanceModal({ customer, onClose, onChanged }: BalanceModalProps
   const [error, setError] = useState<string | null>(null);
   const open = !!customer;
 
-  // Capture the customer on open; keep it during the close animation.
+  // Capture the customer on open; keep it during the close animation. Editing an
+  // existing entry seeds the keypad with its expression (or bare amount) and note.
   useEffect(() => {
     if (customer) {
       setCurrent(customer);
       setBalance(customer.total_balance);
-      setNote('');
-      setCalc(INITIAL_CALC);
+      setNote(editEntry?.reason ?? '');
+      setCalc(
+        editEntry
+          ? equals({
+              expression: editEntry.expression || String(editEntry.amount),
+              display: String(editEntry.amount),
+            })
+          : INITIAL_CALC,
+      );
       setError(null);
     }
-  }, [customer]);
+  }, [customer, editEntry]);
 
   const applyDelta = useCallback(
     async (sign: 1 | -1) => {
@@ -64,6 +73,20 @@ export function BalanceModal({ customer, onClose, onChanged }: BalanceModalProps
       setBusy(true);
       setError(null);
       try {
+        // Editing is a one-shot correction — save and close. Adding keeps the
+        // modal open so several entries can be punched in a row.
+        if (editEntry) {
+          await updateCustomerBalance({
+            historyId: editEntry.id,
+            type,
+            amount,
+            reason,
+            expression,
+          });
+          onChanged();
+          onClose();
+          return;
+        }
         const res = await createCustomerBalance({
           customerId: current.id,
           type,
@@ -82,7 +105,7 @@ export function BalanceModal({ customer, onClose, onChanged }: BalanceModalProps
         setBusy(false);
       }
     },
-    [current, busy, calc, note, t, onChanged],
+    [current, busy, calc, note, t, editEntry, onChanged, onClose],
   );
 
   // Physical keyboard support while open (ignored while typing in a field).
@@ -143,20 +166,25 @@ export function BalanceModal({ customer, onClose, onChanged }: BalanceModalProps
       footer={
         <div className={styles.commit}>
           <button
-            className={`${styles.commitBtn} ${styles.keyUnpaid}`}
+            className={`${styles.commitBtn} ${styles.keyUnpaid} ${
+              editEntry?.type === 'unpaid' ? styles.commitCurrent : ''
+            }`}
             onClick={() => void applyDelta(-1)}
             disabled={busy}
           >
-            <span className="material-symbols-outlined icon-md">south_west</span>
-            {t.unpaid}
+            {/* The arrow is dropped while editing so the longer label still fits. */}
+            {!editEntry && <span className="material-symbols-outlined icon-md">south_west</span>}
+            {editEntry ? `${t.update} · ${t.unpaid}` : t.unpaid}
           </button>
           <button
-            className={`${styles.commitBtn} ${styles.keyPaid}`}
+            className={`${styles.commitBtn} ${styles.keyPaid} ${
+              editEntry?.type === 'paid' ? styles.commitCurrent : ''
+            }`}
             onClick={() => void applyDelta(1)}
             disabled={busy}
           >
-            <span className="material-symbols-outlined icon-md">north_east</span>
-            {t.paid}
+            {!editEntry && <span className="material-symbols-outlined icon-md">north_east</span>}
+            {editEntry ? `${t.update} · ${t.paid}` : t.paid}
           </button>
         </div>
       }

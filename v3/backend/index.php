@@ -942,6 +942,56 @@ on('POST', '/customers/{id}/balance', function ($a) {
     ], 201);
 });
 
+// Edit one history entry IN PLACE: seq and timestamp are kept, so the entry holds
+// its position in the running-balance chain (recomputeCustomer walks seq ASC).
+on('PUT', '/balance-history/{id}', function ($a) {
+    $pdo = db();
+    $stmt = $pdo->prepare(
+        'SELECT h.* FROM customer_balance_history h JOIN books b ON b.id = h.book_id
+         WHERE h.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$a['id'], authUser()['id']]);
+    $entry = $stmt->fetch();
+    if (!$entry) {
+        json_error('History entry not found.', 404, 'not_found');
+    }
+
+    $body = read_json_body();
+    $type = $body['type'] ?? '';
+    if (!in_array($type, ['paid', 'unpaid'], true)) {
+        json_error('Type must be "paid" or "unpaid".', 422, 'validation');
+    }
+    $amount     = v_amount($body['amount'] ?? null, 'Amount');
+    $reason     = v_string($body['reason']     ?? '', 255, false, 'Reason');
+    $expression = v_string($body['expression'] ?? '', 255, false, 'Expression');
+    $signed     = $type === 'paid' ? $amount : -$amount;
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            'UPDATE customer_balance_history
+             SET amount = ?, type = ?, signed_amount = ?, reason = ?, expression = ?
+             WHERE id = ?'
+        )->execute([
+            $amount, $type, $signed,
+            $reason !== '' ? $reason : null, $expression !== '' ? $expression : null,
+            $entry['id'],
+        ]);
+        $totals = recomputeCustomer($pdo, $entry['customer_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to update history entry.', 500);
+    }
+
+    json_response([
+        'success'     => true,
+        'history_id'  => $entry['id'],
+        'customer_id' => $entry['customer_id'],
+        'new_balance' => $totals['total_balance'],
+    ]);
+});
+
 on('DELETE', '/balance-history/{id}', function ($a) {
     $pdo = db();
     $stmt = $pdo->prepare(
@@ -1464,6 +1514,41 @@ on('POST', '/operation-costs/{id}/entries', function ($a) {
         'success'        => true,
         'operation_cost' => shapeOperationCost(findOperationCost($pdo, (int) $op['id'])),
     ], 201);
+});
+
+// Edit one amount entry IN PLACE: seq and timestamp are kept so the entry stays
+// where it is in the history; only the parent's totals are recomputed.
+on('PUT', '/operation-cost-entries/{id}', function ($a) {
+    $pdo = db();
+    $stmt = $pdo->prepare(
+        'SELECT e.* FROM operation_cost_entries e JOIN books b ON b.id = e.book_id
+         WHERE e.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$a['id'], authUser()['id']]);
+    $entry = $stmt->fetch();
+    if (!$entry) {
+        json_error('Entry not found.', 404, 'not_found');
+    }
+
+    $body   = read_json_body();
+    $amount = v_amount($body['amount'] ?? null, 'Amount');
+    $note   = v_string($body['note'] ?? '', 255, false, 'Note');
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE operation_cost_entries SET amount = ?, note = ? WHERE id = ?')
+            ->execute([$amount, $note !== '' ? $note : null, $entry['id']]);
+        recomputeOperationCost($pdo, (int) $entry['operation_cost_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to update entry.', 500);
+    }
+
+    json_response([
+        'success'        => true,
+        'operation_cost' => shapeOperationCost(findOperationCost($pdo, (int) $entry['operation_cost_id'])),
+    ]);
 });
 
 on('DELETE', '/operation-cost-entries/{id}', function ($a) {

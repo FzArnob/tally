@@ -34,7 +34,7 @@
 .totalsValue {
   font-size: var(--fs-heading-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--foreground);
+  color: var(--orange-600);
 }
 
 /* ---- Row ---- */
@@ -73,12 +73,29 @@
   }
 }
 
-.info {
+/* Card body: a stack of lines. Every line pairs one left block with one right
+   block, so both columns stay aligned down the whole card — list rows and
+   history entries in this feature are all built this way. */
+.lines {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  gap: 0.5rem;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/* The left block takes the slack and truncates; the right block keeps its
+   intrinsic width so the right edge lines up on every line. */
+.line > :first-child {
+  min-width: 0;
 }
 
 .reason {
@@ -99,30 +116,42 @@
   white-space: nowrap;
 }
 
+/* Meta line: last activity, then the entry count as an icon + number. */
 .meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
 }
 
-.right {
+.metaTime {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metaCount {
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 .amount {
+  flex-shrink: 0;
   font-size: var(--fs-amount);
   font-weight: var(--font-weight-semibold);
-  color: var(--foreground);
+  color: var(--orange-600);
   white-space: nowrap;
 }
 
 .rowActions {
   flex-shrink: 0;
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.6em;
 }
 
 /* ---- Add-amount action modal header ---- */
@@ -190,15 +219,8 @@
   padding: 0.7rem 0.8rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  animation: rowIn var(--dur-fast) ease both;
-}
-
-.entryLine {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   gap: 0.5rem;
+  animation: rowIn var(--dur-fast) ease both;
 }
 
 .entryAmount {
@@ -207,22 +229,26 @@
   color: var(--foreground);
 }
 
-.entryRight {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
 .entryTime {
+  flex-shrink: 0;
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
   white-space: nowrap;
 }
 
+.entryActions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .entryNote {
   font-size: var(--fs-sm);
   color: var(--muted-foreground);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 640px) {

@@ -9,6 +9,7 @@ interface OperationHistoryModalProps {
   entries: OperationCostEntry[];
   loading: boolean;
   onClose: () => void;
+  onEdit: (entry: OperationCostEntry) => void;
   onDelete: (entry: OperationCostEntry) => void;
 }
 
@@ -18,6 +19,7 @@ export function OperationHistoryModal({
   entries,
   loading,
   onClose,
+  onEdit,
   onDelete,
 }: OperationHistoryModalProps) {
   const { t, formatCurrency, formatTimeFull, localizeDigits } = useI18n();
@@ -43,12 +45,12 @@ export function OperationHistoryModal({
         ) : (
           entries.map((entry) => (
             <div key={entry.id} className={styles.entry}>
-              <div className={styles.entryLine}>
+              <div className={styles.line}>
                 <span className={styles.entryAmount}>{formatCurrency(entry.amount)}</span>
-                <div className={styles.entryRight}>
-                  <span className={styles.entryTime}>
-                    {localizeDigits(formatTimeFull(entry.timestamp))}
-                  </span>
+                <div className={styles.entryActions}>
+                  <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(entry)}>
+                    <span className="material-symbols-outlined icon-md">edit</span>
+                  </button>
                   <button
                     className="ghost-btn"
                     aria-label={t.deleteAction}
@@ -58,7 +60,18 @@ export function OperationHistoryModal({
                   </button>
                 </div>
               </div>
-              {entry.note && <span className={styles.entryNote}>{entry.note}</span>}
+              <div className={styles.line}>
+                {entry.note ? (
+                  <span className={styles.entryNote} title={entry.note}>
+                    {entry.note}
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <span className={styles.entryTime}>
+                  {localizeDigits(formatTimeFull(entry.timestamp))}
+                </span>
+              </div>
             </div>
           ))
         )}

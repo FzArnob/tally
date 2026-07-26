@@ -248,6 +248,7 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--muted-foreground);
   padding: 0.3rem;
   border-radius: 0.4rem;
+  border: 1px solid var(--border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -268,8 +269,9 @@ input[type='number']::-webkit-inner-spin-button {
   font-size: var(--fs-sm);
 }
 
-.text-positive { color: var(--green-700); }
-.text-negative { color: var(--red-700); }
+.text-positive { color: var(--green-600); }
+.text-negative { color: var(--red-600); }
+.text-invest { color: var(--orange-600); }
 
 .sr-only {
   position: absolute;

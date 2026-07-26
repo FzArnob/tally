@@ -33,6 +33,7 @@ export function OperationsPage({ book }: { book: Book }) {
 
   const [actionOpen, setActionOpen] = useState(false);
   const [actionOperation, setActionOperation] = useState<OperationCost | null>(null);
+  const [actionEntry, setActionEntry] = useState<OperationCostEntry | null>(null);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyOperation, setHistoryOperation] = useState<OperationCost | null>(null);
@@ -83,6 +84,7 @@ export function OperationsPage({ book }: { book: Book }) {
 
   const openAction = (operation: OperationCost) => {
     setActionOperation(operation);
+    setActionEntry(null);
     setActionOpen(true);
   };
 
@@ -101,6 +103,14 @@ export function OperationsPage({ book }: { book: Book }) {
   const afterEntryChange = async () => {
     await load();
     if (historyOperation) await loadHistory(historyOperation.id);
+  };
+
+  // Editing an entry hands off to the amount modal, prefilled with that entry.
+  const editFromHistory = (entry: OperationCostEntry) => {
+    setHistoryOpen(false);
+    setActionOperation(historyOperation);
+    setActionEntry(entry);
+    setActionOpen(true);
   };
 
   const confirmDelete = async () => {
@@ -201,6 +211,7 @@ export function OperationsPage({ book }: { book: Book }) {
       <OperationActionModal
         open={actionOpen}
         operation={actionOperation}
+        editEntry={actionEntry}
         onClose={() => setActionOpen(false)}
         onSaved={afterEntryChange}
       />
@@ -211,6 +222,7 @@ export function OperationsPage({ book }: { book: Book }) {
         entries={historyEntries}
         loading={historyLoading}
         onClose={() => setHistoryOpen(false)}
+        onEdit={editFromHistory}
         onDelete={(entry) => setPendingDeleteEntry(entry)}
       />
 

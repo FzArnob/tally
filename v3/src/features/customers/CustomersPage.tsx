@@ -6,7 +6,7 @@ import { UserMenu } from '../../auth/UserMenu';
 import { Toolbar } from '../../components/Toolbar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { deleteCustomer, getCustomers, BOOK_ID } from '../../lib/api';
-import type { Customer, CustomerTotals } from '../../types';
+import type { BalanceHistoryEntry, Customer, CustomerTotals } from '../../types';
 import { CustomerFormModal } from './CustomerFormModal';
 import { BalanceModal } from './BalanceModal';
 import { CustomerHistoryModal } from './CustomerHistoryModal';
@@ -35,37 +35,39 @@ function CustomerRow({
 
   return (
     <div className={styles.cRow} onClick={onBalance} role="button" tabIndex={0}>
-      <div className={styles.cInfo}>
-        <div className={styles.cNameLine}>
-          <span className={styles.cName} title={customer.name}>
-            {customer.name}
-          </span>
-          {customer.nickname && (
-            <span className={styles.cNick} title={customer.nickname}>
-              {customer.nickname}
+      <div className={styles.lines}>
+        <div className={styles.line}>
+          <div className={styles.cNameLine}>
+            <span className={styles.cName} title={customer.name}>
+              {customer.name}
             </span>
-          )}
+            {customer.nickname && (
+              <span className={styles.cNick} title={customer.nickname}>
+                {customer.nickname}
+              </span>
+            )}
+          </div>
+          <span className={`${styles.cAmount} ${positive ? 'text-positive' : 'text-negative'}`}>
+            {formatSignedCurrency(customer.total_balance)}
+          </span>
         </div>
-        <span className={styles.cMeta} title={customer.phone || undefined}>
-          {last}
-          {customer.phone ? ` · ${localizeDigits(customer.phone)}` : ''}
-        </span>
-      </div>
 
-      <div className={styles.cRight}>
-        <span className={`${styles.cAmount} ${positive ? 'text-positive' : 'text-negative'}`}>
-          {formatSignedCurrency(customer.total_balance)}
-        </span>
-        <div className={styles.cActions} onClick={stop}>
-          <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
-            <span className="material-symbols-outlined icon-md">history</span>
-          </button>
-          <button className="ghost-btn" aria-label={t.editCustomer} onClick={onEdit}>
-            <span className="material-symbols-outlined icon-md">edit</span>
-          </button>
-          <button className="ghost-btn" aria-label={t.deleteCustomer} onClick={onDelete}>
-            <span className="material-symbols-outlined icon-md">delete</span>
-          </button>
+        <div className={styles.line}>
+          <span className={styles.cMeta} title={customer.phone || undefined}>
+            {last}
+            {customer.phone ? ` · ${localizeDigits(customer.phone)}` : ''}
+          </span>
+          <div className={styles.cActions} onClick={stop}>
+            <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
+              <span className="material-symbols-outlined icon-md">history</span>
+            </button>
+            <button className="ghost-btn" aria-label={t.editCustomer} onClick={onEdit}>
+              <span className="material-symbols-outlined icon-md">edit</span>
+            </button>
+            <button className="ghost-btn" aria-label={t.deleteCustomer} onClick={onDelete}>
+              <span className="material-symbols-outlined icon-md">delete</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -86,6 +88,7 @@ export function CustomersPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [formCustomer, setFormCustomer] = useState<Customer | null>(null);
   const [balanceCustomer, setBalanceCustomer] = useState<Customer | null>(null);
+  const [balanceEntry, setBalanceEntry] = useState<BalanceHistoryEntry | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -116,6 +119,19 @@ export function CustomersPage() {
         c.phone.includes(q),
     );
   }, [customers, query]);
+
+  // Editing a history entry hands off to the balance keypad, prefilled with it.
+  const editFromHistory = (entry: BalanceHistoryEntry) => {
+    const customer = historyCustomer;
+    setHistoryCustomer(null);
+    setBalanceEntry(entry);
+    setBalanceCustomer(customer);
+  };
+
+  const openBalance = (customer: Customer) => {
+    setBalanceEntry(null);
+    setBalanceCustomer(customer);
+  };
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
@@ -179,7 +195,7 @@ export function CustomersPage() {
           <CustomerRow
             key={c.id}
             customer={c}
-            onBalance={() => setBalanceCustomer(c)}
+            onBalance={() => openBalance(c)}
             onHistory={() => setHistoryCustomer(c)}
             onEdit={() => {
               setFormCustomer(c);
@@ -200,6 +216,7 @@ export function CustomersPage() {
 
       <BalanceModal
         customer={balanceCustomer}
+        editEntry={balanceEntry}
         onClose={() => setBalanceCustomer(null)}
         onChanged={load}
       />
@@ -207,6 +224,7 @@ export function CustomersPage() {
       <CustomerHistoryModal
         customer={historyCustomer}
         onClose={() => setHistoryCustomer(null)}
+        onEdit={editFromHistory}
         onChanged={load}
       />
 

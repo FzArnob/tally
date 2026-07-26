@@ -51,8 +51,8 @@
 
 .thumbWrap {
   flex-shrink: 0;
-  width: 3.25rem;
-  height: 3.25rem;
+  width: 4rem;
+  height: 4rem;
   border-radius: 0.75rem;
   background: var(--muted);
   display: flex;
@@ -72,12 +72,31 @@
   font-size: 1.6rem;
 }
 
-.info {
+/* Card body: a stack of lines. Every line pairs one left block with one right
+   block, so both columns stay aligned down the whole card — list rows and
+   history entries in this feature are all built this way. */
+.lines {
   flex: 1;
   min-width: 0;
+  align-self: stretch; /* fill the thumbnail's height … */
   display: flex;
   flex-direction: column;
-  gap: 0.9rem;
+  justify-content: space-between; /* … so the lines sit flush top and bottom */
+  gap: 0.5rem;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/* The left block takes the slack and truncates; the right block keeps its
+   intrinsic width so the right edge lines up on every line. */
+.line > :first-child {
+  min-width: 0;
 }
 
 .name {
@@ -90,23 +109,31 @@
   white-space: nowrap;
 }
 
+/* Meta line: last activity, then the entry count as an icon + number. */
 .meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
   font-size: var(--fs-sm);
   color: var(--muted-foreground);
+}
+
+.metaTime {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.right {
+.metaCount {
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 .stockWrap {
+  flex-shrink: 0;
   display: flex;
   align-items: baseline;
   gap: 0.25rem;
@@ -126,8 +153,10 @@
 }
 
 .rowActions {
+  flex-shrink: 0;
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 /* ---- Form modal ---- */
@@ -431,15 +460,8 @@
   padding: 0.7rem 0.8rem;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  animation: rowIn var(--dur-fast) ease both;
-}
-
-.entryLine {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   gap: 0.5rem;
+  animation: rowIn var(--dur-fast) ease both;
 }
 
 .typePill {
@@ -465,13 +487,18 @@
 }
 
 .entryActions {
+  flex-shrink: 0;
   display: flex;
-  gap: 0.15rem;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .entryDetail {
   font-size: var(--fs-sm);
   color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .entryAmount {
@@ -484,10 +511,8 @@
   color: var(--foreground);
 }
 
+/* Last line of a history entry — same line grid, just quieter type. */
 .entryFoot {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
 }
@@ -499,10 +524,6 @@
   .row {
     gap: 0.65rem;
     padding: 0.65rem 0.7rem;
-  }
-  .thumbWrap {
-    width: 2.85rem;
-    height: 2.85rem;
   }
   .rowActions button {
     padding: 0.25rem;

@@ -25,36 +25,41 @@ function TransactionRow({
 
   return (
     <div className={styles.row}>
-      <div className={styles.info}>
-        <span className={`${styles.amount} ${income ? 'text-positive' : 'text-negative'}`}>
-          {formatSignedCurrency(tx.signed_amount)}
-        </span>
-        {tx.note && (
-          <span className={styles.note} title={tx.note}>
-            {tx.note}
+      <div className={styles.lines}>
+        <div className={styles.line}>
+          <span className={`${styles.amount} ${income ? 'text-positive' : 'text-negative'}`}>
+            {formatSignedCurrency(tx.signed_amount)}
           </span>
-        )}
-        <span className={styles.meta}>
-          {income ? t.income : t.expense}
-          {' · '}
-          {localizeDigits(formatTimeShort(tx.timestamp))}
-        </span>
-      </div>
+          <span
+            className={`${styles.chip} ${income ? styles.chipIncome : styles.chipExpense}`}
+            title={tx.category_name || undefined}
+          >
+            {tx.category_name || '—'}
+          </span>
+        </div>
 
-      <div className={styles.right}>
-        <span
-          className={`${styles.chip} ${income ? styles.chipIncome : styles.chipExpense}`}
-          title={tx.category_name || undefined}
-        >
-          {tx.category_name || '—'}
-        </span>
-        <div className={styles.actions}>
-          <button className="ghost-btn" aria-label={t.editTransaction} onClick={onEdit}>
-            <span className="material-symbols-outlined icon-md">edit</span>
-          </button>
-          <button className="ghost-btn" aria-label={t.deleteTransaction} onClick={onDelete}>
-            <span className="material-symbols-outlined icon-md">delete</span>
-          </button>
+        {tx.note && (
+          <div className={styles.line}>
+            <span className={styles.note} title={tx.note}>
+              {tx.note}
+            </span>
+          </div>
+        )}
+
+        <div className={styles.line}>
+          <span className={styles.meta}>
+            {income ? t.income : t.expense}
+            {' · '}
+            {localizeDigits(formatTimeShort(tx.timestamp))}
+          </span>
+          <div className={styles.actions}>
+            <button className="ghost-btn" aria-label={t.editTransaction} onClick={onEdit}>
+              <span className="material-symbols-outlined icon-md">edit</span>
+            </button>
+            <button className="ghost-btn" aria-label={t.deleteTransaction} onClick={onDelete}>
+              <span className="material-symbols-outlined icon-md">delete</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

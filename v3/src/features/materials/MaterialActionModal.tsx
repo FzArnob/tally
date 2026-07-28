@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
 import { saveMaterialTransaction } from '../../lib/api';
@@ -40,8 +40,16 @@ export function MaterialActionModal({
   const [price, setPrice] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Seed only when the modal switches subject (another material, or a different
+  // entry to edit). Reopening the same one keeps what was typed, so closing is
+  // never destructive. Cleared on a save.
+  const seededFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!open || !material) return;
+    const subject = `${material.id}:${editTx?.id ?? 'new'}`;
+    if (seededFor.current === subject) return;
+    seededFor.current = subject;
     if (editTx) {
       setTab(editTx.type);
       setQty(String(editTx.quantity));
@@ -80,6 +88,14 @@ export function MaterialActionModal({
 
   const saveClass = isStock ? styles.saveStock : isUsed ? styles.saveUsed : styles.saveSale;
 
+  // Tapping the recent reference drops it straight into the price field, with the
+  // toggle moved to per-unit so the figure means what it says.
+  const useRefPrice = () => {
+    if (refPrice == null) return;
+    setPriceMode('unit');
+    setPrice(money(refPrice));
+  };
+
   // Flip the toggle, converting the current value so it stays equivalent.
   const switchMode = (m: 'total' | 'unit') => {
     if (m === priceMode) return;
@@ -113,6 +129,7 @@ export function MaterialActionModal({
         totalAmount: isUsed ? 0 : Math.round(totalNum * 100) / 100,
         replaces: editTx?.id ?? null,
       });
+      seededFor.current = null;
       onSaved();
       onClose();
     } catch (err) {
@@ -227,12 +244,17 @@ export function MaterialActionModal({
             </div>
 
             {refPrice != null && (
-              <span className={styles.lastPrice}>
+              <button
+                type="button"
+                className={styles.lastPrice}
+                title={t.useThisPrice}
+                onClick={useRefPrice}
+              >
                 <span className={`material-symbols-outlined icon-sm ${styles.lastPricesIcon}`}>
                   history
                 </span>
                 {refLabel} <b>{formatCurrency(refPrice)}</b> / {unit}
-              </span>
+              </button>
             )}
 
             <div className={styles.priceInput}>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
 import { saveCategory } from '../../lib/api';
@@ -33,13 +33,21 @@ export function CategoryFormModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Seed only when the modal switches subject; reopening the same one keeps
+  // what was typed, so closing is never destructive. Cleared on a save.
+  // A new income and a new expense category are separate drafts.
+  const seededFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    const subject = category ? `edit:${category.id}` : `new:${type}`;
+    if (seededFor.current === subject) return;
+    seededFor.current = subject;
     setName(category?.name ?? '');
     setDetails(category?.details ?? '');
     setError(null);
     setSaving(false);
-  }, [open, category]);
+  }, [open, category, type]);
 
   const submit = async () => {
     const trimmed = name.trim();
@@ -57,6 +65,7 @@ export function CategoryFormModal({
         details: details.trim(),
         type: effectiveType,
       });
+      seededFor.current = null;
       onSaved();
       onClose();
     } catch (err) {

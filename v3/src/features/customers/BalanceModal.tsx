@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
 import { createCustomerBalance, updateCustomerBalance } from '../../lib/api';
@@ -36,10 +36,17 @@ export function BalanceModal({ customer, editEntry = null, onClose, onChanged }:
 
   // Capture the customer on open; keep it during the close animation. Editing an
   // existing entry seeds the keypad with its expression (or bare amount) and note.
+  // Seeding only happens when the subject changes, so reopening the same
+  // customer keeps a half-punched amount — closing is never destructive.
+  const seededFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (customer) {
       setCurrent(customer);
       setBalance(customer.total_balance);
+      const subject = `${customer.id}:${editEntry?.id ?? 'new'}`;
+      if (seededFor.current === subject) return;
+      seededFor.current = subject;
       setNote(editEntry?.reason ?? '');
       setCalc(
         editEntry
@@ -83,6 +90,7 @@ export function BalanceModal({ customer, editEntry = null, onClose, onChanged }:
             reason,
             expression,
           });
+          seededFor.current = null;
           onChanged();
           onClose();
           return;

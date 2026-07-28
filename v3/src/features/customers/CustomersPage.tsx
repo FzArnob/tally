@@ -9,17 +9,20 @@ import { deleteCustomer, getCustomers, BOOK_ID } from '../../lib/api';
 import type { BalanceHistoryEntry, Customer, CustomerTotals } from '../../types';
 import { CustomerFormModal } from './CustomerFormModal';
 import { BalanceModal } from './BalanceModal';
+import { CustomerItemsModal } from './CustomerItemsModal';
 import { CustomerHistoryModal } from './CustomerHistoryModal';
 import styles from './customers.module.css';
 
 function CustomerRow({
   customer,
+  onItems,
   onBalance,
   onHistory,
   onEdit,
   onDelete,
 }: {
   customer: Customer;
+  onItems: () => void;
   onBalance: () => void;
   onHistory: () => void;
   onEdit: () => void;
@@ -34,7 +37,7 @@ function CustomerRow({
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
   return (
-    <div className={styles.cRow} onClick={onBalance} role="button" tabIndex={0}>
+    <div className={styles.cRow} onClick={onItems} role="button" tabIndex={0}>
       <div className={styles.lines}>
         <div className={styles.line}>
           <div className={styles.cNameLine}>
@@ -58,6 +61,9 @@ function CustomerRow({
             {customer.phone ? ` · ${localizeDigits(customer.phone)}` : ''}
           </span>
           <div className={styles.cActions} onClick={stop}>
+            <button className="ghost-btn" aria-label={t.balanceKeypad} onClick={onBalance}>
+              <span className="material-symbols-outlined icon-md">calculate</span>
+            </button>
             <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
               <span className="material-symbols-outlined icon-md">history</span>
             </button>
@@ -87,6 +93,7 @@ export function CustomersPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [formCustomer, setFormCustomer] = useState<Customer | null>(null);
+  const [itemsCustomer, setItemsCustomer] = useState<Customer | null>(null);
   const [balanceCustomer, setBalanceCustomer] = useState<Customer | null>(null);
   const [balanceEntry, setBalanceEntry] = useState<BalanceHistoryEntry | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null);
@@ -195,6 +202,7 @@ export function CustomersPage() {
           <CustomerRow
             key={c.id}
             customer={c}
+            onItems={() => setItemsCustomer(c)}
             onBalance={() => openBalance(c)}
             onHistory={() => setHistoryCustomer(c)}
             onEdit={() => {
@@ -212,6 +220,12 @@ export function CustomersPage() {
         bookId={bookId}
         onClose={() => setFormOpen(false)}
         onSaved={load}
+      />
+
+      <CustomerItemsModal
+        customer={itemsCustomer}
+        onClose={() => setItemsCustomer(null)}
+        onChanged={load}
       />
 
       <BalanceModal

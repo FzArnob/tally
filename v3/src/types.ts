@@ -93,6 +93,43 @@ export interface DeleteBalanceResponse {
   new_balance: number;
 }
 
+/** Something a customer took on their tab. `quantity` is the units still unpaid. */
+export type CustomerItemType = 'product' | 'material';
+
+export interface CustomerItem {
+  id: string;
+  customer_id: string;
+  item_type: CustomerItemType;
+  product_id: number | null; // null once the source product is deleted
+  material_id: number | null;
+  item_name: string; // snapshot, survives the source being deleted
+  quantity_type: string;
+  quantity: number;
+  price_per_unit: number;
+  total_amount: number;
+}
+
+export interface CustomerItemsResponse {
+  customer_id: string;
+  items: CustomerItem[];
+  total: number;
+}
+
+/** Returned by both the take and settle endpoints — the full list plus the balance. */
+export interface SaveCustomerItemsResponse {
+  success: boolean;
+  items: CustomerItem[];
+  new_balance: number;
+}
+
+/** One line of a basket being handed to the customer. */
+export interface CustomerItemDraft {
+  item_type: CustomerItemType;
+  item_id: number;
+  quantity: number;
+  price_per_unit: number;
+}
+
 // ---- Personal books: categories + transactions ----
 export type CashflowType = 'income' | 'expense';
 

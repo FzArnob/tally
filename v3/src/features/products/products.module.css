@@ -464,16 +464,36 @@
 
 /* Contextual recent reference (last buy / last sale) beside the price toggle,
    with a history icon on the left. */
+/* Tap to drop the reference figure into the price field as the per-unit price. */
 .lastPrice {
+  align-self: flex-start;
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   min-width: 0;
+  padding: 0.3rem 0.65rem;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: var(--input-background);
   font-size: var(--fs-sm);
   color: var(--muted-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+
+.lastPrice:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--input-background));
+  color: var(--foreground);
+}
+
+.lastPrice:active {
+  transform: scale(0.97);
 }
 
 .lastPricesIcon {
@@ -711,25 +731,6 @@
   min-width: 0;
 }
 
-.searchIconBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 2.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--input-background);
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
-}
-.searchIconBtn:hover {
-  border-color: var(--muted-foreground);
-  color: var(--foreground);
-}
-
 .materialAddBtn {
   display: inline-flex;
   align-items: center;
@@ -808,41 +809,12 @@
   background: color-mix(in srgb, var(--destructive) 14%, transparent);
 }
 
-/* Available materials — the only scrolling list; compact single-line rows. */
+/* Available materials — compact single-line rows. The list runs at full height
+   and scrolls with the sheet body; no nested scroller to get trapped in. */
 .materialList {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-}
-.materialScroll {
-  max-height: 14.5rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 0.75rem 1rem 0.75rem 0.15rem;
-  margin: 0 -0.15rem;
-  /* Fade both edges so rows dissolve in/out, hinting more content above & below.
-     The mask is pinned to the scroll viewport, not the content. */
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 1.75rem,
-    #000 calc(100% - 1.75rem),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 1.75rem,
-    #000 calc(100% - 1.75rem),
-    transparent 100%
-  );
-}
-.materialScroll::-webkit-scrollbar {
-  width: 6px;
-}
-.materialScroll::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--muted-foreground) 30%, transparent);
-  border-radius: 3px;
 }
 
 .materialRow {
@@ -859,12 +831,21 @@
   cursor: pointer;
   transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease;
 }
+/* A row is the link action itself — one tap adds it to the product. */
 .materialRow:hover {
   border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
 }
-.materialRowSelected {
-  border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+.materialRow:active {
+  transform: scale(0.99);
+}
+
+.materialRowAdd {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  transition: color var(--dur-fast) ease;
+}
+.materialRow:hover .materialRowAdd {
   color: var(--primary);
 }
 

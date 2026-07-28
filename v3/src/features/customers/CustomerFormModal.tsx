@@ -32,8 +32,15 @@ export function CustomerFormModal({
   const [busy, setBusy] = useState(false);
   const nicknameRef = useRef<HTMLInputElement>(null);
 
+  // Seed only when the modal switches subject; reopening the same one keeps
+  // what was typed, so closing is never destructive. Cleared on a save.
+  const seededFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    const subject = customer ? `edit:${customer.id}` : 'new';
+    if (seededFor.current === subject) return;
+    seededFor.current = subject;
     setName(customer?.name ?? '');
     setNickname(customer?.nickname ?? '');
     setPhone(customer?.phone ?? '');
@@ -75,6 +82,7 @@ export function CustomerFormModal({
       } else {
         await createCustomer({ ...payload, bookId });
       }
+      seededFor.current = null;
       onSaved();
       onClose();
     } catch (err) {

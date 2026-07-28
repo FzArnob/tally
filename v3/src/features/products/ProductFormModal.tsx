@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal, ModalHeader } from '../../components/Modal';
-import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useI18n } from '../../i18n/LanguageContext';
 import { getMaterials, getProductMaterials, saveProduct } from '../../lib/api';
 import { ApiError, type Material, type Product, type ProductType } from '../../types';
 import type { Translation } from '../../i18n/translations';
 import { ImageCropperModal } from './ImageCropperModal';
+import { MaterialFormModal } from '../materials/MaterialFormModal';
 import styles from './products.module.css';
 
 const KNOWN_TYPES = ['piece', 'packet', 'cartoon', 'kg', 'liter'] as const;
@@ -46,9 +46,7 @@ export function ProductFormModal({
   const [materialsLoaded, setMaterialsLoaded] = useState(false);
   const [linkedIds, setLinkedIds] = useState<number[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [pendingUnlink, setPendingUnlink] = useState<Material | null>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
+  const [materialFormOpen, setMaterialFormOpen] = useState(false);
 
   const [image, setImage] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
@@ -58,15 +56,23 @@ export function ProductFormModal({
 
   const isEdit = !!product;
 
-  // Sync form when opening.
+  // Seed only when the modal switches subject (a new product, or a different
+  // one to edit). Reopening the same subject keeps whatever was typed — and the
+  // materials already fetched — so closing the sheet never throws work away.
+  // Cleared on a successful save.
+  const seededFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    const subject = product ? `edit:${product.id}` : 'new';
+    if (seededFor.current === subject) return;
+    seededFor.current = subject;
+
     setError(null);
     setSearch('');
-    setSelectedId(null);
-    setPendingUnlink(null);
     setAllMaterials([]);
     setMaterialsLoaded(false);
+    setLinkedIds([]);
     if (product) {
       setName(product.name);
       const qt = product.quantity_type || 'piece';
@@ -79,21 +85,16 @@ export function ProductFormModal({
       }
       setImage(product.image_url && product.image_url !== 'null' ? product.image_url : null);
       setProductType(product.product_type || 'ready_made');
-      // Linked ids are fetched on demand (see effect below) — the list omits them.
-      setLinkedIds([]);
     } else {
       setName('');
       setType('piece');
       setCustomType('');
       setImage(null);
       setProductType('ready_made');
-      setLinkedIds([]);
     }
-  }, [open, product]);
 
-  // Seed the linked set when editing a manufacture product (fetched on demand).
-  useEffect(() => {
-    if (!open || !product || product.product_type !== 'manufacture') return;
+    // A manufacture product's links aren't in the list payload — fetch them.
+    if (!product || product.product_type !== 'manufacture') return;
     let alive = true;
     (async () => {
       try {
@@ -149,20 +150,24 @@ export function ProductFormModal({
     navigate(`/${bookId}/materials`, { state: { addMaterial: true } });
   };
 
-  const addSelected = () => {
-    if (selectedId == null) {
-      setError(t.selectMaterialFirst);
-      return;
-    }
+  // One tap links, one tap unlinks — no select-then-confirm round trip.
+  const link = (id: number) => {
     setError(null);
-    setLinkedIds((prev) => (prev.includes(selectedId) ? prev : [...prev, selectedId]));
-    setSelectedId(null);
+    setLinkedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
 
-  const confirmUnlink = () => {
-    if (!pendingUnlink) return;
-    setLinkedIds((prev) => prev.filter((id) => id !== pendingUnlink.id));
-    setPendingUnlink(null);
+  const unlink = (id: number) => setLinkedIds((prev) => prev.filter((x) => x !== id));
+
+  /** A material created from inside this form: drop it in and link it at once. */
+  const onMaterialCreated = (created: Material) => {
+    setAllMaterials((prev) =>
+      [...prev.filter((m) => m.id !== created.id), created].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+    );
+    setMaterialsLoaded(true);
+    setSearch('');
+    link(created.id);
   };
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -206,6 +211,8 @@ export function ProductFormModal({
         imageUrl: image,
         bookId,
       });
+      // The draft is done with — let the next open start from scratch.
+      seededFor.current = null;
       onSaved();
       onClose();
     } catch (err) {
@@ -344,29 +351,20 @@ export function ProductFormModal({
 
             <div className={styles.materialSearchRow}>
               <input
-                ref={searchRef}
                 className="input"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder={t.materialSearchPlaceholder}
                 aria-label={t.materialSearchPlaceholder}
               />
-              <button
-                type="button"
-                className={styles.searchIconBtn}
-                aria-label={t.searchAction}
-                onClick={() => searchRef.current?.focus()}
-              >
-                <span className="material-symbols-outlined icon-md">search</span>
-              </button>
+              {/* Missing a material? Create it here — it lands linked. */}
               <button
                 type="button"
                 className={styles.materialAddBtn}
-                onClick={addSelected}
-                disabled={selectedId == null}
+                onClick={() => setMaterialFormOpen(true)}
               >
                 <span className="material-symbols-outlined icon-md">add</span>
-                {t.add}
+                {t.addMaterial}
               </button>
             </div>
 
@@ -386,7 +384,7 @@ export function ProductFormModal({
                         type="button"
                         className={styles.materialChipRemove}
                         aria-label={t.unlinkMaterial}
-                        onClick={() => setPendingUnlink(m)}
+                        onClick={() => unlink(m.id)}
                       >
                         <span className="material-symbols-outlined icon-sm">close</span>
                       </button>
@@ -396,9 +394,9 @@ export function ProductFormModal({
               </>
             )}
 
-            {/* Remaining materials to pick from (click to select, then Add). */}
+            {/* Remaining materials — tapping a row links it straight away. */}
             <span className={styles.materialSubLabel}>{t.availableMaterials}</span>
-            <div className={`${styles.materialList} ${styles.materialScroll}`}>
+            <div className={styles.materialList}>
               {!materialsLoaded ? (
                 <div className={styles.materialEmpty}>…</div>
               ) : availableMaterials.length === 0 ? (
@@ -418,10 +416,12 @@ export function ProductFormModal({
                   <button
                     key={m.id}
                     type="button"
-                    className={`${styles.materialRow} ${selectedId === m.id ? styles.materialRowSelected : ''}`}
-                    onClick={() => setSelectedId((cur) => (cur === m.id ? null : m.id))}
-                    aria-pressed={selectedId === m.id}
+                    className={styles.materialRow}
+                    onClick={() => link(m.id)}
                   >
+                    <span className={`material-symbols-outlined icon-md ${styles.materialRowAdd}`}>
+                      add_circle
+                    </span>
                     <div className={styles.materialRowMain}>
                       <span className={styles.materialRowName} title={m.name}>
                         {m.name}
@@ -430,9 +430,6 @@ export function ProductFormModal({
                         {formatNumber(m.current_stock || 0)} {m.quantity_type || 'piece'}
                       </span>
                     </div>
-                    {selectedId === m.id && (
-                      <span className="material-symbols-outlined icon-md">check_circle</span>
-                    )}
                   </button>
                 ))
               )}
@@ -451,13 +448,14 @@ export function ProductFormModal({
         }}
       />
 
-      <ConfirmDialog
-        open={!!pendingUnlink}
-        title={t.unlinkMaterial}
-        message={t.unlinkMaterialConfirm}
-        confirmLabel={t.removeAction}
-        onConfirm={confirmUnlink}
-        onCancel={() => setPendingUnlink(null)}
+      {/* Create a material without leaving the product — its own draft is kept
+          too, so closing this sheet loses nothing either. */}
+      <MaterialFormModal
+        open={materialFormOpen}
+        material={null}
+        bookId={bookId}
+        onClose={() => setMaterialFormOpen(false)}
+        onSaved={onMaterialCreated}
       />
     </Modal>
   );

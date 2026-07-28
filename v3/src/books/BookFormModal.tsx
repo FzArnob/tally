@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../components/Modal';
 import { useI18n } from '../i18n/LanguageContext';
 import { createBook, updateBook } from '../lib/api';
@@ -28,8 +28,15 @@ export function BookFormModal({ open, book, onClose, onSaved }: BookFormModalPro
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Seed only when the modal switches subject; reopening the same one keeps
+  // what was typed, so closing is never destructive. Cleared on a save.
+  const seededFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    const subject = book ? `edit:${book.id}` : 'new';
+    if (seededFor.current === subject) return;
+    seededFor.current = subject;
     setName(book?.name ?? '');
     setType(book?.type ?? 'store');
     setError(null);
@@ -48,6 +55,7 @@ export function BookFormModal({ open, book, onClose, onSaved }: BookFormModalPro
       const res = book
         ? await updateBook(book.id, { name: trimmed, type })
         : await createBook({ name: trimmed, type });
+      seededFor.current = null;
       onSaved(res.book, !book);
     } catch (err) {
       console.error('Failed to save book:', err);

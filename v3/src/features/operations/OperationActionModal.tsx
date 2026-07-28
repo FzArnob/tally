@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
 import { addOperationCostEntry, updateOperationCostEntry } from '../../lib/api';
@@ -30,8 +30,16 @@ export function OperationActionModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Seed only when the modal switches subject (another operation, or a
+  // different entry to edit). Reopening the same one keeps what was typed, so
+  // closing is never destructive. Cleared on a save.
+  const seededFor = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || !operation) return;
+    const subject = `${operation.id}:${editEntry?.id ?? 'new'}`;
+    if (seededFor.current === subject) return;
+    seededFor.current = subject;
     setAmount(editEntry ? String(editEntry.amount) : '');
     setNote(editEntry?.note ?? '');
     setError(null);
@@ -51,6 +59,7 @@ export function OperationActionModal({
       const body = { amount: amt, note: note.trim() };
       if (editEntry) await updateOperationCostEntry(editEntry.id, body);
       else await addOperationCostEntry(operation.id, body);
+      seededFor.current = null;
       onSaved();
       onClose();
     } catch (err) {

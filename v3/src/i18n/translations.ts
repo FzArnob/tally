@@ -135,14 +135,10 @@ export interface Translation {
   typeManufactureHint: string;
   rawMaterials: string;
   materialSearchPlaceholder: string;
-  searchAction: string;
   addedMaterials: string;
   availableMaterials: string;
   noMaterialsToLink: string;
   unlinkMaterial: string;
-  removeAction: string;
-  unlinkMaterialConfirm: string;
-  selectMaterialFirst: string;
   enterAtLeastOneMaterial: string;
   viewMaterials: string;
   viewStock: string;
@@ -199,6 +195,25 @@ export interface Translation {
   failedSaveBalance: string;
   failedDeleteHistory: string;
 
+  // Customer items — goods taken on the tab (v3)
+  customerTab: string;
+  balanceKeypad: string;
+  itemsTitle: string;
+  addItems: string;
+  searchItems: string;
+  unpaidItems: string;
+  noUnpaidItems: string;
+  addFirstItem: string;
+  markPaid: string;
+  markPaidConfirm: string;
+  outstandingLabel: string;
+  addOne: string;
+  removeOne: string;
+  productsTitle: string;
+  failedLoadItems: string;
+  failedAddItems: string;
+  failedSettleItem: string;
+
   // Customer page / form (v3)
   back: string;
   nickname: string;
@@ -229,6 +244,7 @@ export interface Translation {
   outOfStock: string;
   lastPurchase: string;
   lastSale: string;
+  useThisPrice: string;
   transactions: string;
 
   // Materials (v3) — raw stock, store books
@@ -408,15 +424,11 @@ const en: Translation = {
   typeManufactureHint: 'Made from raw materials — link the materials it uses.',
   rawMaterials: 'Raw materials',
   materialSearchPlaceholder: 'Search materials',
-  searchAction: 'Search',
   addedMaterials: 'Added materials',
   availableMaterials: 'Available materials',
   // {link} is replaced with a link to the Material Costs page (see ProductFormModal).
   noMaterialsToLink: 'No materials found — add them in {link} first.',
   unlinkMaterial: 'Remove material',
-  removeAction: 'Remove',
-  unlinkMaterialConfirm: 'Remove this material from the product?',
-  selectMaterialFirst: 'Select a material to add.',
   enterAtLeastOneMaterial: 'Add at least one material.',
   viewMaterials: 'View materials',
   viewStock: 'Material Stock',
@@ -469,6 +481,24 @@ const en: Translation = {
   failedSaveBalance: 'Failed to save customer balance. Please try again.',
   failedDeleteHistory: 'Failed to delete history entry. Please try again.',
 
+  customerTab: 'Items on tab',
+  balanceKeypad: 'Balance keypad',
+  itemsTitle: 'Items',
+  addItems: 'Add items',
+  searchItems: 'Search items',
+  unpaidItems: 'Unpaid items',
+  noUnpaidItems: 'Nothing on the tab.',
+  addFirstItem: 'Add items the customer takes without paying.',
+  markPaid: 'Mark as paid',
+  markPaidConfirm: 'Record this item as paid?',
+  outstandingLabel: 'Outstanding:',
+  addOne: 'Add one',
+  removeOne: 'Remove one',
+  productsTitle: 'Products',
+  failedLoadItems: 'Failed to load items. Please try again.',
+  failedAddItems: 'Failed to add items. Please try again.',
+  failedSettleItem: 'Failed to settle item. Please try again.',
+
   back: 'Back',
   nickname: 'Nickname',
   nicknamePlaceholder: 'e.g. Tailor, Uncle',
@@ -497,6 +527,7 @@ const en: Translation = {
   outOfStock: 'Out of stock',
   lastPurchase: 'Last buy',
   lastSale: 'Last sale',
+  useThisPrice: 'Tap to use as unit price',
   transactions: 'txns',
 
   materialsTitle: 'Material Costs',
@@ -673,14 +704,10 @@ const bn: Translation = {
   typeManufactureHint: 'কাঁচামাল দিয়ে তৈরি — যে কাঁচামাল ব্যবহৃত হয় তা যুক্ত করুন।',
   rawMaterials: 'কাঁচামাল',
   materialSearchPlaceholder: 'কাঁচামাল খুঁজুন',
-  searchAction: 'খুঁজুন',
   addedMaterials: 'যুক্ত কাঁচামাল',
   availableMaterials: 'উপলব্ধ কাঁচামাল',
   noMaterialsToLink: 'কোনো কাঁচামাল নেই — প্রথমে {link} পেজে যোগ করুন।',
   unlinkMaterial: 'কাঁচামাল সরান',
-  removeAction: 'সরান',
-  unlinkMaterialConfirm: 'এই কাঁচামালটি পণ্য থেকে সরিয়ে ফেলবেন?',
-  selectMaterialFirst: 'যোগ করতে একটি কাঁচামাল নির্বাচন করুন।',
   enterAtLeastOneMaterial: 'অন্তত একটি কাঁচামাল যোগ করুন।',
   viewMaterials: 'কাঁচামাল দেখুন',
   viewStock: 'কাঁচামাল স্টক',
@@ -733,6 +760,24 @@ const bn: Translation = {
   failedSaveBalance: 'গ্রাহক ব্যালেন্স সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
   failedDeleteHistory: 'ইতিহাস এন্ট্রি মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
 
+  customerTab: 'বাকির পণ্য',
+  balanceKeypad: 'ব্যালেন্স কীপ্যাড',
+  itemsTitle: 'পণ্য',
+  addItems: 'পণ্য যোগ করুন',
+  searchItems: 'পণ্য খুঁজুন',
+  unpaidItems: 'বাকি পণ্য',
+  noUnpaidItems: 'কোনো বাকি পণ্য নেই।',
+  addFirstItem: 'গ্রাহক বাকিতে যা নেন তা যোগ করুন।',
+  markPaid: 'পরিশোধিত হিসেবে চিহ্নিত করুন',
+  markPaidConfirm: 'এই পণ্যটি পরিশোধিত হিসেবে রেকর্ড করবেন?',
+  outstandingLabel: 'বাকি:',
+  addOne: 'একটি যোগ করুন',
+  removeOne: 'একটি কমান',
+  productsTitle: 'পণ্য',
+  failedLoadItems: 'পণ্য লোড করা যায়নি। আবার চেষ্টা করুন।',
+  failedAddItems: 'পণ্য যোগ করা যায়নি। আবার চেষ্টা করুন।',
+  failedSettleItem: 'পণ্যের দাম পরিশোধ করা যায়নি। আবার চেষ্টা করুন।',
+
   back: 'পিছনে',
   nickname: 'ডাকনাম',
   nicknamePlaceholder: 'যেমন দর্জি, চাচা',
@@ -761,6 +806,7 @@ const bn: Translation = {
   outOfStock: 'স্টক শেষ',
   lastPurchase: 'সর্বশেষ ক্রয়',
   lastSale: 'সর্বশেষ বিক্রয়',
+  useThisPrice: 'একক মূল্য হিসেবে ব্যবহার করতে চাপ দিন',
   transactions: 'লেনদেন',
 
   materialsTitle: 'কাঁচামাল খরচ',

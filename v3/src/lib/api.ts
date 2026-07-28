@@ -15,7 +15,10 @@ import {
   type CreateBalanceResponse,
   type Customer,
   type CustomerHistoryResponse,
+  type CustomerItemDraft,
+  type CustomerItemsResponse,
   type CustomersResponse,
+  type SaveCustomerItemsResponse,
   type DeleteBalanceResponse,
   type ProductTransactionsResponse,
   type ProductMaterialsResponse,
@@ -206,6 +209,36 @@ export function updateCustomerBalance(params: {
 
 export function deleteCustomerBalanceHistory(historyId: string): Promise<DeleteBalanceResponse> {
   return request<DeleteBalanceResponse>(`balance-history/${historyId}`, { method: 'DELETE' });
+}
+
+// ---- Customer items (goods taken on the tab, not yet paid for) ----
+export function getCustomerItems(customerId: string): Promise<CustomerItemsResponse> {
+  return request<CustomerItemsResponse>(`customers/${customerId}/items`);
+}
+
+/**
+ * Hand a basket of goods to a customer. Each line records the sale (stock drops)
+ * and books the debt, all in one server-side transaction.
+ */
+export function addCustomerItems(
+  customerId: string,
+  items: CustomerItemDraft[],
+): Promise<SaveCustomerItemsResponse> {
+  return request<SaveCustomerItemsResponse>(
+    `customers/${customerId}/items`,
+    jsonInit('POST', { items }),
+  );
+}
+
+/** Pay off `quantity` units (default 1) of an outstanding item. */
+export function settleCustomerItem(
+  itemId: string,
+  quantity = 1,
+): Promise<SaveCustomerItemsResponse> {
+  return request<SaveCustomerItemsResponse>(
+    `customer-items/${itemId}/settle`,
+    jsonInit('POST', { quantity }),
+  );
 }
 
 // ---- Products ----

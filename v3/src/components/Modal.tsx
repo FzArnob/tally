@@ -26,6 +26,12 @@ interface ModalProps {
 const EXIT_MS = 280;
 
 /**
+ * Open modals, oldest first. Escape only dismisses the topmost one, so closing
+ * a nested sheet (e.g. "add material" over "add product") leaves its parent up.
+ */
+const escStack: object[] = [];
+
+/**
  * Accessible overlay that animates in as a bottom sheet (or centered dialog).
  * For bottom sheets the optional `header` stays fixed while the body scrolls.
  * Handles backdrop click, Escape, body scroll-lock and exit animation.
@@ -46,6 +52,7 @@ export function Modal({
   const [canScrollDown, setCanScrollDown] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number | null>(null);
+  const idRef = useRef({}); // stable identity for the Escape stack
 
   // A footered modal fades its body into the footer by default; `scrollFade`
   // overrides that either way.
@@ -76,14 +83,22 @@ export function Modal({
     };
   }, [mounted]);
 
-  // Escape to close.
+  // Escape closes this modal only while it is the topmost one.
   useEffect(() => {
     if (!open) return;
+    const id = idRef.current;
+    escStack.push(id);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (escStack[escStack.length - 1] !== id) return;
+      onClose();
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      const at = escStack.lastIndexOf(id);
+      if (at !== -1) escStack.splice(at, 1);
+    };
   }, [open, onClose]);
 
   // Bottom fade: show only while the body can still scroll down (hidden at the

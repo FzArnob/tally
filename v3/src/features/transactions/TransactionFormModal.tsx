@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
@@ -34,8 +34,15 @@ export function TransactionFormModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Seed only when the modal switches subject; reopening the same one keeps
+  // what was typed, so closing is never destructive. Cleared on a save.
+  const seededFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    const subject = transaction ? `edit:${transaction.id}` : 'new';
+    if (seededFor.current === subject) return;
+    seededFor.current = subject;
     setType(transaction?.type ?? 'expense');
     setCategoryId(transaction?.category_id ? String(transaction.category_id) : '');
     setNote(transaction?.note ?? '');
@@ -78,6 +85,7 @@ export function TransactionFormModal({
         note: note.trim(),
         amount: amt,
       });
+      seededFor.current = null;
       onSaved();
       onClose();
     } catch (err) {

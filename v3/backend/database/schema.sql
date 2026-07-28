@@ -15,6 +15,7 @@ USE tally_v3;
 -- Drop in dependency order so the file is re-runnable.
 DROP TABLE IF EXISTS operation_cost_entries;
 DROP TABLE IF EXISTS operation_costs;
+DROP TABLE IF EXISTS customer_items;
 DROP TABLE IF EXISTS material_transactions;
 DROP TABLE IF EXISTS materials;
 DROP TABLE IF EXISTS personal_transactions;
@@ -299,6 +300,50 @@ CREATE TABLE product_materials (
 -- Reverse lookup: every product a given material is used in (a material delete
 -- cascades here; analytics will read this direction too).
 CREATE INDEX idx_pm_material ON product_materials(material_id);
+
+-- ---------------------------------------------------------------------------
+-- Customer items — what a customer has taken on their tab and NOT yet paid for.
+-- `quantity` is the number of units still UNPAID, not the number taken: settling
+-- a unit lowers it, and the row is deleted when it reaches zero. The goods have
+-- already left the shop either way, so settling never touches stock.
+--
+-- Taking an item writes three things in one transaction (see the
+-- POST /customers/{id}/items handler):
+--   1. a real 'sale' row on product_transactions / material_transactions
+--      (so stock and sale totals stay correct — this IS the sale),
+--   2. this row (or a bump to a matching one),
+--   3. an 'unpaid' customer_balance_history entry for quantity * price_per_unit.
+-- Settling writes a 'paid' history entry and lowers `quantity` only. The money
+-- ledger therefore stays customer_balance_history alone; this table only tracks
+-- which goods are still outstanding.
+--
+-- product_id / material_id: exactly one is set, matching item_type. Both are
+-- nullable so deleting a product/material leaves the debt intact — item_name and
+-- quantity_type are snapshots taken at the time, so the row still renders.
+-- ---------------------------------------------------------------------------
+CREATE TABLE customer_items (
+    id             CHAR(36)      NOT NULL PRIMARY KEY,
+    seq            BIGINT        NOT NULL AUTO_INCREMENT,  -- monotonic insert order
+    customer_id    CHAR(36)      NOT NULL,
+    book_id        INT           NOT NULL,
+    item_type      ENUM('product','material') NOT NULL,
+    product_id     INT           NULL,
+    material_id    INT           NULL,
+    item_name      VARCHAR(100)  NOT NULL,               -- snapshot
+    quantity_type  VARCHAR(50)   NOT NULL DEFAULT 'piece', -- snapshot
+    quantity       DECIMAL(14,3) NOT NULL,               -- units still unpaid
+    price_per_unit DECIMAL(14,2) NOT NULL,               -- agreed at the time
+    total_amount   DECIMAL(14,2) NOT NULL,               -- quantity * price_per_unit
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_ci_seq (seq),
+    CONSTRAINT fk_ci_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ci_book     FOREIGN KEY (book_id)     REFERENCES books(id)     ON DELETE CASCADE,
+    CONSTRAINT fk_ci_product  FOREIGN KEY (product_id)  REFERENCES products(id)  ON DELETE SET NULL,
+    CONSTRAINT fk_ci_material FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_ci_customer_seq ON customer_items(customer_id, seq DESC);
 
 -- ---------------------------------------------------------------------------
 -- Operation costs (store books) — a named recurring cost (reason) with a

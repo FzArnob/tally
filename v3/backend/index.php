@@ -433,6 +433,32 @@ function shapeHistory(array $h): array
     ];
 }
 
+function shapeCustomerItem(array $i): array
+{
+    return [
+        'id'             => $i['id'],
+        'customer_id'    => $i['customer_id'],
+        'item_type'      => $i['item_type'],
+        'product_id'     => $i['product_id']  !== null ? (int) $i['product_id']  : null,
+        'material_id'    => $i['material_id'] !== null ? (int) $i['material_id'] : null,
+        'item_name'      => $i['item_name'],
+        'quantity_type'  => $i['quantity_type'],
+        'quantity'       => (float) $i['quantity'],
+        'price_per_unit' => (float) $i['price_per_unit'],
+        'total_amount'   => (float) $i['total_amount'],
+    ];
+}
+
+/**
+ * History `reason` for an item movement, e.g. "Rice × 2". Language-neutral on
+ * purpose: it is stored once and rendered as-is in both languages.
+ */
+function itemLabel(string $name, float $quantity): string
+{
+    $qty = rtrim(rtrim(number_format($quantity, 3, '.', ''), '0'), '.');
+    return mb_substr($name . ' × ' . $qty, 0, 255);
+}
+
 function shapeMaterial(array $m): array
 {
     return [
@@ -1015,6 +1041,237 @@ on('DELETE', '/balance-history/{id}', function ($a) {
     }
 
     json_response(['success' => true, 'new_balance' => $totals['total_balance']]);
+});
+
+// ---- Customer items (goods taken on the tab, not yet paid for) --------------
+
+/** Outstanding items for a customer, newest first. */
+on('GET', '/customers/{id}/items', function ($a) {
+    $pdo = db();
+    findCustomer($pdo, $a['id']);
+    // Biggest debt first; newest breaks a tie.
+    $stmt = $pdo->prepare(
+        'SELECT * FROM customer_items WHERE customer_id = ? ORDER BY total_amount DESC, seq DESC'
+    );
+    $stmt->execute([$a['id']]);
+    $items = array_map('shapeCustomerItem', $stmt->fetchAll());
+    json_response([
+        'customer_id' => $a['id'],
+        'items'       => $items,
+        'total'       => round(array_sum(array_column($items, 'total_amount')), 2),
+    ]);
+});
+
+/**
+ * Take one or more items onto a customer's tab. Each line does three things in a
+ * single transaction: records the real sale (stock goes down), adds/bumps the
+ * outstanding row, and books the debt as an 'unpaid' balance entry.
+ */
+on('POST', '/customers/{id}/items', function ($a) {
+    $pdo      = db();
+    $customer = findCustomer($pdo, $a['id']);
+    $bookId   = (int) $customer['book_id'];
+    $body     = read_json_body();
+
+    $rows = $body['items'] ?? null;
+    if (!is_array($rows) || count($rows) === 0) {
+        json_error('Pick at least one item.', 422, 'validation');
+    }
+    if (count($rows) > 50) {
+        json_error('Too many items at once (max 50).', 422, 'validation');
+    }
+
+    // Resolve and validate every line BEFORE writing anything, so one bad line
+    // rejects the whole basket instead of leaving half of it applied. Quantities
+    // are tallied per item so two lines of the same product can't jointly
+    // oversell the stock in hand.
+    $lines   = [];
+    $wanted  = [];
+    foreach ($rows as $r) {
+        $type = $r['item_type'] ?? '';
+        if (!in_array($type, ['product', 'material'], true)) {
+            json_error('Item type must be "product" or "material".', 422, 'validation');
+        }
+        $itemId = isset($r['item_id']) && is_numeric($r['item_id']) ? (int) $r['item_id'] : 0;
+        if ($itemId <= 0) {
+            json_error('Item is required.', 422, 'validation');
+        }
+        $qty = v_amount($r['quantity'] ?? null, 'Quantity');
+        if (!isset($r['price_per_unit']) || !is_numeric($r['price_per_unit']) || (float) $r['price_per_unit'] < 0) {
+            json_error('Price must be 0 or more.', 422, 'validation');
+        }
+        $price = round((float) $r['price_per_unit'], 2);
+
+        $src = $type === 'product' ? findProduct($pdo, $itemId) : findMaterial($pdo, $itemId);
+        if ((int) $src['book_id'] !== $bookId) {
+            json_error('That item belongs to another book.', 422, 'validation');
+        }
+
+        $key = $type . ':' . $itemId;
+        $wanted[$key] = ($wanted[$key] ?? 0) + $qty;
+
+        // Stock guard, mirroring the sale endpoints. Manufacture products carry a
+        // NULL stock (unknown until analytics lands), so they are never blocked.
+        if ($src['current_stock'] !== null && $wanted[$key] - (float) $src['current_stock'] > 0.0000001) {
+            $avail = rtrim(rtrim(number_format((float) $src['current_stock'], 3, '.', ''), '0'), '.');
+            json_error(
+                'Not enough stock for "' . $src['name'] . '". Only ' . $avail . ' in stock.',
+                422,
+                'insufficient_stock'
+            );
+        }
+
+        $lines[] = [
+            'type'     => $type,
+            'id'       => $itemId,
+            'name'     => $src['name'],
+            'unit'     => $src['quantity_type'],
+            'quantity' => $qty,
+            'price'    => $price,
+            'total'    => round($qty * $price, 2),
+        ];
+    }
+
+    $timestamp = date('Y-m-d H:i:s');
+    $pdo->beginTransaction();
+    try {
+        $saleProduct  = $pdo->prepare(
+            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, stock_after)
+             VALUES (?, ?, \'sale\', ?, ?, ?, 0)'
+        );
+        $saleMaterial = $pdo->prepare(
+            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after)
+             VALUES (?, ?, \'sale\', ?, ?, ?, 0)'
+        );
+        $debt = $pdo->prepare(
+            'INSERT INTO customer_balance_history
+                (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, timestamp)
+             VALUES (?, ?, ?, ?, \'unpaid\', ?, 0, ?, ?)'
+        );
+
+        foreach ($lines as $l) {
+            $isProduct = $l['type'] === 'product';
+            ($isProduct ? $saleProduct : $saleMaterial)
+                ->execute([$l['id'], $bookId, $l['quantity'], $l['price'], $l['total']]);
+
+            // Merge into an existing unpaid line for the same item at the same
+            // price; a different agreed price stays its own row.
+            $col   = $isProduct ? 'product_id' : 'material_id';
+            $match = $pdo->prepare(
+                "SELECT id, quantity FROM customer_items
+                 WHERE customer_id = ? AND item_type = ? AND $col = ? AND price_per_unit = ?"
+            );
+            $match->execute([$customer['id'], $l['type'], $l['id'], $l['price']]);
+            if ($existing = $match->fetch()) {
+                $merged = (float) $existing['quantity'] + $l['quantity'];
+                $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
+                    ->execute([$merged, round($merged * $l['price'], 2), $existing['id']]);
+            } else {
+                $pdo->prepare(
+                    "INSERT INTO customer_items
+                        (id, customer_id, book_id, item_type, $col, item_name, quantity_type, quantity, price_per_unit, total_amount)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                )->execute([
+                    uuid4(), $customer['id'], $bookId, $l['type'], $l['id'],
+                    $l['name'], $l['unit'], $l['quantity'], $l['price'], $l['total'],
+                ]);
+            }
+
+            $debt->execute([
+                uuid4(), $customer['id'], $bookId, $l['total'], -$l['total'],
+                itemLabel($l['name'], $l['quantity']), $timestamp,
+            ]);
+        }
+
+        // One recompute per distinct item, then the customer's running balance.
+        foreach (array_keys($wanted) as $key) {
+            [$type, $id] = explode(':', $key);
+            $type === 'product' ? recomputeProduct($pdo, (int) $id) : recomputeMaterial($pdo, (int) $id);
+        }
+        $totals = recomputeCustomer($pdo, $customer['id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to add items.', 500);
+    }
+
+    // Biggest debt first; newest breaks a tie.
+    $stmt = $pdo->prepare(
+        'SELECT * FROM customer_items WHERE customer_id = ? ORDER BY total_amount DESC, seq DESC'
+    );
+    $stmt->execute([$customer['id']]);
+    json_response([
+        'success'     => true,
+        'items'       => array_map('shapeCustomerItem', $stmt->fetchAll()),
+        'new_balance' => $totals['total_balance'],
+    ], 201);
+});
+
+/**
+ * Settle units of an outstanding item — the customer pays for what they already
+ * took. Stock is untouched (the goods left the shop when the item was added);
+ * only the unpaid count drops and a 'paid' entry is booked. The row disappears
+ * once nothing is left owing.
+ */
+on('POST', '/customer-items/{id}/settle', function ($a) {
+    $pdo  = db();
+    $stmt = $pdo->prepare(
+        'SELECT i.* FROM customer_items i JOIN books b ON b.id = i.book_id
+         WHERE i.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$a['id'], authUser()['id']]);
+    $item = $stmt->fetch();
+    if (!$item) {
+        json_error('Item not found.', 404, 'not_found');
+    }
+
+    $body    = read_json_body();
+    $onHand  = (float) $item['quantity'];
+    // Default to a single unit — the list's minus button settles one per tap.
+    $qty     = isset($body['quantity']) && is_numeric($body['quantity']) ? (float) $body['quantity'] : 1.0;
+    if ($qty <= 0) {
+        json_error('Quantity must be greater than 0.', 422, 'validation');
+    }
+    $qty       = min(round($qty, 3), $onHand); // never settle more than is owed
+    $price     = (float) $item['price_per_unit'];
+    $amount    = round($qty * $price, 2);
+    $remaining = round($onHand - $qty, 3);
+
+    $pdo->beginTransaction();
+    try {
+        if ($remaining > 0) {
+            $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
+                ->execute([$remaining, round($remaining * $price, 2), $item['id']]);
+        } else {
+            $pdo->prepare('DELETE FROM customer_items WHERE id = ?')->execute([$item['id']]);
+        }
+        if ($amount > 0) {
+            $pdo->prepare(
+                'INSERT INTO customer_balance_history
+                    (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, timestamp)
+                 VALUES (?, ?, ?, ?, \'paid\', ?, 0, ?, ?)'
+            )->execute([
+                uuid4(), $item['customer_id'], (int) $item['book_id'], $amount, $amount,
+                itemLabel($item['item_name'], $qty), date('Y-m-d H:i:s'),
+            ]);
+        }
+        $totals = recomputeCustomer($pdo, $item['customer_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to settle item.', 500);
+    }
+
+    // Biggest debt first; newest breaks a tie.
+    $stmt = $pdo->prepare(
+        'SELECT * FROM customer_items WHERE customer_id = ? ORDER BY total_amount DESC, seq DESC'
+    );
+    $stmt->execute([$item['customer_id']]);
+    json_response([
+        'success'     => true,
+        'items'       => array_map('shapeCustomerItem', $stmt->fetchAll()),
+        'new_balance' => $totals['total_balance'],
+    ]);
 });
 
 // ---- Products ----

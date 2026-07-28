@@ -306,16 +306,36 @@
 
 /* Contextual recent reference (last buy / last sale) beside the price toggle,
    with a history icon on the left. */
+/* Tap to drop the reference figure into the price field as the per-unit price. */
 .lastPrice {
+  align-self: flex-start;
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   min-width: 0;
+  padding: 0.3rem 0.65rem;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: var(--input-background);
   font-size: var(--fs-sm);
   color: var(--muted-foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease, transform var(--dur-fast) ease;
+}
+
+.lastPrice:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--input-background));
+  color: var(--foreground);
+}
+
+.lastPrice:active {
+  transform: scale(0.97);
 }
 
 .lastPricesIcon {

@@ -151,6 +151,415 @@
 }
 
 /* =========================================================
+   Customer tab — goods taken and not yet paid for
+   ========================================================= */
+.itemsTotal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+.itemsTotalValue {
+  font-size: var(--fs-amount);
+  font-weight: var(--font-weight-semibold);
+}
+
+.itemList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.itemRow {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  animation: rowIn var(--dur-fast) ease both;
+}
+
+.itemName {
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemTotal {
+  flex-shrink: 0;
+  font-size: var(--fs-amount);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.itemPrice {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemsError {
+  margin: 0 1.25rem;
+}
+
+.itemRight {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.itemQty {
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+/* Settling is money coming in, so the button reads green rather than danger. */
+.paidBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--green-600) 35%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--green-600) 12%, transparent);
+  color: var(--green-700);
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
+}
+
+.paidBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--green-600) 22%, transparent);
+  border-color: var(--green-600);
+}
+
+.paidBtn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.paidBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---- "How many were paid for?" dialog ---- */
+.settleTitle {
+  font-size: var(--fs-heading-sm);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: 0.25rem;
+}
+
+.settleName {
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settleHint {
+  margin-top: 0.4rem;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+
+/* Single-unit confirmation, in place of the quantity field. */
+.settleMessage {
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+}
+
+.settleMessage b {
+  color: var(--foreground);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.settleActions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+/* Basket stepper: minus / value / plus, used while picking items. */
+.stepper {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  background: var(--input-background);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.stepBtn {
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    transform var(--dur-fast) ease;
+}
+
+.stepBtn:hover:not(:disabled) {
+  background: var(--muted);
+}
+
+.stepBtn:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.stepBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.stepValue {
+  min-width: 3.25rem;
+  text-align: center;
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+/* =========================================================
+   Item picker — tabbed product / material list
+   ========================================================= */
+.pickerHead {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 0.85rem;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+
+.pickerHeadRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pickerTitle {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--fs-heading-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pickerTabs {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.25rem;
+  background: var(--input-background);
+  border-radius: var(--radius);
+}
+
+.pickerTab {
+  flex: 1;
+  padding: 0.5rem;
+  border: none;
+  border-radius: calc(var(--radius) - 0.2rem);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.pickerTabActive {
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+}
+
+.pickerSearch {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  height: 2.6rem;
+  background: var(--input-background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--muted-foreground);
+}
+
+.pickerSearch input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--fs-sm);
+  outline: none;
+}
+
+.pickerList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.15rem 0.6rem 0.15rem 0.15rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease;
+}
+
+/* A row already in the basket is tinted so the picked set reads at a glance. */
+.pickRowActive {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  background: color-mix(in srgb, var(--primary) 7%, var(--card));
+}
+
+.pickRowOut {
+  opacity: 0.55;
+}
+
+/* The whole name block is the add button — one tap puts a unit in the basket. */
+.pickMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.55rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease;
+}
+
+.pickMain:hover:not(:disabled) {
+  background: var(--muted);
+}
+
+.pickMain:disabled {
+  cursor: default;
+}
+
+.pickName {
+  max-width: 100%;
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickMeta {
+  max-width: 100%;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickAdd {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  color: var(--muted-foreground);
+}
+
+.pickControls {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pickPrice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  width: 5rem;
+  padding: 0 0.5rem;
+  height: 2.2rem;
+  background: var(--input-background);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+}
+
+.pickPrice input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--fs-sm);
+  outline: none;
+  /* Spinners would not fit the pill. */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.pickPrice input::-webkit-outer-spin-button,
+.pickPrice input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+@media (max-width: 380px) {
+  .pickPrice {
+    width: 4.25rem;
+  }
+  .stepValue {
+    min-width: 2.5rem;
+  }
+}
+
+/* =========================================================
    Customer form modal
    ========================================================= */
 .form {

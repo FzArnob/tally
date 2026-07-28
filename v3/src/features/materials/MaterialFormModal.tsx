@@ -22,7 +22,8 @@ interface MaterialFormModalProps {
   material: Material | null;
   bookId: number;
   onClose: () => void;
-  onSaved: () => void;
+  /** Receives the saved row so callers can use it without a refetch. */
+  onSaved: (saved: Material) => void;
 }
 
 export function MaterialFormModal({
@@ -44,8 +45,16 @@ export function MaterialFormModal({
 
   const isEdit = !!material;
 
+  // Seed only when the modal switches subject (a new material, or a different
+  // one to edit). Reopening the same subject keeps whatever was typed, so
+  // closing the sheet never throws work away. Cleared on a successful save.
+  const seededFor = useRef<string | null>(null);
+
   useEffect(() => {
     if (!open) return;
+    const subject = material ? `edit:${material.id}` : 'new';
+    if (seededFor.current === subject) return;
+    seededFor.current = subject;
     setError(null);
     if (material) {
       setName(material.name);
@@ -92,14 +101,16 @@ export function MaterialFormModal({
     setSaving(true);
     setError(null);
     try {
-      await saveMaterial({
+      const res = await saveMaterial({
         materialId: material?.id ?? null,
         name: trimmed,
         quantityType,
         imageUrl: image,
         bookId,
       });
-      onSaved();
+      // The draft is done with — let the next open start from scratch.
+      seededFor.current = null;
+      onSaved(res.material);
       onClose();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'duplicate') {

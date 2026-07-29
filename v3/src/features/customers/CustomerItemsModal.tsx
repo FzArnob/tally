@@ -188,7 +188,10 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
                 <span className={styles.itemName} title={item.item_name}>
                   {item.item_name}
                 </span>
-                <span className={styles.itemTotal}>{formatCurrency(item.total_amount)}</span>
+                {/* Every line here is unpaid, so each total reads red like the summary. */}
+                <span className={`${styles.itemTotal} text-negative`}>
+                  {formatCurrency(item.total_amount)}
+                </span>
               </div>
 
               <div className={styles.line}>

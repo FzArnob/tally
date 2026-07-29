@@ -163,6 +163,17 @@ CREATE INDEX idx_products_book_last_txn ON products(book_id, last_transaction_ti
 -- Product transactions — stock in / sale. total_amount is a precomputed running
 -- value. stock_after is the running stock for ready-made products; it is NULL
 -- for manufacture products (sale-only, stock unknown until analytics lands).
+--
+-- customer_id marks a sale that went onto a customer's tab instead of over the
+-- counter. It is the goods' half of that sale; the debt itself lives in
+-- customer_balance_history and what is still owed in customer_items.
+--
+-- customer_item_id points at the exact outstanding line this sale created (or
+-- merged into). Settling in full deletes that line, so a dangling id is how the
+-- history knows the sale has since been paid for — deliberately NOT a foreign
+-- key, or the link would be nulled and the pill could never tell "paid" from
+-- "never on a tab". Re-taking the same goods later opens a NEW line, so the old
+-- sale stays paid instead of lighting up again.
 -- ---------------------------------------------------------------------------
 CREATE TABLE product_transactions (
     id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -173,10 +184,13 @@ CREATE TABLE product_transactions (
     price_per_unit DECIMAL(14,2)         NOT NULL,
     total_amount   DECIMAL(14,2)         NOT NULL,   -- quantity * price_per_unit
     stock_after    DECIMAL(14,3)         NULL,       -- running stock (NULL for manufacture)
+    customer_id    CHAR(36)              NULL,       -- set = sold on this customer's tab
+    customer_item_id CHAR(36)            NULL,       -- the outstanding line; gone once settled
     note           VARCHAR(255)          NULL,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_pt_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-    CONSTRAINT fk_pt_book    FOREIGN KEY (book_id)    REFERENCES books(id)    ON DELETE CASCADE
+    CONSTRAINT fk_pt_product  FOREIGN KEY (product_id)  REFERENCES products(id)  ON DELETE CASCADE,
+    CONSTRAINT fk_pt_book     FOREIGN KEY (book_id)     REFERENCES books(id)     ON DELETE CASCADE,
+    CONSTRAINT fk_pt_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_pt_product ON product_transactions(product_id, id DESC);
@@ -270,10 +284,13 @@ CREATE TABLE material_transactions (
     price_per_unit DECIMAL(14,2)         NOT NULL,   -- derived: total_amount / quantity (0 for 'used')
     total_amount   DECIMAL(14,2)         NOT NULL,   -- entered total price (0 for 'used')
     stock_after    DECIMAL(14,3)         NOT NULL DEFAULT 0,
+    customer_id    CHAR(36)              NULL,       -- set = sold on this customer's tab
+    customer_item_id CHAR(36)            NULL,       -- the outstanding line; gone once settled
     note           VARCHAR(255)          NULL,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_mt_material FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE,
-    CONSTRAINT fk_mt_book     FOREIGN KEY (book_id)     REFERENCES books(id)     ON DELETE CASCADE
+    CONSTRAINT fk_mt_book     FOREIGN KEY (book_id)     REFERENCES books(id)     ON DELETE CASCADE,
+    CONSTRAINT fk_mt_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_mt_material ON material_transactions(material_id, id DESC);

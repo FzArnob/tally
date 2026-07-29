@@ -49,8 +49,19 @@ export function ProductHistoryModal({
             return (
               <div key={tx.id} className={styles.entry}>
                 <div className={styles.line}>
-                  <span className={`${styles.typePill} ${isStock ? styles.stock : styles.sale}`}>
-                    {isStock ? t.stockIn : t.sale}
+                  <span className={styles.pillRow}>
+                    <span className={`${styles.typePill} ${isStock ? styles.stock : styles.sale}`}>
+                      {isStock ? t.stockIn : t.sale}
+                    </span>
+                    {/* A tab sale keeps this pill until the customer settles the line. */}
+                    {tx.unpaid && (
+                      <span
+                        className={`${styles.typePill} ${styles.unpaid}`}
+                        title={t.soldOnTab.replace('{name}', tx.customer_name ?? '')}
+                      >
+                        {t.unpaidPill}
+                      </span>
+                    )}
                   </span>
                   <span
                     className={`${styles.entryAmount} ${isStock ? 'text-invest' : 'text-positive'}`}

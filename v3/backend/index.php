@@ -413,10 +413,26 @@ function shapeTransaction(array $t): array
         'total_amount'   => (float) $t['total_amount'],
         // NULL for manufacture sale rows (running stock is unknown).
         'stock_after'    => $t['stock_after'] !== null ? (float) $t['stock_after'] : null,
+        'customer_id'    => $t['customer_id'] ?? null,
+        'customer_name'  => $t['customer_name'] ?? null,
+        // Only the history query computes this (see UNPAID_FLAG); elsewhere a
+        // freshly written row is never on a tab, so false is right.
+        'unpaid'         => !empty($t['unpaid']),
         'note'           => $t['note'],
         'created_at'     => $t['created_at'],
     ];
 }
+
+/**
+ * SQL fragment marking a tab sale that is STILL owed. It asks one thing: does
+ * the exact outstanding line this sale wrote still exist? Settling in full
+ * deletes that line, so the flag clears on payment without the transaction ever
+ * being rewritten, and a later sale of the same goods opens a different line —
+ * so paying once keeps that sale paid no matter what is bought afterwards.
+ */
+const UNPAID_FLAG = 'EXISTS (
+                SELECT 1 FROM customer_items ci WHERE ci.id = t.customer_item_id
+            ) AS unpaid';
 
 function shapeHistory(array $h): array
 {
@@ -487,6 +503,9 @@ function shapeMaterialTransaction(array $t): array
         'price_per_unit' => (float) $t['price_per_unit'],
         'total_amount'   => (float) $t['total_amount'],
         'stock_after'    => (float) $t['stock_after'],
+        'customer_id'    => $t['customer_id'] ?? null,
+        'customer_name'  => $t['customer_name'] ?? null,
+        'unpaid'         => !empty($t['unpaid']),
         'note'           => $t['note'],
         'created_at'     => $t['created_at'],
     ];
@@ -1135,13 +1154,16 @@ on('POST', '/customers/{id}/items', function ($a) {
     $timestamp = date('Y-m-d H:i:s');
     $pdo->beginTransaction();
     try {
+        // customer_id / customer_item_id stamp the sale as "went onto a tab", so
+        // the product's own history can flag it instead of showing a plain
+        // counter sale. The tab line is resolved first — the sale row needs its id.
         $saleProduct  = $pdo->prepare(
-            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, stock_after)
-             VALUES (?, ?, \'sale\', ?, ?, ?, 0)'
+            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id)
+             VALUES (?, ?, \'sale\', ?, ?, ?, 0, ?, ?)'
         );
         $saleMaterial = $pdo->prepare(
-            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after)
-             VALUES (?, ?, \'sale\', ?, ?, ?, 0)'
+            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id)
+             VALUES (?, ?, \'sale\', ?, ?, ?, 0, ?, ?)'
         );
         $debt = $pdo->prepare(
             'INSERT INTO customer_balance_history
@@ -1151,11 +1173,11 @@ on('POST', '/customers/{id}/items', function ($a) {
 
         foreach ($lines as $l) {
             $isProduct = $l['type'] === 'product';
-            ($isProduct ? $saleProduct : $saleMaterial)
-                ->execute([$l['id'], $bookId, $l['quantity'], $l['price'], $l['total']]);
 
             // Merge into an existing unpaid line for the same item at the same
-            // price; a different agreed price stays its own row.
+            // price; a different agreed price stays its own row. A line settled
+            // earlier is gone, so re-taking the goods opens a fresh one — which
+            // is what keeps the older, already-paid sale from re-flagging.
             $col   = $isProduct ? 'product_id' : 'material_id';
             $match = $pdo->prepare(
                 "SELECT id, quantity FROM customer_items
@@ -1163,19 +1185,26 @@ on('POST', '/customers/{id}/items', function ($a) {
             );
             $match->execute([$customer['id'], $l['type'], $l['id'], $l['price']]);
             if ($existing = $match->fetch()) {
-                $merged = (float) $existing['quantity'] + $l['quantity'];
+                $itemRowId = $existing['id'];
+                $merged    = (float) $existing['quantity'] + $l['quantity'];
                 $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
-                    ->execute([$merged, round($merged * $l['price'], 2), $existing['id']]);
+                    ->execute([$merged, round($merged * $l['price'], 2), $itemRowId]);
             } else {
+                $itemRowId = uuid4();
                 $pdo->prepare(
                     "INSERT INTO customer_items
                         (id, customer_id, book_id, item_type, $col, item_name, quantity_type, quantity, price_per_unit, total_amount)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 )->execute([
-                    uuid4(), $customer['id'], $bookId, $l['type'], $l['id'],
+                    $itemRowId, $customer['id'], $bookId, $l['type'], $l['id'],
                     $l['name'], $l['unit'], $l['quantity'], $l['price'], $l['total'],
                 ]);
             }
+
+            ($isProduct ? $saleProduct : $saleMaterial)->execute([
+                $l['id'], $bookId, $l['quantity'], $l['price'], $l['total'],
+                $customer['id'], $itemRowId,
+            ]);
 
             $debt->execute([
                 uuid4(), $customer['id'], $bookId, $l['total'], -$l['total'],
@@ -1398,7 +1427,13 @@ on('DELETE', '/products/{id}', function ($a) {
 on('GET', '/products/{id}/transactions', function ($a) {
     $pdo = db();
     findProduct($pdo, (int) $a['id']);
-    $stmt = $pdo->prepare('SELECT * FROM product_transactions WHERE product_id = ? ORDER BY id DESC');
+    // The customer join is for the tab-sale label; it stays NULL for counter sales.
+    $stmt = $pdo->prepare(
+        'SELECT t.*, c.name AS customer_name, ' . UNPAID_FLAG . '
+         FROM product_transactions t
+         LEFT JOIN customers c ON c.id = t.customer_id
+         WHERE t.product_id = ? ORDER BY t.id DESC'
+    );
     $stmt->execute([(int) $a['id']]);
     $txns = $stmt->fetchAll();
 
@@ -1576,7 +1611,12 @@ on('DELETE', '/materials/{id}', function ($a) {
 on('GET', '/materials/{id}/transactions', function ($a) {
     $pdo = db();
     findMaterial($pdo, (int) $a['id']);
-    $stmt = $pdo->prepare('SELECT * FROM material_transactions WHERE material_id = ? ORDER BY id DESC');
+    $stmt = $pdo->prepare(
+        'SELECT t.*, c.name AS customer_name, ' . UNPAID_FLAG . '
+         FROM material_transactions t
+         LEFT JOIN customers c ON c.id = t.customer_id
+         WHERE t.material_id = ? ORDER BY t.id DESC'
+    );
     $stmt->execute([(int) $a['id']]);
     json_response([
         'material_id'  => (int) $a['id'],

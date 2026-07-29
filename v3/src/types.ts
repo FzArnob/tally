@@ -190,6 +190,11 @@ export interface ProductTransaction {
   total_amount: number;
   /** Running stock; null for manufacture sale rows (stock unknown). */
   stock_after: number | null;
+  /** Set when the sale went onto a customer's tab rather than over the counter. */
+  customer_id: string | null;
+  customer_name: string | null;
+  /** True while that tab sale is still owed; clears when the customer settles. */
+  unpaid: boolean;
   note: string | null;
   created_at: string;
 }
@@ -284,6 +289,11 @@ export interface MaterialTransaction {
   price_per_unit: number;
   total_amount: number;
   stock_after: number;
+  /** Set when the sale went onto a customer's tab rather than over the counter. */
+  customer_id: string | null;
+  customer_name: string | null;
+  /** True while that tab sale is still owed; clears when the customer settles. */
+  unpaid: boolean;
   note: string | null;
   created_at: string;
 }

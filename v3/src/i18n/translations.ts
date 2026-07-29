@@ -148,6 +148,8 @@ export interface Translation {
   // Action (stock/sale) modal
   stockIn: string;
   sale: string;
+  unpaidPill: string;
+  soldOnTab: string;
   quantity: string;
   buyingPrice: string;
   sellingPrice: string;
@@ -438,6 +440,9 @@ const en: Translation = {
 
   stockIn: 'Stock In',
   sale: 'Sale',
+  unpaidPill: 'Unpaid',
+  // {name} is the customer; shown as the Unpaid pill's tooltip.
+  soldOnTab: 'On {name}’s tab — not paid for yet',
   quantity: 'Quantity',
   buyingPrice: 'Buying Price / unit',
   sellingPrice: 'Selling Price / unit',
@@ -719,6 +724,8 @@ const bn: Translation = {
 
   stockIn: 'স্টক ইন',
   sale: 'বিক্রয়',
+  unpaidPill: 'বাকি',
+  soldOnTab: '{name}-এর বাকিতে — এখনো পরিশোধ হয়নি',
   quantity: 'পরিমাণ',
   buyingPrice: 'ক্রয় মূল্য / একক',
   sellingPrice: 'বিক্রয় মূল্য / একক',

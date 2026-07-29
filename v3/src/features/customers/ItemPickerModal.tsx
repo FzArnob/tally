@@ -25,10 +25,13 @@ interface Sellable {
   price: number;
 }
 
+/** Both fields are strings so either can be cleared mid-typing without the row vanishing. */
 interface DraftLine {
-  quantity: number;
-  price: string; // kept as a string so the field can be cleared while typing
+  quantity: string;
+  price: string;
 }
+
+const toNumber = (value: string) => parseFloat(value) || 0;
 
 const toSellable = (type: CustomerItemType, id: number, name: string, unit: string, stock: number | null, price: number): Sellable => ({
   key: `${type}:${id}`,
@@ -114,14 +117,38 @@ export function ItemPickerModal({ open, bookId, onConfirm, onClose }: ItemPicker
   const bump = useCallback((s: Sellable, delta: number) => {
     setDraft((prev) => {
       const next = { ...prev };
-      let quantity = (prev[s.key]?.quantity ?? 0) + delta;
+      let quantity = toNumber(prev[s.key]?.quantity ?? '0') + delta;
       if (s.stock !== null) quantity = Math.min(quantity, s.stock);
       if (quantity <= 0) {
         delete next[s.key];
         return next;
       }
-      next[s.key] = { quantity, price: prev[s.key]?.price ?? String(s.price) };
+      next[s.key] = { quantity: String(quantity), price: prev[s.key]?.price ?? String(s.price) };
       return next;
+    });
+  }, []);
+
+  /** Typed quantities are capped at the stock in hand, matching the stepper. */
+  const setQuantity = useCallback((s: Sellable, quantity: string) => {
+    setDraft((prev) => {
+      if (!prev[s.key]) return prev;
+      const capped =
+        s.stock !== null && toNumber(quantity) > s.stock ? String(s.stock) : quantity;
+      return { ...prev, [s.key]: { ...prev[s.key], quantity: capped } };
+    });
+  }, []);
+
+  /** A row left blank or at zero drops out of the basket once the field loses focus. */
+  const commitQuantity = useCallback((key: string) => {
+    setDraft((prev) => {
+      if (!prev[key]) return prev;
+      const quantity = toNumber(prev[key].quantity);
+      if (quantity <= 0) {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: { ...prev[key], quantity: String(quantity) } };
     });
   }, []);
 
@@ -129,9 +156,10 @@ export function ItemPickerModal({ open, bookId, onConfirm, onClose }: ItemPicker
     setDraft((prev) => (prev[key] ? { ...prev, [key]: { ...prev[key], price } } : prev));
   }, []);
 
-  const lines = Object.entries(draft);
+  // Half-typed rows (quantity cleared) stay on screen but count for nothing.
+  const lines = Object.entries(draft).filter(([, line]) => toNumber(line.quantity) > 0);
   const basketTotal = lines.reduce(
-    (sum, [, line]) => sum + line.quantity * (parseFloat(line.price) || 0),
+    (sum, [, line]) => sum + toNumber(line.quantity) * toNumber(line.price),
     0,
   );
 
@@ -145,8 +173,8 @@ export function ItemPickerModal({ open, bookId, onConfirm, onClose }: ItemPicker
           return {
             item_type: type as CustomerItemType,
             item_id: Number(id),
-            quantity: line.quantity,
-            price_per_unit: parseFloat(line.price) || 0,
+            quantity: toNumber(line.quantity),
+            price_per_unit: toNumber(line.price),
           };
         }),
       );
@@ -186,7 +214,7 @@ export function ItemPickerModal({ open, bookId, onConfirm, onClose }: ItemPicker
               className={`${styles.pickerTab} ${tab === 'material' ? styles.pickerTabActive : ''}`}
               onClick={() => setTab('material')}
             >
-              {t.materialsTitle}
+              {t.materialsTab}
             </button>
           </div>
 
@@ -222,71 +250,109 @@ export function ItemPickerModal({ open, bookId, onConfirm, onClose }: ItemPicker
 
         {sellables.map((s) => {
           const line = draft[s.key];
-          const qty = line?.quantity ?? 0;
+          const qty = toNumber(line?.quantity ?? '0');
           // Manufacture products carry a null stock, so they are never capped.
           const soldOut = s.stock !== null && s.stock <= 0;
           const atStockCap = s.stock !== null && qty >= s.stock;
 
-          return (
-            <div
-              key={s.key}
-              className={`${styles.pickRow} ${line ? styles.pickRowActive : ''} ${
-                soldOut ? styles.pickRowOut : ''
-              }`}
-            >
-              <button className={styles.pickMain} disabled={soldOut} onClick={() => bump(s, 1)}>
-                <span className={styles.pickName} title={s.name}>
-                  {s.name}
-                </span>
-                <span className={styles.pickMeta}>
-                  {soldOut
-                    ? t.outOfStock
-                    : s.stock === null
-                      ? formatCurrency(s.price)
-                      : `${formatCurrency(s.price)} · ${t.stock} ${localizeDigits(
-                          `${formatNumber(s.stock)} ${s.unit}`,
-                        )}`}
-                </span>
-              </button>
+          const info = (
+            <>
+              <span className={styles.pickName} title={s.name}>
+                {s.name}
+              </span>
+              <span className={styles.pickMeta}>
+                {soldOut
+                  ? t.outOfStock
+                  : s.stock === null
+                    ? formatCurrency(s.price)
+                    : `${formatCurrency(s.price)} · ${t.stock} ${localizeDigits(
+                        `${formatNumber(s.stock)} ${s.unit}`,
+                      )}`}
+              </span>
+            </>
+          );
 
-              {line ? (
-                <div className={styles.pickControls}>
-                  <div className={styles.stepper}>
-                    <button
-                      className={styles.stepBtn}
-                      aria-label={t.removeOne}
-                      onClick={() => bump(s, -1)}
-                    >
-                      <span className="material-symbols-outlined icon-sm">remove</span>
-                    </button>
-                    <span className={styles.stepValue}>{localizeDigits(formatNumber(qty))}</span>
-                    <button
-                      className={styles.stepBtn}
-                      aria-label={t.addOne}
-                      disabled={atStockCap}
-                      onClick={() => bump(s, 1)}
-                    >
-                      <span className="material-symbols-outlined icon-sm">add</span>
-                    </button>
-                  </div>
-                  <div className={styles.pickPrice}>
-                    <span>৳</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="any"
-                      value={line.price}
-                      onChange={(e) => setPrice(s.key, e.target.value)}
-                      aria-label={t.pricePerUnit}
-                    />
-                  </div>
-                </div>
-              ) : (
+          // Before anything is picked the entire row — plus icon included — is the
+          // add button. Once a line exists the row holds a stepper and a price
+          // field, so only the name block stays tappable.
+          if (!line) {
+            return (
+              <button
+                key={s.key}
+                type="button"
+                className={`${styles.pickRow} ${styles.pickRowBtn} ${
+                  soldOut ? styles.pickRowOut : ''
+                }`}
+                disabled={soldOut}
+                onClick={() => bump(s, 1)}
+              >
+                <span className={styles.pickInfo}>{info}</span>
                 <span className={styles.pickAdd} aria-hidden="true">
                   <span className="material-symbols-outlined icon-md">add</span>
                 </span>
-              )}
+              </button>
+            );
+          }
+
+          return (
+            <div
+              key={s.key}
+              className={`${styles.pickRow} ${styles.pickRowActive} ${
+                soldOut ? styles.pickRowOut : ''
+              }`}
+            >
+              <button
+                type="button"
+                className={`${styles.pickMain} ${styles.pickInfo}`}
+                disabled={soldOut}
+                onClick={() => bump(s, 1)}
+              >
+                {info}
+              </button>
+
+              <div className={styles.pickControls}>
+                <div className={styles.stepper}>
+                  <button
+                    className={styles.stepBtn}
+                    aria-label={t.removeOne}
+                    onClick={() => bump(s, -1)}
+                  >
+                    <span className="material-symbols-outlined icon-sm">remove</span>
+                  </button>
+                  <input
+                    className={styles.stepValue}
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="any"
+                    value={line.quantity}
+                    onChange={(e) => setQuantity(s, e.target.value)}
+                    onBlur={() => commitQuantity(s.key)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    aria-label={t.quantity}
+                  />
+                  <button
+                    className={styles.stepBtn}
+                    aria-label={t.addOne}
+                    disabled={atStockCap}
+                    onClick={() => bump(s, 1)}
+                  >
+                    <span className="material-symbols-outlined icon-sm">add</span>
+                  </button>
+                </div>
+                <div className={styles.pickPrice}>
+                  <span>৳</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="any"
+                    value={line.price}
+                    onChange={(e) => setPrice(s.key, e.target.value)}
+                    aria-label={t.pricePerUnit}
+                  />
+                </div>
+              </div>
             </div>
           );
         })}

@@ -342,12 +342,39 @@
   cursor: default;
 }
 
+/* Typeable quantity — the steppers cover ±1, this covers "make it 12". */
 .stepValue {
-  min-width: 3.25rem;
+  width: 3.25rem;
+  min-width: 0;
+  padding: 0.15rem 0.2rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--foreground);
   text-align: center;
+  font-family: inherit;
   font-size: var(--fs-sm);
   font-weight: var(--font-weight-medium);
-  white-space: nowrap;
+  outline: none;
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease;
+  /* Spinners would not fit the pill. */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.stepValue::-webkit-outer-spin-button,
+.stepValue::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.stepValue:hover {
+  background: var(--muted);
+}
+
+.stepValue:focus {
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+  background: var(--card);
 }
 
 /* =========================================================
@@ -455,8 +482,30 @@
   opacity: 0.55;
 }
 
-/* The whole name block is the add button — one tap puts a unit in the basket. */
-.pickMain {
+/* Until a row is in the basket the row itself is the add button, plus icon and all. */
+.pickRowBtn {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pickRowBtn:hover:not(:disabled) {
+  background: var(--muted);
+}
+
+.pickRowBtn:hover:not(:disabled) .pickAdd {
+  color: var(--foreground);
+}
+
+.pickRowBtn:disabled {
+  cursor: default;
+}
+
+/* The name/price block: its own layout, shared by the row button and the
+   name-only button that replaces it once a stepper takes over the right side. */
+.pickInfo {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -464,10 +513,14 @@
   align-items: flex-start;
   gap: 0.15rem;
   padding: 0.55rem;
+  text-align: left;
+}
+
+/* One tap on the name puts another unit in the basket. */
+.pickMain {
   border: none;
   border-radius: 0.5rem;
   background: transparent;
-  text-align: left;
   cursor: pointer;
   transition: background-color var(--dur-fast) ease;
 }
@@ -555,7 +608,7 @@
     width: 4.25rem;
   }
   .stepValue {
-    min-width: 2.5rem;
+    width: 2.5rem;
   }
 }
 

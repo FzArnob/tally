@@ -200,6 +200,7 @@ export interface Translation {
   balanceKeypad: string;
   itemsTitle: string;
   addItems: string;
+  materialsTab: string;
   searchItems: string;
   unpaidItems: string;
   noUnpaidItems: string;
@@ -485,6 +486,8 @@ const en: Translation = {
   balanceKeypad: 'Balance keypad',
   itemsTitle: 'Items',
   addItems: 'Add items',
+  // The picker sells the material itself, so the tab drops the "Costs" of the page name.
+  materialsTab: 'Materials',
   searchItems: 'Search items',
   unpaidItems: 'Unpaid items',
   noUnpaidItems: 'Nothing on the tab.',
@@ -764,6 +767,7 @@ const bn: Translation = {
   balanceKeypad: 'ব্যালেন্স কীপ্যাড',
   itemsTitle: 'পণ্য',
   addItems: 'পণ্য যোগ করুন',
+  materialsTab: 'কাঁচামাল',
   searchItems: 'পণ্য খুঁজুন',
   unpaidItems: 'বাকি পণ্য',
   noUnpaidItems: 'কোনো বাকি পণ্য নেই।',

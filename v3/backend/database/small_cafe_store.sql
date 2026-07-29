@@ -35,8 +35,8 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- Owner — the real signed-in account, so the book appears when they log in.
 SET @owner := '09cd48c2-21e8-43b0-8ecf-4ff643e5764c';
 INSERT INTO users (id, google_id, email, name, picture)
-VALUES (@owner, '113339125103681957621', 'afrinahoquepranti@gmail.com', 'Afrina Hoque Pranti',
-        'https://lh3.googleusercontent.com/a/ACg8ocLrhdzdfJYTbk6c1xGvQd2jdkKNoZmckycsqe-vjkwdlXoQHe8=s96-c')
+VALUES (@owner, '103449430925193454062', 'fz.arnob@gmail.com', 'FZ. Arnob',
+        'https://lh3.googleusercontent.com/a/ACg8ocLczb7SoEAffjFTm8fdu9hPnGxWjcvscFCAqn2onW6HzzRuPKKs=s96-c')
 ON DUPLICATE KEY UPDATE email = VALUES(email), name = VALUES(name), picture = VALUES(picture);
 
 -- Re-runnable: drop a previous "Cafe Afree" (cascades remove all its children).

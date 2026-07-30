@@ -8,7 +8,7 @@ import styles from './customers.module.css';
 interface CustomerFormModalProps {
   open: boolean;
   customer: Customer | null; // null => add
-  bookId: number;
+  bookId: string;
   onClose: () => void;
   onSaved: () => void;
 }

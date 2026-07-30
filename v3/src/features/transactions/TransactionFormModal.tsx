@@ -8,7 +8,7 @@ import styles from './transactions.module.css';
 
 interface TransactionFormModalProps {
   open: boolean;
-  bookId: number;
+  bookId: string;
   transaction: PersonalTransaction | null;
   categories: Category[];
   onClose: () => void;
@@ -60,7 +60,7 @@ export function TransactionFormModal({
     setType(next);
     // Reset the category when it no longer belongs to the chosen type.
     setCategoryId((prev) =>
-      categories.some((c) => c.id === Number(prev) && c.type === next) ? prev : '',
+      categories.some((c) => c.id === prev && c.type === next) ? prev : '',
     );
   };
 
@@ -81,7 +81,7 @@ export function TransactionFormModal({
         transactionId: transaction?.id ?? null,
         bookId,
         type,
-        categoryId: Number(categoryId),
+        categoryId,
         note: note.trim(),
         amount: amt,
       });

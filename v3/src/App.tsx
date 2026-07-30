@@ -45,7 +45,7 @@ function BooksGate() {
 function useRouteBook(): { book: Book | null; status: 'loading' | 'ready' | 'error' } {
   const { books, status } = useBooks();
   const { bookId } = useParams();
-  const id = Number(bookId);
+  const id = bookId;
   return { book: books.find((b) => b.id === id) ?? null, status };
 }
 

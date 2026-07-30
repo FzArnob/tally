@@ -5,7 +5,7 @@ import { Header, HeaderBackButton } from '../../components/Header';
 import { UserMenu } from '../../auth/UserMenu';
 import { Toolbar } from '../../components/Toolbar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { deleteCustomer, getCustomers, BOOK_ID } from '../../lib/api';
+import { deleteCustomer, getCustomers } from '../../lib/api';
 import type { BalanceHistoryEntry, Customer, CustomerTotals } from '../../types';
 import { CustomerFormModal } from './CustomerFormModal';
 import { BalanceModal } from './BalanceModal';
@@ -84,7 +84,7 @@ export function CustomersPage() {
   const { t, formatCurrency } = useI18n();
   const navigate = useNavigate();
   const params = useParams();
-  const bookId = Number(params.bookId) || BOOK_ID;
+  const bookId = params.bookId ?? '';
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [totals, setTotals] = useState<CustomerTotals>({ total_paid: 0, total_unpaid: 0 });

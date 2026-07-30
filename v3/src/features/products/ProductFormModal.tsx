@@ -22,7 +22,7 @@ const UNIT_LABELS: Record<(typeof KNOWN_TYPES)[number], keyof Translation> = {
 interface ProductFormModalProps {
   open: boolean;
   product: Product | null;
-  bookId: number;
+  bookId: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -44,7 +44,7 @@ export function ProductFormModal({
   // Manufacture material picker.
   const [allMaterials, setAllMaterials] = useState<Material[]>([]);
   const [materialsLoaded, setMaterialsLoaded] = useState(false);
-  const [linkedIds, setLinkedIds] = useState<number[]>([]);
+  const [linkedIds, setLinkedIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [materialFormOpen, setMaterialFormOpen] = useState(false);
 
@@ -151,12 +151,12 @@ export function ProductFormModal({
   };
 
   // One tap links, one tap unlinks — no select-then-confirm round trip.
-  const link = (id: number) => {
+  const link = (id: string) => {
     setError(null);
     setLinkedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
 
-  const unlink = (id: number) => setLinkedIds((prev) => prev.filter((x) => x !== id));
+  const unlink = (id: string) => setLinkedIds((prev) => prev.filter((x) => x !== id));
 
   /** A material created from inside this form: drop it in and link it at once. */
   const onMaterialCreated = (created: Material) => {

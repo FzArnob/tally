@@ -21,7 +21,7 @@ export interface MeResponse {
 export type BookType = 'store' | 'personal';
 
 export interface Book {
-  id: number;
+  id: string;
   name: string;
   type: BookType;
 }
@@ -37,7 +37,7 @@ export interface SaveBookResponse {
 
 export interface Customer {
   id: string; // UUID
-  book_id: number;
+  book_id: string;
   name: string;
   nickname: string;
   phone: string;
@@ -100,13 +100,15 @@ export interface CustomerItem {
   id: string;
   customer_id: string;
   item_type: CustomerItemType;
-  product_id: number | null; // null once the source product is deleted
-  material_id: number | null;
+  product_id: string | null; // null once the source product is deleted
+  material_id: string | null;
   item_name: string; // snapshot, survives the source being deleted
   quantity_type: string;
   quantity: number;
   price_per_unit: number;
   total_amount: number;
+  /** When the goods were taken. */
+  timestamp: string;
 }
 
 export interface CustomerItemsResponse {
@@ -125,7 +127,7 @@ export interface SaveCustomerItemsResponse {
 /** One line of a basket being handed to the customer. */
 export interface CustomerItemDraft {
   item_type: CustomerItemType;
-  item_id: number;
+  item_id: string;
   quantity: number;
   price_per_unit: number;
 }
@@ -134,8 +136,8 @@ export interface CustomerItemDraft {
 export type CashflowType = 'income' | 'expense';
 
 export interface Category {
-  id: number;
-  book_id: number;
+  id: string;
+  book_id: string;
   name: string;
   details: string;
   type: CashflowType;
@@ -152,9 +154,9 @@ export interface SaveCategoryResponse {
 }
 
 export interface PersonalTransaction {
-  id: number;
-  book_id: number;
-  category_id: number | null;
+  id: string;
+  book_id: string;
+  category_id: string | null;
   category_name: string;
   type: CashflowType;
   note: string;
@@ -182,8 +184,8 @@ export interface SavePersonalTxResponse {
 export type TransactionType = 'stock' | 'sale';
 
 export interface ProductTransaction {
-  id: number;
-  product_id: number;
+  id: string;
+  product_id: string;
   type: TransactionType;
   quantity: number;
   price_per_unit: number;
@@ -198,14 +200,17 @@ export interface ProductTransaction {
   /** True while that tab sale is still owed; clears when the customer settles. */
   unpaid: boolean;
   note: string | null;
-  created_at: string;
+  /** When the goods moved. Survives an edit — history order depends on it. */
+  timestamp: string;
+  /** Audit stamp: when the row was last changed. */
+  updated_at: string;
 }
 
 export type ProductType = 'ready_made' | 'manufacture';
 
 /** A material a manufacture product is linked to, with denormalised stock info. */
 export interface ProductMaterial {
-  id: number;
+  id: string;
   name: string;
   quantity_type: string;
   current_stock: number;
@@ -213,8 +218,8 @@ export interface ProductMaterial {
 }
 
 export interface Product {
-  id: number;
-  book_id: number;
+  id: string;
+  book_id: string;
   name: string;
   quantity_type: string;
   product_type: ProductType;
@@ -240,12 +245,12 @@ export interface ProductsResponse {
 }
 
 export interface ProductMaterialsResponse {
-  product_id: number;
+  product_id: string;
   materials: ProductMaterial[];
 }
 
 export interface ProductTransactionsResponse {
-  product_id: number;
+  product_id: string;
   transactions: ProductTransaction[];
 }
 
@@ -262,8 +267,8 @@ export interface SaveTransactionResponse {
 
 // ---- Materials (store books) — raw stock, not linked to products ----
 export interface Material {
-  id: number;
-  book_id: number;
+  id: string;
+  book_id: string;
   name: string;
   quantity_type: string;
   image_url: string | null;
@@ -284,8 +289,8 @@ export interface MaterialsResponse {
 export type MaterialTransactionType = 'stock' | 'sale' | 'used';
 
 export interface MaterialTransaction {
-  id: number;
-  material_id: number;
+  id: string;
+  material_id: string;
   type: MaterialTransactionType;
   quantity: number;
   price_per_unit: number;
@@ -299,11 +304,14 @@ export interface MaterialTransaction {
   /** True while that tab sale is still owed; clears when the customer settles. */
   unpaid: boolean;
   note: string | null;
-  created_at: string;
+  /** When the goods moved. Survives an edit — history order depends on it. */
+  timestamp: string;
+  /** Audit stamp: when the row was last changed. */
+  updated_at: string;
 }
 
 export interface MaterialTransactionsResponse {
-  material_id: number;
+  material_id: string;
   transactions: MaterialTransaction[];
 }
 
@@ -319,8 +327,8 @@ export interface SaveMaterialTransactionResponse {
 
 // ---- Operation costs (store books) — named recurring cost with amount history ----
 export interface OperationCost {
-  id: number;
-  book_id: number;
+  id: string;
+  book_id: string;
   reason: string;
   note: string;
   amount: number; // current (latest) amount
@@ -341,14 +349,14 @@ export interface SaveOperationCostResponse {
 /** One immutable amount snapshot recorded on an operation cost add/edit. */
 export interface OperationCostEntry {
   id: string;
-  operation_cost_id: number;
+  operation_cost_id: string;
   amount: number;
   note: string | null;
   timestamp: string;
 }
 
 export interface OperationCostHistoryResponse {
-  operation_cost_id: number;
+  operation_cost_id: string;
   history: OperationCostEntry[];
 }
 

@@ -142,7 +142,7 @@ export function MaterialHistoryModal({
                       <span>
                         {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}
                       </span>
-                      <span>{localizeDigits(formatTimeOfDay(tx.created_at))}</span>
+                      <span>{localizeDigits(formatTimeOfDay(tx.timestamp))}</span>
                     </div>
                   </div>
                 );

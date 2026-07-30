@@ -17,7 +17,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Toolbar } from '../../components/Toolbar';
 import styles from './products.module.css';
 
-export function ProductsSection({ bookId }: { bookId: number }) {
+export function ProductsSection({ bookId }: { bookId: string }) {
   const { t } = useI18n();
   const [products, setProducts] = useState<Product[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -66,7 +66,7 @@ export function ProductsSection({ bookId }: { bookId: number }) {
     );
   }, [products, query]);
 
-  const loadHistory = useCallback(async (productId: number) => {
+  const loadHistory = useCallback(async (productId: string) => {
     setHistoryLoading(true);
     try {
       const data = await getProductTransactions(productId);

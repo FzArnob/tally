@@ -8,7 +8,7 @@ import styles from './operations.module.css';
 interface OperationFormModalProps {
   open: boolean;
   operation: OperationCost | null;
-  bookId: number;
+  bookId: string;
   onClose: () => void;
   onSaved: () => void;
 }

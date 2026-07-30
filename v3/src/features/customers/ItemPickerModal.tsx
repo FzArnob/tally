@@ -7,7 +7,7 @@ import styles from './customers.module.css';
 
 interface ItemPickerModalProps {
   open: boolean;
-  bookId: number;
+  bookId: string;
   /** Hands the finished basket to the parent, which owns the customer. */
   onConfirm: (drafts: CustomerItemDraft[]) => Promise<void>;
   onClose: () => void;
@@ -17,7 +17,7 @@ interface ItemPickerModalProps {
 interface Sellable {
   key: string;
   type: CustomerItemType;
-  id: number;
+  id: string;
   name: string;
   unit: string;
   /** null = unlimited (manufacture products, whose stock is unknown). */
@@ -33,7 +33,7 @@ interface DraftLine {
 
 const toNumber = (value: string) => parseFloat(value) || 0;
 
-const toSellable = (type: CustomerItemType, id: number, name: string, unit: string, stock: number | null, price: number): Sellable => ({
+const toSellable = (type: CustomerItemType, id: string, name: string, unit: string, stock: number | null, price: number): Sellable => ({
   key: `${type}:${id}`,
   type,
   id,
@@ -169,10 +169,11 @@ export function ItemPickerModal({ open, bookId, onConfirm, onClose }: ItemPicker
     try {
       await onConfirm(
         lines.map(([key, line]) => {
-          const [type, id] = key.split(':');
+          // key is "<type>:<uuid>" — split on the first colon only.
+          const sep = key.indexOf(':');
           return {
-            item_type: type as CustomerItemType,
-            item_id: Number(id),
+            item_type: key.slice(0, sep) as CustomerItemType,
+            item_id: key.slice(sep + 1),
             quantity: toNumber(line.quantity),
             price_per_unit: toNumber(line.price),
           };

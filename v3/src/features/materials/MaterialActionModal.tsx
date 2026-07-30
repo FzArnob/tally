@@ -131,7 +131,7 @@ export function MaterialActionModal({
         // The server always stores the total and derives per-unit from it.
         totalAmount: isUsed ? 0 : Math.round(totalNum * 100) / 100,
         note: note.trim() || null,
-        replaces: editTx?.id ?? null,
+        transactionId: editTx?.id ?? null,
       });
       seededFor.current = null;
       onSaved();

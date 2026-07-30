@@ -20,7 +20,7 @@ const UNIT_LABELS: Record<(typeof KNOWN_TYPES)[number], keyof Translation> = {
 interface MaterialFormModalProps {
   open: boolean;
   material: Material | null;
-  bookId: number;
+  bookId: string;
   onClose: () => void;
   /** Receives the saved row so callers can use it without a refetch. */
   onSaved: (saved: Material) => void;

@@ -79,7 +79,7 @@ export function MaterialsPage({ book }: { book: Book }) {
     );
   }, [materials, query]);
 
-  const loadHistory = useCallback(async (materialId: number) => {
+  const loadHistory = useCallback(async (materialId: string) => {
     setHistoryLoading(true);
     try {
       const data = await getMaterialTransactions(materialId);

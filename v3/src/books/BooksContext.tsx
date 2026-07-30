@@ -7,7 +7,7 @@ interface BooksContextValue {
   books: Book[];
   status: 'loading' | 'ready' | 'error';
   reload: () => Promise<Book[]>;
-  getBook: (id: number) => Book | undefined;
+  getBook: (id: string) => Book | undefined;
 }
 
 const BooksContext = createContext<BooksContextValue | null>(null);
@@ -34,7 +34,7 @@ export function BooksProvider({ children }: { children: ReactNode }) {
     void reload();
   }, [reload]);
 
-  const getBook = useCallback((id: number) => books.find((b) => b.id === id), [books]);
+  const getBook = useCallback((id: string) => books.find((b) => b.id === id), [books]);
 
   const value = useMemo<BooksContextValue>(
     () => ({ books, status, reload, getBook }),

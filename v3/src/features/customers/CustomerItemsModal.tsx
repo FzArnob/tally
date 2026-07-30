@@ -220,7 +220,7 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
 
       <ItemPickerModal
         open={pickerOpen}
-        bookId={current?.book_id ?? 0}
+        bookId={current?.book_id ?? ''}
         onConfirm={addFromPicker}
         onClose={() => setPickerOpen(false)}
       />

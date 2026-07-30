@@ -69,7 +69,7 @@ export function OperationsPage({ book }: { book: Book }) {
     );
   }, [operations, query]);
 
-  const loadHistory = useCallback(async (id: number) => {
+  const loadHistory = useCallback(async (id: string) => {
     setHistoryLoading(true);
     try {
       const data = await getOperationCostHistory(id);

@@ -7,7 +7,7 @@ import styles from './categories.module.css';
 
 interface CategoryFormModalProps {
   open: boolean;
-  bookId: number;
+  bookId: string;
   /** null => create; a category => edit. */
   category: Category | null;
   /** The type for a new category (income/expense). Ignored on edit (type is immutable). */

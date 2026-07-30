@@ -7,7 +7,8 @@ export interface HistoryEntry {
   total_amount: number;
   /** Sold onto a customer's tab (paid off since or not). */
   on_tab: boolean;
-  created_at: string;
+  /** Business time — when it happened, preserved across edits. */
+  timestamp: string;
 }
 
 export interface HistoryDay<T> {
@@ -38,12 +39,12 @@ export function groupByDay<T extends HistoryEntry>(entries: T[]): HistoryDay<T>[
   const byKey = new Map<string, HistoryDay<T>>();
 
   for (const entry of entries) {
-    const key = dayKey(entry.created_at);
+    const key = dayKey(entry.timestamp);
     let day = byKey.get(key);
     if (!day) {
       day = {
         key,
-        date: entry.created_at,
+        date: entry.timestamp,
         entries: [],
         totalSale: 0,
         totalSaleQty: 0,

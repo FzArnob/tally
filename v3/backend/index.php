@@ -100,7 +100,7 @@ function authUser(): array
 }
 
 /** Fetch the book only if it belongs to the caller; 404 otherwise. */
-function requireOwnedBook(PDO $pdo, int $bookId): array
+function requireOwnedBook(PDO $pdo, string $bookId): array
 {
     $stmt = $pdo->prepare('SELECT id, user_id, name, type FROM books WHERE id = ? AND user_id = ?');
     $stmt->execute([$bookId, authUser()['id']]);
@@ -215,15 +215,17 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
  *    last_purchase_price stay NULL and each row's stock_after is NULL, because a
  *    sale's material consumption is unknown until the analytics feature lands.
  */
-function recomputeProduct(PDO $pdo, int $productId): array
+function recomputeProduct(PDO $pdo, string $productId): array
 {
     $typeStmt = $pdo->prepare('SELECT product_type FROM products WHERE id = ?');
     $typeStmt->execute([$productId]);
     $isManufacture = $typeStmt->fetchColumn() === 'manufacture';
 
+    // seq ASC is the insert order and never changes, so an edited row keeps its
+    // place in the chain: the running stock and "last price" stay chronological.
     $rows = $pdo->prepare(
-        'SELECT id, type, quantity, price_per_unit, created_at FROM product_transactions
-         WHERE product_id = ? ORDER BY id ASC'
+        'SELECT id, type, quantity, price_per_unit, timestamp FROM product_transactions
+         WHERE product_id = ? ORDER BY seq ASC'
     );
     $rows->execute([$productId]);
     $entries = $rows->fetchAll();
@@ -237,7 +239,7 @@ function recomputeProduct(PDO $pdo, int $productId): array
             if ($e['type'] === 'sale') {
                 $out += (float) $e['quantity'];
                 $lastSale = (float) $e['price_per_unit'];
-                $lastTime = $e['created_at'];
+                $lastTime = $e['timestamp'];
                 $saleCount++;
             }
             $update->execute([null, $e['id']]);
@@ -264,7 +266,7 @@ function recomputeProduct(PDO $pdo, int $productId): array
             $stock -= $qty; $out += $qty; $lastSale = (float) $e['price_per_unit'];
         }
         $update->execute([$stock, $e['id']]);
-        $lastTime = $e['created_at'];
+        $lastTime = $e['timestamp'];
     }
 
     $pdo->prepare(
@@ -280,11 +282,11 @@ function recomputeProduct(PDO $pdo, int $productId): array
 }
 
 /** Recompute a material's stock/totals/last prices + per-row running stock. */
-function recomputeMaterial(PDO $pdo, int $materialId): array
+function recomputeMaterial(PDO $pdo, string $materialId): array
 {
     $rows = $pdo->prepare(
-        'SELECT id, type, quantity, price_per_unit, created_at FROM material_transactions
-         WHERE material_id = ? ORDER BY id ASC'
+        'SELECT id, type, quantity, price_per_unit, timestamp FROM material_transactions
+         WHERE material_id = ? ORDER BY seq ASC'
     );
     $rows->execute([$materialId]);
     $entries = $rows->fetchAll();
@@ -302,7 +304,7 @@ function recomputeMaterial(PDO $pdo, int $materialId): array
             $stock -= $qty; $out += $qty;
         }
         $update->execute([$stock, $e['id']]);
-        $lastTime = $e['created_at'];
+        $lastTime = $e['timestamp'];
     }
 
     $pdo->prepare(
@@ -318,7 +320,7 @@ function recomputeMaterial(PDO $pdo, int $materialId): array
 }
 
 /** Recompute an operation cost's denormalised total/count/last time from its entries. */
-function recomputeOperationCost(PDO $pdo, int $operationId): void
+function recomputeOperationCost(PDO $pdo, string $operationId): void
 {
     $agg = $pdo->prepare(
         'SELECT COALESCE(SUM(amount), 0) AS total, COUNT(*) AS cnt, MAX(timestamp) AS last
@@ -333,7 +335,7 @@ function recomputeOperationCost(PDO $pdo, int $operationId): void
 }
 
 /** Recompute a category's denormalised transaction_count. No-op for null id. */
-function recomputeCategory(PDO $pdo, ?int $categoryId): void
+function recomputeCategory(PDO $pdo, ?string $categoryId): void
 {
     if ($categoryId === null) {
         return;
@@ -359,7 +361,7 @@ function shapeUser(array $u): array
 function shapeBook(array $b): array
 {
     return [
-        'id'   => (int) $b['id'],
+        'id'   => $b['id'],
         'name' => $b['name'],
         'type' => $b['type'],
     ];
@@ -369,7 +371,7 @@ function shapeCustomer(array $c): array
 {
     return [
         'id'                    => $c['id'],
-        'book_id'               => (int) $c['book_id'],
+        'book_id'               => $c['book_id'],
         'name'                  => $c['name'],
         'nickname'              => $c['nickname'],
         'phone'                 => $c['phone'],
@@ -383,8 +385,8 @@ function shapeCustomer(array $c): array
 function shapeProduct(array $p, array $materials = []): array
 {
     return [
-        'id'                    => (int) $p['id'],
-        'book_id'               => (int) $p['book_id'],
+        'id'                    => $p['id'],
+        'book_id'               => $p['book_id'],
         'name'                  => $p['name'],
         'quantity_type'         => $p['quantity_type'],
         'product_type'          => $p['product_type'] ?? 'ready_made',
@@ -405,8 +407,8 @@ function shapeProduct(array $p, array $materials = []): array
 function shapeTransaction(array $t): array
 {
     return [
-        'id'             => (int) $t['id'],
-        'product_id'     => (int) $t['product_id'],
+        'id'             => $t['id'],
+        'product_id'     => $t['product_id'],
         'type'           => $t['type'],
         'quantity'       => (float) $t['quantity'],
         'price_per_unit' => (float) $t['price_per_unit'],
@@ -422,7 +424,10 @@ function shapeTransaction(array $t): array
         // freshly written row is never on a tab, so false is right.
         'unpaid'         => !empty($t['unpaid']),
         'note'           => $t['note'],
-        'created_at'     => $t['created_at'],
+        // Business time: when the goods moved. Preserved across edits, which is
+        // what keeps history order and the day grouping honest.
+        'timestamp'      => $t['timestamp'],
+        'updated_at'     => $t['updated_at'],
     ];
 }
 
@@ -468,13 +473,14 @@ function shapeCustomerItem(array $i): array
         'id'             => $i['id'],
         'customer_id'    => $i['customer_id'],
         'item_type'      => $i['item_type'],
-        'product_id'     => $i['product_id']  !== null ? (int) $i['product_id']  : null,
-        'material_id'    => $i['material_id'] !== null ? (int) $i['material_id'] : null,
+        'product_id'     => $i['product_id'],
+        'material_id'    => $i['material_id'],
         'item_name'      => $i['item_name'],
         'quantity_type'  => $i['quantity_type'],
         'quantity'       => (float) $i['quantity'],
         'price_per_unit' => (float) $i['price_per_unit'],
         'total_amount'   => (float) $i['total_amount'],
+        'timestamp'      => $i['timestamp'],
     ];
 }
 
@@ -489,44 +495,12 @@ function itemLabel(string $name, float $quantity): string
 }
 
 /**
- * Load the entry an edit replaces, with the tab it belongs to resolved.
- *
- * A sale taken onto a customer's tab is three rows — the goods here, the
- * outstanding line in customer_items, the debt in customer_balance_history —
- * so editing the goods alone would leave the customer owing the old amount.
- * Returns the row plus its live tab line (`line`), or null when there is no
- * entry to replace. `line` is null when the sale never went on a tab, or when
- * it predates the customer_item_id column.
- *
- * Editing an already-settled sale is refused outright: that money is banked,
- * and silently rewriting it would move a balance the customer has cleared.
- */
-function loadReplaced(PDO $pdo, string $table, string $idColumn, int $replaces, int $itemId, string $newType): ?array
-{
-    if ($replaces <= 0) {
-        return null;
-    }
-    $stmt = $pdo->prepare("SELECT * FROM $table WHERE id = ? AND $idColumn = ?");
-    $stmt->execute([$replaces, $itemId]);
-    $old = $stmt->fetch();
-    if (!$old) {
-        return null;
-    }
-
-    if (!empty($old['customer_item_id']) && $newType !== 'sale') {
-        json_error('A sale on a customer’s tab cannot become a stock entry.', 422, 'validation');
-    }
-    $old['line'] = tabLineFor(
-        $pdo,
-        $old,
-        'This sale has already been paid for. Edit it from the customer’s tab instead.'
-    );
-    return $old;
-}
-
-/**
  * The live tab line behind a sale about to be edited or deleted, or null when
- * the sale never went on a tab (or predates the customer_item_id column).
+ * the sale never went on a tab.
+ *
+ * A sale taken onto a customer's tab is three rows — the goods, the outstanding
+ * line in customer_items, the debt in customer_balance_history — so touching the
+ * goods alone would leave the customer owing the old amount.
  *
  * Refuses outright once the customer has paid: that money is banked, and
  * rewriting or removing the goods would move a balance they have cleared.
@@ -576,9 +550,8 @@ function untabSale(PDO $pdo, array $tx, array $line): void
  *
  * Runs inside the caller's transaction.
  */
-function retabSale(PDO $pdo, array $old, string $itemType, int $itemId, string $itemName, string $unit, float $quantity, float $price, float $total): string
+function retabSale(PDO $pdo, array $old, array $line, string $itemType, string $itemId, string $itemName, string $unit, float $quantity, float $price, float $total): string
 {
-    $line   = $old['line'];
     $oldQty = (float) $old['quantity'];
     $column = $itemType === 'product' ? 'product_id' : 'material_id';
 
@@ -622,7 +595,7 @@ function retabSale(PDO $pdo, array $old, string $itemType, int $itemId, string $
                     (id, customer_id, book_id, item_type, $column, item_name, quantity_type, quantity, price_per_unit, total_amount)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )->execute([
-                $itemRowId, $old['customer_id'], (int) $old['book_id'], $itemType, $itemId,
+                $itemRowId, $old['customer_id'], $old['book_id'], $itemType, $itemId,
                 $itemName, $unit, $quantity, $price, $total,
             ]);
         }
@@ -643,8 +616,8 @@ function retabSale(PDO $pdo, array $old, string $itemType, int $itemId, string $
 function shapeMaterial(array $m): array
 {
     return [
-        'id'                    => (int) $m['id'],
-        'book_id'               => (int) $m['book_id'],
+        'id'                    => $m['id'],
+        'book_id'               => $m['book_id'],
         'name'                  => $m['name'],
         'quantity_type'         => $m['quantity_type'],
         'image_url'             => ($m['image_url'] ?? '') !== '' ? $m['image_url'] : null,
@@ -661,8 +634,8 @@ function shapeMaterial(array $m): array
 function shapeMaterialTransaction(array $t): array
 {
     return [
-        'id'             => (int) $t['id'],
-        'material_id'    => (int) $t['material_id'],
+        'id'             => $t['id'],
+        'material_id'    => $t['material_id'],
         'type'           => $t['type'],
         'quantity'       => (float) $t['quantity'],
         'price_per_unit' => (float) $t['price_per_unit'],
@@ -673,15 +646,18 @@ function shapeMaterialTransaction(array $t): array
         'on_tab'         => onTab($t),
         'unpaid'         => !empty($t['unpaid']),
         'note'           => $t['note'],
-        'created_at'     => $t['created_at'],
+        // Business time: when the goods moved. Preserved across edits, which is
+        // what keeps history order and the day grouping honest.
+        'timestamp'      => $t['timestamp'],
+        'updated_at'     => $t['updated_at'],
     ];
 }
 
 function shapeOperationCost(array $o): array
 {
     return [
-        'id'              => (int) $o['id'],
-        'book_id'         => (int) $o['book_id'],
+        'id'              => $o['id'],
+        'book_id'         => $o['book_id'],
         'reason'          => $o['reason'],
         'note'            => $o['note'],
         'amount'          => (float) $o['amount'],
@@ -694,7 +670,7 @@ function shapeOperationEntry(array $e): array
 {
     return [
         'id'                => $e['id'],
-        'operation_cost_id' => (int) $e['operation_cost_id'],
+        'operation_cost_id' => $e['operation_cost_id'],
         'amount'            => (float) $e['amount'],
         'note'              => $e['note'],
         'timestamp'         => $e['timestamp'],
@@ -704,8 +680,8 @@ function shapeOperationEntry(array $e): array
 function shapeCategory(array $c): array
 {
     return [
-        'id'                => (int) $c['id'],
-        'book_id'           => (int) $c['book_id'],
+        'id'                => $c['id'],
+        'book_id'           => $c['book_id'],
         'name'              => $c['name'],
         'details'           => $c['details'],
         'type'              => $c['type'],
@@ -716,9 +692,9 @@ function shapeCategory(array $c): array
 function shapePersonalTx(array $t): array
 {
     return [
-        'id'            => (int) $t['id'],
-        'book_id'       => (int) $t['book_id'],
-        'category_id'   => $t['category_id'] !== null ? (int) $t['category_id'] : null,
+        'id'            => $t['id'],
+        'book_id'       => $t['book_id'],
+        'category_id'   => $t['category_id'],
         'category_name' => $t['category_name'],
         'type'          => $t['type'],
         'note'          => $t['note'],
@@ -744,7 +720,7 @@ function findCustomer(PDO $pdo, string $id): array
     return $c;
 }
 
-function findProduct(PDO $pdo, int $id): array
+function findProduct(PDO $pdo, string $id): array
 {
     $stmt = $pdo->prepare(
         'SELECT p.* FROM products p JOIN books b ON b.id = p.book_id
@@ -758,7 +734,7 @@ function findProduct(PDO $pdo, int $id): array
     return $p;
 }
 
-function findMaterial(PDO $pdo, int $id): array
+function findMaterial(PDO $pdo, string $id): array
 {
     $stmt = $pdo->prepare(
         'SELECT m.* FROM materials m JOIN books b ON b.id = m.book_id
@@ -772,7 +748,7 @@ function findMaterial(PDO $pdo, int $id): array
     return $m;
 }
 
-function findOperationCost(PDO $pdo, int $id): array
+function findOperationCost(PDO $pdo, string $id): array
 {
     $stmt = $pdo->prepare(
         'SELECT o.* FROM operation_costs o JOIN books b ON b.id = o.book_id
@@ -786,7 +762,7 @@ function findOperationCost(PDO $pdo, int $id): array
     return $o;
 }
 
-function findCategory(PDO $pdo, int $id): array
+function findCategory(PDO $pdo, string $id): array
 {
     $stmt = $pdo->prepare(
         'SELECT c.* FROM categories c JOIN books b ON b.id = c.book_id
@@ -800,7 +776,7 @@ function findCategory(PDO $pdo, int $id): array
     return $c;
 }
 
-function findPersonalTx(PDO $pdo, int $id): array
+function findPersonalTx(PDO $pdo, string $id): array
 {
     $stmt = $pdo->prepare(
         'SELECT t.* FROM personal_transactions t JOIN books b ON b.id = t.book_id
@@ -821,7 +797,7 @@ function findPersonalTx(PDO $pdo, int $id): array
  * material info for the stock-details card. No image_url — the product list stays
  * lean; the product form fetches full materials (with images) separately.
  */
-function loadProductMaterials(PDO $pdo, int $productId): array
+function loadProductMaterials(PDO $pdo, string $productId): array
 {
     $stmt = $pdo->prepare(
         'SELECT m.id, m.name, m.quantity_type, m.current_stock, m.last_purchase_price
@@ -830,7 +806,7 @@ function loadProductMaterials(PDO $pdo, int $productId): array
     );
     $stmt->execute([$productId]);
     return array_map(fn($r) => [
-        'id'                  => (int) $r['id'],
+        'id'                  => $r['id'],
         'name'                => $r['name'],
         'quantity_type'       => $r['quantity_type'],
         'current_stock'       => (float) $r['current_stock'],
@@ -839,18 +815,18 @@ function loadProductMaterials(PDO $pdo, int $productId): array
 }
 
 /**
- * Normalise incoming material ids to a unique, book-scoped, validated int list.
+ * Normalise incoming material ids to a unique, book-scoped, validated list.
  * Ids that don't belong to $bookId are silently dropped (capped at 50).
  */
-function parseMaterialIds($raw, PDO $pdo, int $bookId): array
+function parseMaterialIds($raw, PDO $pdo, string $bookId): array
 {
     if (!is_array($raw)) {
         return [];
     }
     $ids = [];
     foreach ($raw as $v) {
-        if (is_numeric($v)) {
-            $ids[(int) $v] = true;   // dedupe via keys
+        if (is_string($v) && $v !== '') {
+            $ids[$v] = true;   // dedupe via keys
         }
     }
     $ids = array_slice(array_keys($ids), 0, 50);
@@ -861,11 +837,11 @@ function parseMaterialIds($raw, PDO $pdo, int $bookId): array
     $ph = implode(',', array_fill(0, count($ids), '?'));
     $stmt = $pdo->prepare("SELECT id FROM materials WHERE book_id = ? AND id IN ($ph)");
     $stmt->execute([$bookId, ...$ids]);
-    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
 /** Replace a product's linked-material set with the given ids. */
-function syncProductMaterials(PDO $pdo, int $productId, int $bookId, array $ids): void
+function syncProductMaterials(PDO $pdo, string $productId, string $bookId, array $ids): void
 {
     $pdo->prepare('DELETE FROM product_materials WHERE product_id = ?')->execute([$productId]);
     if (!$ids) {
@@ -937,7 +913,7 @@ on('POST', '/auth/logout', function () {
 
 // ---- Books ----
 on('GET', '/books', function () {
-    $stmt = db()->prepare('SELECT id, name, type FROM books WHERE user_id = ? ORDER BY id ASC');
+    $stmt = db()->prepare('SELECT id, name, type FROM books WHERE user_id = ? ORDER BY seq ASC');
     $stmt->execute([authUser()['id']]);
     $books = array_map('shapeBook', $stmt->fetchAll());
     json_response(['books' => $books]);
@@ -952,9 +928,9 @@ on('POST', '/books', function () {
         json_error('Type must be "store" or "personal".', 422, 'validation');
     }
 
-    $pdo->prepare('INSERT INTO books (user_id, name, type) VALUES (?, ?, ?)')
-        ->execute([authUser()['id'], $name, $type]);
-    $id = (int) $pdo->lastInsertId();
+    $id = uuid4();
+    $pdo->prepare('INSERT INTO books (id, user_id, name, type) VALUES (?, ?, ?, ?)')
+        ->execute([$id, authUser()['id'], $name, $type]);
 
     // Seed a starter set of categories for a new personal book.
     if ($type === 'personal') {
@@ -962,9 +938,9 @@ on('POST', '/books', function () {
             ['income', 'Salary'], ['income', 'Freelance'],
             ['expense', 'Food'], ['expense', 'Bills'], ['expense', 'Transport'], ['expense', 'Shopping'],
         ];
-        $ins = $pdo->prepare('INSERT INTO categories (book_id, name, type) VALUES (?, ?, ?)');
+        $ins = $pdo->prepare('INSERT INTO categories (id, book_id, name, type) VALUES (?, ?, ?, ?)');
         foreach ($defaults as [$catType, $catName]) {
-            $ins->execute([$id, $catName, $catType]);
+            $ins->execute([uuid4(), $id, $catName, $catType]);
         }
     }
 
@@ -974,12 +950,12 @@ on('POST', '/books', function () {
 });
 
 on('GET', '/books/{id}', function ($a) {
-    json_response(shapeBook(requireOwnedBook(db(), (int) $a['id'])));
+    json_response(shapeBook(requireOwnedBook(db(), $a['id'])));
 });
 
 on('PUT', '/books/{id}', function ($a) {
     $pdo = db();
-    $id  = (int) $a['id'];
+    $id  = $a['id'];
     requireOwnedBook($pdo, $id);
 
     $body = read_json_body();
@@ -998,7 +974,7 @@ on('PUT', '/books/{id}', function ($a) {
 
 on('DELETE', '/books/{id}', function ($a) {
     $pdo = db();
-    $id  = (int) $a['id'];
+    $id  = $a['id'];
     requireOwnedBook($pdo, $id);
     // FK cascades remove the book's products, customers, transactions and history.
     $pdo->prepare('DELETE FROM books WHERE id = ?')->execute([$id]);
@@ -1008,11 +984,11 @@ on('DELETE', '/books/{id}', function ($a) {
 // ---- Customers ----
 on('GET', '/books/{id}/customers', function ($a) {
     $pdo = db();
-    requireOwnedBook($pdo, (int) $a['id']);
+    requireOwnedBook($pdo, $a['id']);
     $stmt = $pdo->prepare(
         'SELECT * FROM customers WHERE book_id = ? ORDER BY name ASC, nickname ASC'
     );
-    $stmt->execute([(int) $a['id']]);
+    $stmt->execute([$a['id']]);
     $customers = array_map('shapeCustomer', $stmt->fetchAll());
 
     $paid = 0.0; $unpaid = 0.0;
@@ -1028,7 +1004,7 @@ on('GET', '/books/{id}/customers', function ($a) {
 
 on('POST', '/books/{id}/customers', function ($a) {
     $pdo = db();
-    $bookId = (int) $a['id'];
+    $bookId = $a['id'];
     requireOwnedBook($pdo, $bookId);
     $body = read_json_body();
 
@@ -1065,7 +1041,7 @@ on('GET', '/customers/{id}', function ($a) {
 on('PUT', '/customers/{id}', function ($a) {
     $pdo = db();
     $existing = findCustomer($pdo, $a['id']);
-    $bookId = (int) $existing['book_id'];
+    $bookId = $existing['book_id'];
     $body = read_json_body();
 
     $name     = v_string($body['name']     ?? '', 100, true,  'Name');
@@ -1135,7 +1111,7 @@ on('POST', '/customers/{id}/balance', function ($a) {
                 (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp)
              VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'
         )->execute([
-            $historyId, $customer['id'], (int) $customer['book_id'], $amount, $type, $signed,
+            $historyId, $customer['id'], $customer['book_id'], $amount, $type, $signed,
             $reason !== '' ? $reason : null, $expression !== '' ? $expression : null, $timestamp,
         ]);
         $totals = recomputeCustomer($pdo, $customer['id']);
@@ -1255,7 +1231,7 @@ on('GET', '/customers/{id}/items', function ($a) {
 on('POST', '/customers/{id}/items', function ($a) {
     $pdo      = db();
     $customer = findCustomer($pdo, $a['id']);
-    $bookId   = (int) $customer['book_id'];
+    $bookId   = $customer['book_id'];
     $body     = read_json_body();
 
     $rows = $body['items'] ?? null;
@@ -1277,8 +1253,8 @@ on('POST', '/customers/{id}/items', function ($a) {
         if (!in_array($type, ['product', 'material'], true)) {
             json_error('Item type must be "product" or "material".', 422, 'validation');
         }
-        $itemId = isset($r['item_id']) && is_numeric($r['item_id']) ? (int) $r['item_id'] : 0;
-        if ($itemId <= 0) {
+        $itemId = is_string($r['item_id'] ?? null) ? $r['item_id'] : '';
+        if ($itemId === '') {
             json_error('Item is required.', 422, 'validation');
         }
         $qty = v_amount($r['quantity'] ?? null, 'Quantity');
@@ -1288,7 +1264,7 @@ on('POST', '/customers/{id}/items', function ($a) {
         $price = round((float) $r['price_per_unit'], 2);
 
         $src = $type === 'product' ? findProduct($pdo, $itemId) : findMaterial($pdo, $itemId);
-        if ((int) $src['book_id'] !== $bookId) {
+        if ($src['book_id'] !== $bookId) {
             json_error('That item belongs to another book.', 422, 'validation');
         }
 
@@ -1324,12 +1300,12 @@ on('POST', '/customers/{id}/items', function ($a) {
         // the product's own history can flag it instead of showing a plain
         // counter sale. The tab line is resolved first — the sale row needs its id.
         $saleProduct  = $pdo->prepare(
-            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id, customer_history_id)
-             VALUES (?, ?, \'sale\', ?, ?, ?, 0, ?, ?, ?)'
+            'INSERT INTO product_transactions (id, product_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id, customer_history_id, timestamp)
+             VALUES (?, ?, ?, \'sale\', ?, ?, ?, 0, ?, ?, ?, ?)'
         );
         $saleMaterial = $pdo->prepare(
-            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id, customer_history_id)
-             VALUES (?, ?, \'sale\', ?, ?, ?, 0, ?, ?, ?)'
+            'INSERT INTO material_transactions (id, material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id, customer_history_id, timestamp)
+             VALUES (?, ?, ?, \'sale\', ?, ?, ?, 0, ?, ?, ?, ?)'
         );
         $debt = $pdo->prepare(
             'INSERT INTO customer_balance_history
@@ -1359,11 +1335,11 @@ on('POST', '/customers/{id}/items', function ($a) {
                 $itemRowId = uuid4();
                 $pdo->prepare(
                     "INSERT INTO customer_items
-                        (id, customer_id, book_id, item_type, $col, item_name, quantity_type, quantity, price_per_unit, total_amount)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                        (id, customer_id, book_id, item_type, $col, item_name, quantity_type, quantity, price_per_unit, total_amount, timestamp)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 )->execute([
                     $itemRowId, $customer['id'], $bookId, $l['type'], $l['id'],
-                    $l['name'], $l['unit'], $l['quantity'], $l['price'], $l['total'],
+                    $l['name'], $l['unit'], $l['quantity'], $l['price'], $l['total'], $timestamp,
                 ]);
             }
 
@@ -1376,15 +1352,15 @@ on('POST', '/customers/{id}/items', function ($a) {
             ]);
 
             ($isProduct ? $saleProduct : $saleMaterial)->execute([
-                $l['id'], $bookId, $l['quantity'], $l['price'], $l['total'],
-                $customer['id'], $itemRowId, $debtId,
+                uuid4(), $l['id'], $bookId, $l['quantity'], $l['price'], $l['total'],
+                $customer['id'], $itemRowId, $debtId, $timestamp,
             ]);
         }
 
         // One recompute per distinct item, then the customer's running balance.
         foreach (array_keys($wanted) as $key) {
-            [$type, $id] = explode(':', $key);
-            $type === 'product' ? recomputeProduct($pdo, (int) $id) : recomputeMaterial($pdo, (int) $id);
+            [$type, $id] = explode(':', $key, 2);
+            $type === 'product' ? recomputeProduct($pdo, $id) : recomputeMaterial($pdo, $id);
         }
         $totals = recomputeCustomer($pdo, $customer['id']);
         $pdo->commit();
@@ -1449,7 +1425,7 @@ on('POST', '/customer-items/{id}/settle', function ($a) {
                     (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, timestamp)
                  VALUES (?, ?, ?, ?, \'paid\', ?, 0, ?, ?)'
             )->execute([
-                uuid4(), $item['customer_id'], (int) $item['book_id'], $amount, $amount,
+                uuid4(), $item['customer_id'], $item['book_id'], $amount, $amount,
                 itemLabel($item['item_name'], $qty), date('Y-m-d H:i:s'),
             ]);
         }
@@ -1475,7 +1451,7 @@ on('POST', '/customer-items/{id}/settle', function ($a) {
 // ---- Products ----
 on('GET', '/books/{id}/products', function ($a) {
     $pdo    = db();
-    $bookId = (int) $a['id'];
+    $bookId = $a['id'];
     requireOwnedBook($pdo, $bookId);
     $stmt = $pdo->prepare('SELECT * FROM products WHERE book_id = ? ORDER BY name ASC');
     $stmt->execute([$bookId]);
@@ -1488,7 +1464,7 @@ on('GET', '/books/{id}/products', function ($a) {
 
 on('POST', '/books/{id}/products', function ($a) {
     $pdo = db();
-    $bookId = (int) $a['id'];
+    $bookId = $a['id'];
     requireOwnedBook($pdo, $bookId);
     $body = read_json_body();
     $name         = v_string($body['name'] ?? '', 100, true, 'Product name');
@@ -1512,9 +1488,9 @@ on('POST', '/books/{id}/products', function ($a) {
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('INSERT INTO products (book_id, name, quantity_type, product_type, image_url) VALUES (?, ?, ?, ?, ?)')
-            ->execute([$bookId, $name, $quantityType, $productType, $imageUrl]);
-        $id = (int) $pdo->lastInsertId();
+        $id = uuid4();
+        $pdo->prepare('INSERT INTO products (id, book_id, name, quantity_type, product_type, image_url) VALUES (?, ?, ?, ?, ?, ?)')
+            ->execute([$id, $bookId, $name, $quantityType, $productType, $imageUrl]);
         syncProductMaterials($pdo, $id, $bookId, $materialIds);
         // Set the denormalised stock columns correctly for the type (NULLs for manufacture).
         recomputeProduct($pdo, $id);
@@ -1529,7 +1505,7 @@ on('POST', '/books/{id}/products', function ($a) {
 
 on('GET', '/products/{id}', function ($a) {
     $pdo = db();
-    $id  = (int) $a['id'];
+    $id  = $a['id'];
     json_response(['product' => shapeProduct(findProduct($pdo, $id), loadProductMaterials($pdo, $id))]);
 });
 
@@ -1537,14 +1513,14 @@ on('GET', '/products/{id}', function ($a) {
 // demand so the product list stays lean (no per-product materials JOIN).
 on('GET', '/products/{id}/materials', function ($a) {
     $pdo = db();
-    $id  = (int) $a['id'];
+    $id  = $a['id'];
     findProduct($pdo, $id); // ownership guard
     json_response(['product_id' => $id, 'materials' => loadProductMaterials($pdo, $id)]);
 });
 
 on('PUT', '/products/{id}', function ($a) {
     $pdo = db();
-    $id  = (int) $a['id'];
+    $id  = $a['id'];
     $product = findProduct($pdo, $id);
     $body = read_json_body();
     $name         = v_string($body['name'] ?? '', 100, true, 'Product name');
@@ -1553,7 +1529,7 @@ on('PUT', '/products/{id}', function ($a) {
     if (!in_array($productType, ['ready_made', 'manufacture'], true)) {
         json_error('Product type must be "ready_made" or "manufacture".', 422, 'validation');
     }
-    $bookId = (int) $product['book_id'];
+    $bookId = $product['book_id'];
     $materialIds = $productType === 'manufacture' ? parseMaterialIds($body['material_ids'] ?? null, $pdo, $bookId) : [];
     if ($productType === 'manufacture' && count($materialIds) === 0) {
         json_error('Add at least one material.', 422, 'validation');
@@ -1588,35 +1564,37 @@ on('PUT', '/products/{id}', function ($a) {
 
 on('DELETE', '/products/{id}', function ($a) {
     $pdo = db();
-    findProduct($pdo, (int) $a['id']);
-    $pdo->prepare('DELETE FROM products WHERE id = ?')->execute([(int) $a['id']]);
+    findProduct($pdo, $a['id']);
+    $pdo->prepare('DELETE FROM products WHERE id = ?')->execute([$a['id']]);
     json_response(['success' => true]);
 });
 
 on('GET', '/products/{id}/transactions', function ($a) {
     $pdo = db();
-    findProduct($pdo, (int) $a['id']);
+    findProduct($pdo, $a['id']);
     // The customer join is for the tab-sale label; it stays NULL for counter sales.
     $stmt = $pdo->prepare(
         'SELECT t.*, c.name AS customer_name, ' . UNPAID_FLAG . '
          FROM product_transactions t
          LEFT JOIN customers c ON c.id = t.customer_id
-         WHERE t.product_id = ? ORDER BY t.id DESC'
+         WHERE t.product_id = ? ORDER BY t.seq DESC'
     );
-    $stmt->execute([(int) $a['id']]);
+    $stmt->execute([$a['id']]);
     $txns = $stmt->fetchAll();
 
     json_response([
-        'product_id'   => (int) $a['id'],
+        'product_id'   => $a['id'],
         'transactions' => array_map('shapeTransaction', $txns),
     ]);
 });
 
-on('POST', '/products/{id}/transactions', function ($a) {
-    $pdo = db();
-    $product = findProduct($pdo, (int) $a['id']);
-    $body = read_json_body();
-
+/**
+ * Validate a product transaction body against its product. `$old` is the entry
+ * being edited, whose effect on stock is reversed to get the true baseline;
+ * pass null when creating. Returns [type, quantity, price, total, note].
+ */
+function validateProductTx(array $body, array $product, ?array $old): array
+{
     $type = $body['type'] ?? '';
     if (!in_array($type, ['stock', 'sale'], true)) {
         json_error('Type must be "stock" or "sale".', 422, 'validation');
@@ -1636,17 +1614,8 @@ on('POST', '/products/{id}/transactions', function ($a) {
     $price = round((float) $body['price_per_unit'], 2);
     $total = round($quantity * $price, 2);
 
-    // When editing, this entry replaces an existing one (insert + delete happen
-    // atomically below), so no update endpoint is needed.
-    $replaces = isset($body['replaces']) && is_numeric($body['replaces']) ? (int) $body['replaces'] : 0;
-
-    // An edit of a tab sale has to carry the customer with it, so the replaced
-    // row is loaded up front (this also refuses editing an already-paid sale).
-    $old = loadReplaced($pdo, 'product_transactions', 'product_id', $replaces, (int) $product['id'], $type);
-
     // Stock guard (ready-made only): a sale can never exceed the stock in hand.
-    // Manufacture stock is unknown, so no guard applies. For an edit, reverse the
-    // replaced entry's effect to get the true baseline.
+    // Manufacture stock is unknown, so no guard applies.
     if ($type === 'sale' && !$isManufacture) {
         $available = (float) $product['current_stock'];
         if ($old) {
@@ -1658,29 +1627,39 @@ on('POST', '/products/{id}/transactions', function ($a) {
         }
     }
 
+    return [$type, $quantity, $price, $total, $note !== '' ? $note : null];
+}
+
+/** One product transaction, guarded by ownership through its book. */
+function findProductTx(PDO $pdo, string $id): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT t.* FROM product_transactions t JOIN books b ON b.id = t.book_id
+         WHERE t.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$id, authUser()['id']]);
+    $tx = $stmt->fetch();
+    if (!$tx) {
+        json_error('Transaction not found.', 404, 'not_found');
+    }
+    return $tx;
+}
+
+on('POST', '/products/{id}/transactions', function ($a) {
+    $pdo     = db();
+    $product = findProduct($pdo, $a['id']);
+    [$type, $quantity, $price, $total, $note] = validateProductTx(read_json_body(), $product, null);
+
+    $txId = uuid4();
     $pdo->beginTransaction();
     try {
-        // A tab sale keeps its customer; its outstanding line and debt entry are
-        // moved to match the edit before the new goods row points at them.
-        $itemRowId = $old && $old['line']
-            ? retabSale($pdo, $old, 'product', (int) $product['id'], $product['name'], $product['quantity_type'], $quantity, $price, $total)
-            : ($old['customer_item_id'] ?? null);
-
-        // stock_after is set by recomputeProduct (NULL for manufacture).
+        // stock_after is set by recomputeProduct (NULL for manufacture); the
+        // timestamp defaults to now — this IS when the goods moved.
         $pdo->prepare(
-            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, note, customer_id, customer_item_id, customer_history_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        )->execute([
-            $product['id'], (int) $product['book_id'], $type, $quantity, $price, $total,
-            $note !== '' ? $note : null,
-            $old['customer_id'] ?? null, $itemRowId, $old['customer_history_id'] ?? null,
-        ]);
-        $txId = (int) $pdo->lastInsertId();
-        if ($replaces > 0) {
-            $pdo->prepare('DELETE FROM product_transactions WHERE id = ? AND product_id = ?')
-                ->execute([$replaces, (int) $product['id']]);
-        }
-        recomputeProduct($pdo, (int) $product['id']);
+            'INSERT INTO product_transactions (id, product_id, book_id, type, quantity, price_per_unit, total_amount, note)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        )->execute([$txId, $product['id'], $product['book_id'], $type, $quantity, $price, $total, $note]);
+        recomputeProduct($pdo, $product['id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -1692,21 +1671,62 @@ on('POST', '/products/{id}/transactions', function ($a) {
     json_response([
         'success'     => true,
         'transaction' => shapeTransaction($stmt->fetch()),
-        'product'     => shapeProduct(findProduct($pdo, (int) $product['id']), loadProductMaterials($pdo, (int) $product['id'])),
+        'product'     => shapeProduct(findProduct($pdo, $product['id']), loadProductMaterials($pdo, $product['id'])),
     ], 201);
+});
+
+/**
+ * Edit one entry IN PLACE: id, seq and timestamp are kept, so the entry holds
+ * its position in history and in the running-stock chain (recomputeProduct
+ * walks seq ASC). Only updated_at moves.
+ */
+on('PUT', '/product-transactions/{id}', function ($a) {
+    $pdo     = db();
+    $tx      = findProductTx($pdo, $a['id']);
+    $product = findProduct($pdo, $tx['product_id']);
+    [$type, $quantity, $price, $total, $note] = validateProductTx(read_json_body(), $product, $tx);
+
+    // A tab sale is three rows; the goods cannot change type out from under the debt.
+    if (!empty($tx['customer_item_id']) && $type !== 'sale') {
+        json_error('A sale on a customer’s tab cannot become a stock entry.', 422, 'validation');
+    }
+    $line = tabLineFor(
+        $pdo,
+        $tx,
+        'This sale has already been paid for. Edit it from the customer’s tab instead.'
+    );
+
+    $pdo->beginTransaction();
+    try {
+        // The outstanding line and the debt entry move to match the edit.
+        $itemRowId = $line
+            ? retabSale($pdo, $tx, $line, 'product', $product['id'], $product['name'], $product['quantity_type'], $quantity, $price, $total)
+            : $tx['customer_item_id'];
+
+        $pdo->prepare(
+            'UPDATE product_transactions
+             SET type = ?, quantity = ?, price_per_unit = ?, total_amount = ?, note = ?, customer_item_id = ?
+             WHERE id = ?'
+        )->execute([$type, $quantity, $price, $total, $note, $itemRowId, $tx['id']]);
+        recomputeProduct($pdo, $product['id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save transaction.', 500);
+    }
+
+    $stmt = $pdo->prepare('SELECT * FROM product_transactions WHERE id = ?');
+    $stmt->execute([$tx['id']]);
+    json_response([
+        'success'     => true,
+        'transaction' => shapeTransaction($stmt->fetch()),
+        'product'     => shapeProduct(findProduct($pdo, $product['id']), loadProductMaterials($pdo, $product['id'])),
+    ]);
 });
 
 on('DELETE', '/product-transactions/{id}', function ($a) {
     $pdo = db();
-    $stmt = $pdo->prepare(
-        'SELECT t.* FROM product_transactions t JOIN books b ON b.id = t.book_id
-         WHERE t.id = ? AND b.user_id = ?'
-    );
-    $stmt->execute([(int) $a['id'], authUser()['id']]);
-    $tx = $stmt->fetch();
-    if (!$tx) {
-        json_error('Transaction not found.', 404, 'not_found');
-    }
+    $tx  = findProductTx($pdo, $a['id']);
 
     // Deleting the goods half of a tab sale has to take the debt with it, or
     // the customer keeps owing for something no longer on record.
@@ -1721,8 +1741,8 @@ on('DELETE', '/product-transactions/{id}', function ($a) {
         if ($line) {
             untabSale($pdo, $tx, $line);
         }
-        $pdo->prepare('DELETE FROM product_transactions WHERE id = ?')->execute([(int) $a['id']]);
-        recomputeProduct($pdo, (int) $tx['product_id']);
+        $pdo->prepare('DELETE FROM product_transactions WHERE id = ?')->execute([$tx['id']]);
+        recomputeProduct($pdo, $tx['product_id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -1731,14 +1751,14 @@ on('DELETE', '/product-transactions/{id}', function ($a) {
 
     json_response([
         'success' => true,
-        'product' => shapeProduct(findProduct($pdo, (int) $tx['product_id']), loadProductMaterials($pdo, (int) $tx['product_id'])),
+        'product' => shapeProduct(findProduct($pdo, $tx['product_id']), loadProductMaterials($pdo, $tx['product_id'])),
     ]);
 });
 
 // ---- Materials (store books) ----
 on('GET', '/books/{id}/materials', function ($a) {
     $pdo    = db();
-    $bookId = (int) $a['id'];
+    $bookId = $a['id'];
     requireOwnedBook($pdo, $bookId);
     $stmt = $pdo->prepare('SELECT * FROM materials WHERE book_id = ? ORDER BY name ASC');
     $stmt->execute([$bookId]);
@@ -1747,7 +1767,7 @@ on('GET', '/books/{id}/materials', function ($a) {
 
 on('POST', '/books/{id}/materials', function ($a) {
     $pdo    = db();
-    $bookId = (int) $a['id'];
+    $bookId = $a['id'];
     requireOwnedBook($pdo, $bookId);
     $body = read_json_body();
     $name         = v_string($body['name'] ?? '', 100, true, 'Material name');
@@ -1761,16 +1781,16 @@ on('POST', '/books/{id}/materials', function ($a) {
         json_error('A material named "' . $name . '" already exists.', 409, 'duplicate');
     }
 
-    $pdo->prepare('INSERT INTO materials (book_id, name, quantity_type, image_url) VALUES (?, ?, ?, ?)')
-        ->execute([$bookId, $name, $quantityType, $imageUrl]);
-    $id = (int) $pdo->lastInsertId();
+    $id = uuid4();
+    $pdo->prepare('INSERT INTO materials (id, book_id, name, quantity_type, image_url) VALUES (?, ?, ?, ?, ?)')
+        ->execute([$id, $bookId, $name, $quantityType, $imageUrl]);
 
     json_response(['success' => true, 'material' => shapeMaterial(findMaterial($pdo, $id))], 201);
 });
 
 on('PUT', '/materials/{id}', function ($a) {
     $pdo      = db();
-    $id       = (int) $a['id'];
+    $id       = $a['id'];
     $material = findMaterial($pdo, $id);
     $body     = read_json_body();
     $name         = v_string($body['name'] ?? '', 100, true, 'Material name');
@@ -1780,7 +1800,7 @@ on('PUT', '/materials/{id}', function ($a) {
         : $material['image_url'];
 
     $dup = $pdo->prepare('SELECT COUNT(*) FROM materials WHERE book_id = ? AND name = ? AND id <> ?');
-    $dup->execute([(int) $material['book_id'], $name, $id]);
+    $dup->execute([$material['book_id'], $name, $id]);
     if ((int) $dup->fetchColumn() > 0) {
         json_error('Another material named "' . $name . '" already exists.', 409, 'duplicate');
     }
@@ -1793,32 +1813,34 @@ on('PUT', '/materials/{id}', function ($a) {
 
 on('DELETE', '/materials/{id}', function ($a) {
     $pdo = db();
-    findMaterial($pdo, (int) $a['id']);
-    $pdo->prepare('DELETE FROM materials WHERE id = ?')->execute([(int) $a['id']]);
+    findMaterial($pdo, $a['id']);
+    $pdo->prepare('DELETE FROM materials WHERE id = ?')->execute([$a['id']]);
     json_response(['success' => true]);
 });
 
 on('GET', '/materials/{id}/transactions', function ($a) {
     $pdo = db();
-    findMaterial($pdo, (int) $a['id']);
+    findMaterial($pdo, $a['id']);
     $stmt = $pdo->prepare(
         'SELECT t.*, c.name AS customer_name, ' . UNPAID_FLAG . '
          FROM material_transactions t
          LEFT JOIN customers c ON c.id = t.customer_id
-         WHERE t.material_id = ? ORDER BY t.id DESC'
+         WHERE t.material_id = ? ORDER BY t.seq DESC'
     );
-    $stmt->execute([(int) $a['id']]);
+    $stmt->execute([$a['id']]);
     json_response([
-        'material_id'  => (int) $a['id'],
+        'material_id'  => $a['id'],
         'transactions' => array_map('shapeMaterialTransaction', $stmt->fetchAll()),
     ]);
 });
 
-on('POST', '/materials/{id}/transactions', function ($a) {
-    $pdo      = db();
-    $material = findMaterial($pdo, (int) $a['id']);
-    $body     = read_json_body();
-
+/**
+ * Validate a material transaction body against its material. `$old` is the entry
+ * being edited, whose effect on stock is reversed to get the true baseline;
+ * pass null when creating. Returns [type, quantity, price, total, note].
+ */
+function validateMaterialTx(array $body, array $material, ?array $old): array
+{
     $type = $body['type'] ?? '';
     if (!in_array($type, ['stock', 'sale', 'used'], true)) {
         json_error('Type must be "stock", "sale" or "used".', 422, 'validation');
@@ -1839,15 +1861,7 @@ on('POST', '/materials/{id}/transactions', function ($a) {
         $price = $quantity > 0 ? round($total / $quantity, 2) : 0.0;
     }
 
-    // When editing, this entry replaces an existing one (insert + delete atomically).
-    $replaces = isset($body['replaces']) && is_numeric($body['replaces']) ? (int) $body['replaces'] : 0;
-
-    // An edit of a tab sale has to carry the customer with it, so the replaced
-    // row is loaded up front (this also refuses editing an already-paid sale).
-    $old = loadReplaced($pdo, 'material_transactions', 'material_id', $replaces, (int) $material['id'], $type);
-
-    // Stock guard: a sale or used entry can never exceed the stock in hand, so
-    // stock stays >= 0. For an edit, reverse the replaced entry's effect first.
+    // Stock guard: a sale or used entry can never exceed the stock in hand.
     if ($type === 'sale' || $type === 'used') {
         $available = (float) $material['current_stock'];
         if ($old) {
@@ -1859,27 +1873,37 @@ on('POST', '/materials/{id}/transactions', function ($a) {
         }
     }
 
+    return [$type, $quantity, $price, $total, $note !== '' ? $note : null];
+}
+
+/** One material transaction, guarded by ownership through its book. */
+function findMaterialTx(PDO $pdo, string $id): array
+{
+    $stmt = $pdo->prepare(
+        'SELECT t.* FROM material_transactions t JOIN books b ON b.id = t.book_id
+         WHERE t.id = ? AND b.user_id = ?'
+    );
+    $stmt->execute([$id, authUser()['id']]);
+    $tx = $stmt->fetch();
+    if (!$tx) {
+        json_error('Transaction not found.', 404, 'not_found');
+    }
+    return $tx;
+}
+
+on('POST', '/materials/{id}/transactions', function ($a) {
+    $pdo      = db();
+    $material = findMaterial($pdo, $a['id']);
+    [$type, $quantity, $price, $total, $note] = validateMaterialTx(read_json_body(), $material, null);
+
     $pdo->beginTransaction();
     try {
-        // A tab sale keeps its customer; its outstanding line and debt entry are
-        // moved to match the edit before the new goods row points at them.
-        $itemRowId = $old && $old['line']
-            ? retabSale($pdo, $old, 'material', (int) $material['id'], $material['name'], $material['quantity_type'], $quantity, $price, $total)
-            : ($old['customer_item_id'] ?? null);
-
+        // stock_after is set by recomputeMaterial; the timestamp defaults to now.
         $pdo->prepare(
-            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, note, customer_id, customer_item_id, customer_history_id)
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)'
-        )->execute([
-            $material['id'], (int) $material['book_id'], $type, $quantity, $price, $total,
-            $note !== '' ? $note : null,
-            $old['customer_id'] ?? null, $itemRowId, $old['customer_history_id'] ?? null,
-        ]);
-        if ($replaces > 0) {
-            $pdo->prepare('DELETE FROM material_transactions WHERE id = ? AND material_id = ?')
-                ->execute([$replaces, (int) $material['id']]);
-        }
-        recomputeMaterial($pdo, (int) $material['id']);
+            'INSERT INTO material_transactions (id, material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, note)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)'
+        )->execute([uuid4(), $material['id'], $material['book_id'], $type, $quantity, $price, $total, $note]);
+        recomputeMaterial($pdo, $material['id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -1888,21 +1912,59 @@ on('POST', '/materials/{id}/transactions', function ($a) {
 
     json_response([
         'success'  => true,
-        'material' => shapeMaterial(findMaterial($pdo, (int) $material['id'])),
+        'material' => shapeMaterial(findMaterial($pdo, $material['id'])),
     ], 201);
+});
+
+/**
+ * Edit one entry IN PLACE: id, seq and timestamp are kept, so the entry holds
+ * its position in history and in the running-stock chain (recomputeMaterial
+ * walks seq ASC). Only updated_at moves.
+ */
+on('PUT', '/material-transactions/{id}', function ($a) {
+    $pdo      = db();
+    $tx       = findMaterialTx($pdo, $a['id']);
+    $material = findMaterial($pdo, $tx['material_id']);
+    [$type, $quantity, $price, $total, $note] = validateMaterialTx(read_json_body(), $material, $tx);
+
+    // A tab sale is three rows; the goods cannot change type out from under the debt.
+    if (!empty($tx['customer_item_id']) && $type !== 'sale') {
+        json_error('A sale on a customer’s tab cannot become a stock entry.', 422, 'validation');
+    }
+    $line = tabLineFor(
+        $pdo,
+        $tx,
+        'This sale has already been paid for. Edit it from the customer’s tab instead.'
+    );
+
+    $pdo->beginTransaction();
+    try {
+        // The outstanding line and the debt entry move to match the edit.
+        $itemRowId = $line
+            ? retabSale($pdo, $tx, $line, 'material', $material['id'], $material['name'], $material['quantity_type'], $quantity, $price, $total)
+            : $tx['customer_item_id'];
+
+        $pdo->prepare(
+            'UPDATE material_transactions
+             SET type = ?, quantity = ?, price_per_unit = ?, total_amount = ?, note = ?, customer_item_id = ?
+             WHERE id = ?'
+        )->execute([$type, $quantity, $price, $total, $note, $itemRowId, $tx['id']]);
+        recomputeMaterial($pdo, $material['id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to save transaction.', 500);
+    }
+
+    json_response([
+        'success'  => true,
+        'material' => shapeMaterial(findMaterial($pdo, $material['id'])),
+    ]);
 });
 
 on('DELETE', '/material-transactions/{id}', function ($a) {
     $pdo = db();
-    $stmt = $pdo->prepare(
-        'SELECT t.* FROM material_transactions t JOIN books b ON b.id = t.book_id
-         WHERE t.id = ? AND b.user_id = ?'
-    );
-    $stmt->execute([(int) $a['id'], authUser()['id']]);
-    $tx = $stmt->fetch();
-    if (!$tx) {
-        json_error('Transaction not found.', 404, 'not_found');
-    }
+    $tx  = findMaterialTx($pdo, $a['id']);
 
     // Deleting the goods half of a tab sale has to take the debt with it, or
     // the customer keeps owing for something no longer on record.
@@ -1917,8 +1979,8 @@ on('DELETE', '/material-transactions/{id}', function ($a) {
         if ($line) {
             untabSale($pdo, $tx, $line);
         }
-        $pdo->prepare('DELETE FROM material_transactions WHERE id = ?')->execute([(int) $a['id']]);
-        recomputeMaterial($pdo, (int) $tx['material_id']);
+        $pdo->prepare('DELETE FROM material_transactions WHERE id = ?')->execute([$tx['id']]);
+        recomputeMaterial($pdo, $tx['material_id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -1927,14 +1989,14 @@ on('DELETE', '/material-transactions/{id}', function ($a) {
 
     json_response([
         'success'  => true,
-        'material' => shapeMaterial(findMaterial($pdo, (int) $tx['material_id'])),
+        'material' => shapeMaterial(findMaterial($pdo, $tx['material_id'])),
     ]);
 });
 
 // ---- Operation costs (store books) ----
 on('GET', '/books/{id}/operation-costs', function ($a) {
     $pdo    = db();
-    $bookId = (int) $a['id'];
+    $bookId = $a['id'];
     requireOwnedBook($pdo, $bookId);
     $stmt = $pdo->prepare('SELECT * FROM operation_costs WHERE book_id = ? ORDER BY reason ASC');
     $stmt->execute([$bookId]);
@@ -1947,7 +2009,7 @@ on('GET', '/books/{id}/operation-costs', function ($a) {
 
 on('POST', '/books/{id}/operation-costs', function ($a) {
     $pdo    = db();
-    $bookId = (int) $a['id'];
+    $bookId = $a['id'];
     requireOwnedBook($pdo, $bookId);
     $body   = read_json_body();
     $reason = v_string($body['reason'] ?? '', 100, true, 'Reason');
@@ -1960,23 +2022,23 @@ on('POST', '/books/{id}/operation-costs', function ($a) {
         json_error('An operation cost named "' . $reason . '" already exists.', 409, 'duplicate');
     }
 
-    $pdo->prepare('INSERT INTO operation_costs (book_id, reason, note) VALUES (?, ?, ?)')
-        ->execute([$bookId, $reason, $note]);
-    $id = (int) $pdo->lastInsertId();
+    $id = uuid4();
+    $pdo->prepare('INSERT INTO operation_costs (id, book_id, reason, note) VALUES (?, ?, ?, ?)')
+        ->execute([$id, $bookId, $reason, $note]);
 
     json_response(['success' => true, 'operation_cost' => shapeOperationCost(findOperationCost($pdo, $id))], 201);
 });
 
 on('PUT', '/operation-costs/{id}', function ($a) {
     $pdo  = db();
-    $id   = (int) $a['id'];
+    $id   = $a['id'];
     $op   = findOperationCost($pdo, $id);
     $body = read_json_body();
     $reason = v_string($body['reason'] ?? '', 100, true, 'Reason');
     $note   = v_string($body['note'] ?? '', 255, false, 'Note');
 
     $dup = $pdo->prepare('SELECT COUNT(*) FROM operation_costs WHERE book_id = ? AND reason = ? AND id <> ?');
-    $dup->execute([(int) $op['book_id'], $reason, $id]);
+    $dup->execute([$op['book_id'], $reason, $id]);
     if ((int) $dup->fetchColumn() > 0) {
         json_error('Another operation cost named "' . $reason . '" already exists.', 409, 'duplicate');
     }
@@ -1990,16 +2052,16 @@ on('PUT', '/operation-costs/{id}', function ($a) {
 
 on('DELETE', '/operation-costs/{id}', function ($a) {
     $pdo = db();
-    findOperationCost($pdo, (int) $a['id']);
+    findOperationCost($pdo, $a['id']);
     // Entries cascade-delete with the parent.
-    $pdo->prepare('DELETE FROM operation_costs WHERE id = ?')->execute([(int) $a['id']]);
+    $pdo->prepare('DELETE FROM operation_costs WHERE id = ?')->execute([$a['id']]);
     json_response(['success' => true]);
 });
 
 // Add one dated amount entry to an operation cost (the recurring "cost over time").
 on('POST', '/operation-costs/{id}/entries', function ($a) {
     $pdo    = db();
-    $op     = findOperationCost($pdo, (int) $a['id']);
+    $op     = findOperationCost($pdo, $a['id']);
     $body   = read_json_body();
     $amount = v_amount($body['amount'] ?? null, 'Amount');
     $note   = v_string($body['note'] ?? '', 255, false, 'Note');
@@ -2010,8 +2072,8 @@ on('POST', '/operation-costs/{id}/entries', function ($a) {
         $pdo->prepare(
             'INSERT INTO operation_cost_entries (id, operation_cost_id, book_id, amount, note, timestamp)
              VALUES (?, ?, ?, ?, ?, ?)'
-        )->execute([uuid4(), (int) $op['id'], (int) $op['book_id'], $amount, $note !== '' ? $note : null, $timestamp]);
-        recomputeOperationCost($pdo, (int) $op['id']);
+        )->execute([uuid4(), $op['id'], $op['book_id'], $amount, $note !== '' ? $note : null, $timestamp]);
+        recomputeOperationCost($pdo, $op['id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -2020,7 +2082,7 @@ on('POST', '/operation-costs/{id}/entries', function ($a) {
 
     json_response([
         'success'        => true,
-        'operation_cost' => shapeOperationCost(findOperationCost($pdo, (int) $op['id'])),
+        'operation_cost' => shapeOperationCost(findOperationCost($pdo, $op['id'])),
     ], 201);
 });
 
@@ -2046,7 +2108,7 @@ on('PUT', '/operation-cost-entries/{id}', function ($a) {
     try {
         $pdo->prepare('UPDATE operation_cost_entries SET amount = ?, note = ? WHERE id = ?')
             ->execute([$amount, $note !== '' ? $note : null, $entry['id']]);
-        recomputeOperationCost($pdo, (int) $entry['operation_cost_id']);
+        recomputeOperationCost($pdo, $entry['operation_cost_id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -2055,7 +2117,7 @@ on('PUT', '/operation-cost-entries/{id}', function ($a) {
 
     json_response([
         'success'        => true,
-        'operation_cost' => shapeOperationCost(findOperationCost($pdo, (int) $entry['operation_cost_id'])),
+        'operation_cost' => shapeOperationCost(findOperationCost($pdo, $entry['operation_cost_id'])),
     ]);
 });
 
@@ -2074,7 +2136,7 @@ on('DELETE', '/operation-cost-entries/{id}', function ($a) {
     $pdo->beginTransaction();
     try {
         $pdo->prepare('DELETE FROM operation_cost_entries WHERE id = ?')->execute([$a['id']]);
-        recomputeOperationCost($pdo, (int) $entry['operation_cost_id']);
+        recomputeOperationCost($pdo, $entry['operation_cost_id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -2086,13 +2148,13 @@ on('DELETE', '/operation-cost-entries/{id}', function ($a) {
 
 on('GET', '/operation-costs/{id}/history', function ($a) {
     $pdo = db();
-    findOperationCost($pdo, (int) $a['id']);
+    findOperationCost($pdo, $a['id']);
     $stmt = $pdo->prepare(
         'SELECT * FROM operation_cost_entries WHERE operation_cost_id = ? ORDER BY seq DESC'
     );
-    $stmt->execute([(int) $a['id']]);
+    $stmt->execute([$a['id']]);
     json_response([
-        'operation_cost_id' => (int) $a['id'],
+        'operation_cost_id' => $a['id'],
         'history'           => array_map('shapeOperationEntry', $stmt->fetchAll()),
     ]);
 });
@@ -2100,15 +2162,15 @@ on('GET', '/operation-costs/{id}/history', function ($a) {
 // ---- Categories (personal books) ----
 on('GET', '/books/{id}/categories', function ($a) {
     $pdo = db();
-    requireOwnedBook($pdo, (int) $a['id']);
+    requireOwnedBook($pdo, $a['id']);
     $stmt = $pdo->prepare('SELECT * FROM categories WHERE book_id = ? ORDER BY type ASC, name ASC');
-    $stmt->execute([(int) $a['id']]);
+    $stmt->execute([$a['id']]);
     json_response(['categories' => array_map('shapeCategory', $stmt->fetchAll())]);
 });
 
 on('POST', '/books/{id}/categories', function ($a) {
     $pdo    = db();
-    $bookId = (int) $a['id'];
+    $bookId = $a['id'];
     requireOwnedBook($pdo, $bookId);
     $body   = read_json_body();
     $name    = v_string($body['name'] ?? '', 100, true, 'Category name');
@@ -2125,22 +2187,22 @@ on('POST', '/books/{id}/categories', function ($a) {
         json_error('A ' . $type . ' category named "' . $name . '" already exists.', 409, 'duplicate');
     }
 
-    $pdo->prepare('INSERT INTO categories (book_id, name, details, type) VALUES (?, ?, ?, ?)')
-        ->execute([$bookId, $name, $details, $type]);
-    $id = (int) $pdo->lastInsertId();
+    $id = uuid4();
+    $pdo->prepare('INSERT INTO categories (id, book_id, name, details, type) VALUES (?, ?, ?, ?, ?)')
+        ->execute([$id, $bookId, $name, $details, $type]);
     json_response(['success' => true, 'category' => shapeCategory(findCategory($pdo, $id))], 201);
 });
 
 on('PUT', '/categories/{id}', function ($a) {
     $pdo  = db();
-    $cat  = findCategory($pdo, (int) $a['id']);
+    $cat  = findCategory($pdo, $a['id']);
     $body = read_json_body();
     $name    = v_string($body['name'] ?? '', 100, true, 'Category name');
     $details = v_string($body['details'] ?? '', 255, false, 'Details');
     $type    = $cat['type']; // type is immutable
 
     $dup = $pdo->prepare('SELECT COUNT(*) FROM categories WHERE book_id = ? AND type = ? AND name = ? AND id <> ?');
-    $dup->execute([(int) $cat['book_id'], $type, $name, (int) $cat['id']]);
+    $dup->execute([$cat['book_id'], $type, $name, $cat['id']]);
     if ((int) $dup->fetchColumn() > 0) {
         json_error('Another ' . $type . ' category named "' . $name . '" already exists.', 409, 'duplicate');
     }
@@ -2148,37 +2210,37 @@ on('PUT', '/categories/{id}', function ($a) {
     $pdo->beginTransaction();
     try {
         $pdo->prepare('UPDATE categories SET name = ?, details = ? WHERE id = ?')
-            ->execute([$name, $details, (int) $cat['id']]);
+            ->execute([$name, $details, $cat['id']]);
         // Keep each transaction's denormalised category label in sync.
         $pdo->prepare('UPDATE personal_transactions SET category_name = ? WHERE category_id = ?')
-            ->execute([$name, (int) $cat['id']]);
+            ->execute([$name, $cat['id']]);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
         json_error('Failed to save category.', 500);
     }
 
-    json_response(['success' => true, 'category' => shapeCategory(findCategory($pdo, (int) $cat['id']))]);
+    json_response(['success' => true, 'category' => shapeCategory(findCategory($pdo, $cat['id']))]);
 });
 
 on('DELETE', '/categories/{id}', function ($a) {
     $pdo = db();
-    findCategory($pdo, (int) $a['id']);
+    findCategory($pdo, $a['id']);
     // FK ON DELETE SET NULL nulls category_id on its transactions; they keep the label.
-    $pdo->prepare('DELETE FROM categories WHERE id = ?')->execute([(int) $a['id']]);
+    $pdo->prepare('DELETE FROM categories WHERE id = ?')->execute([$a['id']]);
     json_response(['success' => true]);
 });
 
 // ---- Personal transactions (personal books) --------------------------------
 
 /** Validate a required category against the book + type; returns the category row. */
-function requireCategory(PDO $pdo, int $bookId, string $type, $rawId): array
+function requireCategory(PDO $pdo, string $bookId, string $type, $rawId): array
 {
-    if (!is_numeric($rawId)) {
+    if (!is_string($rawId) || $rawId === '') {
         json_error('Please choose a category.', 422, 'validation');
     }
     $stmt = $pdo->prepare('SELECT id, name, type FROM categories WHERE id = ? AND book_id = ?');
-    $stmt->execute([(int) $rawId, $bookId]);
+    $stmt->execute([$rawId, $bookId]);
     $cat = $stmt->fetch();
     if (!$cat) {
         json_error('Category not found.', 422, 'validation');
@@ -2191,9 +2253,9 @@ function requireCategory(PDO $pdo, int $bookId, string $type, $rawId): array
 
 on('GET', '/books/{id}/transactions', function ($a) {
     $pdo = db();
-    requireOwnedBook($pdo, (int) $a['id']);
-    $stmt = $pdo->prepare('SELECT * FROM personal_transactions WHERE book_id = ? ORDER BY id DESC');
-    $stmt->execute([(int) $a['id']]);
+    requireOwnedBook($pdo, $a['id']);
+    $stmt = $pdo->prepare('SELECT * FROM personal_transactions WHERE book_id = ? ORDER BY seq DESC');
+    $stmt->execute([$a['id']]);
     $txns = array_map('shapePersonalTx', $stmt->fetchAll());
 
     $income = 0.0; $expense = 0.0;
@@ -2213,7 +2275,7 @@ on('GET', '/books/{id}/transactions', function ($a) {
 
 on('POST', '/books/{id}/transactions', function ($a) {
     $pdo    = db();
-    $bookId = (int) $a['id'];
+    $bookId = $a['id'];
     requireOwnedBook($pdo, $bookId);
     $body   = read_json_body();
 
@@ -2227,16 +2289,16 @@ on('POST', '/books/{id}/transactions', function ($a) {
 
     $signed    = $type === 'income' ? $amount : -$amount;
     $timestamp = date('Y-m-d H:i:s');
+    $txId      = uuid4();
 
     $pdo->beginTransaction();
     try {
         $pdo->prepare(
             'INSERT INTO personal_transactions
-                (book_id, category_id, category_name, type, note, amount, signed_amount, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-        )->execute([$bookId, (int) $category['id'], $category['name'], $type, $note, $amount, $signed, $timestamp]);
-        $txId = (int) $pdo->lastInsertId();
-        recomputeCategory($pdo, (int) $category['id']);
+                (id, book_id, category_id, category_name, type, note, amount, signed_amount, timestamp)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        )->execute([$txId, $bookId, $category['id'], $category['name'], $type, $note, $amount, $signed, $timestamp]);
+        recomputeCategory($pdo, $category['id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -2248,8 +2310,8 @@ on('POST', '/books/{id}/transactions', function ($a) {
 
 on('PUT', '/personal-transactions/{id}', function ($a) {
     $pdo    = db();
-    $tx     = findPersonalTx($pdo, (int) $a['id']);
-    $bookId = (int) $tx['book_id'];
+    $tx     = findPersonalTx($pdo, $a['id']);
+    $bookId = $tx['book_id'];
     $body   = read_json_body();
 
     $type = $body['type'] ?? '';
@@ -2261,8 +2323,8 @@ on('PUT', '/personal-transactions/{id}', function ($a) {
     $category = requireCategory($pdo, $bookId, $type, $body['category_id'] ?? null);
 
     $signed   = $type === 'income' ? $amount : -$amount;
-    $oldCatId = $tx['category_id'] !== null ? (int) $tx['category_id'] : null;
-    $newCatId = (int) $category['id'];
+    $oldCatId = $tx['category_id'];
+    $newCatId = $category['id'];
 
     $pdo->beginTransaction();
     try {
@@ -2270,7 +2332,7 @@ on('PUT', '/personal-transactions/{id}', function ($a) {
             'UPDATE personal_transactions
              SET category_id = ?, category_name = ?, type = ?, note = ?, amount = ?, signed_amount = ?
              WHERE id = ?'
-        )->execute([$newCatId, $category['name'], $type, $note, $amount, $signed, (int) $tx['id']]);
+        )->execute([$newCatId, $category['name'], $type, $note, $amount, $signed, $tx['id']]);
         if ($oldCatId !== $newCatId) {
             recomputeCategory($pdo, $oldCatId);
         }
@@ -2281,17 +2343,17 @@ on('PUT', '/personal-transactions/{id}', function ($a) {
         json_error('Failed to save transaction.', 500);
     }
 
-    json_response(['success' => true, 'transaction' => shapePersonalTx(findPersonalTx($pdo, (int) $tx['id']))]);
+    json_response(['success' => true, 'transaction' => shapePersonalTx(findPersonalTx($pdo, $tx['id']))]);
 });
 
 on('DELETE', '/personal-transactions/{id}', function ($a) {
     $pdo = db();
-    $tx  = findPersonalTx($pdo, (int) $a['id']);
-    $oldCatId = $tx['category_id'] !== null ? (int) $tx['category_id'] : null;
+    $tx  = findPersonalTx($pdo, $a['id']);
+    $oldCatId = $tx['category_id'];
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('DELETE FROM personal_transactions WHERE id = ?')->execute([(int) $tx['id']]);
+        $pdo->prepare('DELETE FROM personal_transactions WHERE id = ?')->execute([$tx['id']]);
         recomputeCategory($pdo, $oldCatId);
         $pdo->commit();
     } catch (Throwable $e) {

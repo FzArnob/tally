@@ -117,7 +117,7 @@ export function ProductActionModal({
     }
     setSaving(true);
     try {
-      // Editing passes `replaces` so the API swaps the entry atomically.
+      // Editing PUTs the entry itself, so its id/seq/timestamp survive.
       await saveProductTransaction({
         productId: product.id,
         type: tab,
@@ -125,7 +125,7 @@ export function ProductActionModal({
         // The API stores the per-unit price and derives the total from it.
         pricePerUnit: Math.round(unitNum * 100) / 100,
         note: note.trim() || null,
-        replaces: editTx?.id ?? null,
+        transactionId: editTx?.id ?? null,
       });
       seededFor.current = null;
       onSaved();

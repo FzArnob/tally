@@ -415,12 +415,25 @@ function shapeTransaction(array $t): array
         'stock_after'    => $t['stock_after'] !== null ? (float) $t['stock_after'] : null,
         'customer_id'    => $t['customer_id'] ?? null,
         'customer_name'  => $t['customer_name'] ?? null,
+        // Went onto a tab at all, paid off since or not — the day totals split
+        // takings on this, so a settled line must still count as a tab sale.
+        'on_tab'         => onTab($t),
         // Only the history query computes this (see UNPAID_FLAG); elsewhere a
         // freshly written row is never on a tab, so false is right.
         'unpaid'         => !empty($t['unpaid']),
         'note'           => $t['note'],
         'created_at'     => $t['created_at'],
     ];
+}
+
+/**
+ * Either link is enough: customer_item_id survives payment (the row it names is
+ * gone, the id stays), and customer_id covers tab sales written before that
+ * column existed. Deleting the customer nulls only the latter.
+ */
+function onTab(array $t): bool
+{
+    return !empty($t['customer_item_id']) || !empty($t['customer_id']);
 }
 
 /**
@@ -475,6 +488,158 @@ function itemLabel(string $name, float $quantity): string
     return mb_substr($name . ' × ' . $qty, 0, 255);
 }
 
+/**
+ * Load the entry an edit replaces, with the tab it belongs to resolved.
+ *
+ * A sale taken onto a customer's tab is three rows — the goods here, the
+ * outstanding line in customer_items, the debt in customer_balance_history —
+ * so editing the goods alone would leave the customer owing the old amount.
+ * Returns the row plus its live tab line (`line`), or null when there is no
+ * entry to replace. `line` is null when the sale never went on a tab, or when
+ * it predates the customer_item_id column.
+ *
+ * Editing an already-settled sale is refused outright: that money is banked,
+ * and silently rewriting it would move a balance the customer has cleared.
+ */
+function loadReplaced(PDO $pdo, string $table, string $idColumn, int $replaces, int $itemId, string $newType): ?array
+{
+    if ($replaces <= 0) {
+        return null;
+    }
+    $stmt = $pdo->prepare("SELECT * FROM $table WHERE id = ? AND $idColumn = ?");
+    $stmt->execute([$replaces, $itemId]);
+    $old = $stmt->fetch();
+    if (!$old) {
+        return null;
+    }
+
+    if (!empty($old['customer_item_id']) && $newType !== 'sale') {
+        json_error('A sale on a customer’s tab cannot become a stock entry.', 422, 'validation');
+    }
+    $old['line'] = tabLineFor(
+        $pdo,
+        $old,
+        'This sale has already been paid for. Edit it from the customer’s tab instead.'
+    );
+    return $old;
+}
+
+/**
+ * The live tab line behind a sale about to be edited or deleted, or null when
+ * the sale never went on a tab (or predates the customer_item_id column).
+ *
+ * Refuses outright once the customer has paid: that money is banked, and
+ * rewriting or removing the goods would move a balance they have cleared.
+ */
+function tabLineFor(PDO $pdo, array $tx, string $settledMessage): ?array
+{
+    if (empty($tx['customer_item_id'])) {
+        return null;
+    }
+    $stmt = $pdo->prepare('SELECT * FROM customer_items WHERE id = ?');
+    $stmt->execute([$tx['customer_item_id']]);
+    if (!$line = $stmt->fetch()) {
+        json_error($settledMessage, 422, 'settled');
+    }
+    return $line;
+}
+
+/**
+ * Take a deleted tab sale's goods back off the customer's tab: the units leave
+ * the outstanding line (which goes with them if nothing is left owing) and the
+ * debt entry it booked is removed. Runs inside the caller's transaction.
+ */
+function untabSale(PDO $pdo, array $tx, array $line): void
+{
+    $left = round((float) $line['quantity'] - (float) $tx['quantity'], 3);
+    if ($left > 0.0000001) {
+        // Other sales are merged into this line; only these units come off.
+        $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
+            ->execute([$left, round($left * (float) $line['price_per_unit'], 2), $line['id']]);
+    } else {
+        $pdo->prepare('DELETE FROM customer_items WHERE id = ?')->execute([$line['id']]);
+    }
+
+    if (!empty($tx['customer_history_id'])) {
+        $pdo->prepare('DELETE FROM customer_balance_history WHERE id = ?')
+            ->execute([$tx['customer_history_id']]);
+    }
+    recomputeCustomer($pdo, $tx['customer_id']);
+}
+
+/**
+ * Re-point a tab sale's debt after its goods row is edited: the outstanding
+ * line is re-quantified (a changed price moves the units to the line for that
+ * price, merging as taking items does) and the customer's debt entry is
+ * rewritten. Returns the line the sale now belongs to — a line that has just
+ * been emptied is deleted, and the id kept, so the entry reads as paid.
+ *
+ * Runs inside the caller's transaction.
+ */
+function retabSale(PDO $pdo, array $old, string $itemType, int $itemId, string $itemName, string $unit, float $quantity, float $price, float $total): string
+{
+    $line   = $old['line'];
+    $oldQty = (float) $old['quantity'];
+    $column = $itemType === 'product' ? 'product_id' : 'material_id';
+
+    if (abs((float) $line['price_per_unit'] - $price) < 0.005) {
+        // Same price: adjust in place, so any other sale merged into this line
+        // keeps pointing at a line that still exists.
+        $next = round((float) $line['quantity'] - $oldQty + $quantity, 3);
+        if ($next > 0.0000001) {
+            $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
+                ->execute([$next, round($next * $price, 2), $line['id']]);
+        } else {
+            // Already paid for at least what the edit leaves owing.
+            $pdo->prepare('DELETE FROM customer_items WHERE id = ?')->execute([$line['id']]);
+        }
+        $itemRowId = $line['id'];
+    } else {
+        // Priced differently now: take the old units off the old line …
+        $left = round((float) $line['quantity'] - $oldQty, 3);
+        if ($left > 0.0000001) {
+            $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
+                ->execute([$left, round($left * (float) $line['price_per_unit'], 2), $line['id']]);
+        } else {
+            $pdo->prepare('DELETE FROM customer_items WHERE id = ?')->execute([$line['id']]);
+        }
+
+        // … and put the new ones on the line for the new price.
+        $match = $pdo->prepare(
+            "SELECT id, quantity FROM customer_items
+             WHERE customer_id = ? AND item_type = ? AND $column = ? AND price_per_unit = ?"
+        );
+        $match->execute([$old['customer_id'], $itemType, $itemId, $price]);
+        if ($target = $match->fetch()) {
+            $itemRowId = $target['id'];
+            $merged    = round((float) $target['quantity'] + $quantity, 3);
+            $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
+                ->execute([$merged, round($merged * $price, 2), $itemRowId]);
+        } else {
+            $itemRowId = uuid4();
+            $pdo->prepare(
+                "INSERT INTO customer_items
+                    (id, customer_id, book_id, item_type, $column, item_name, quantity_type, quantity, price_per_unit, total_amount)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            )->execute([
+                $itemRowId, $old['customer_id'], (int) $old['book_id'], $itemType, $itemId,
+                $itemName, $unit, $quantity, $price, $total,
+            ]);
+        }
+    }
+
+    // The debt itself. Untouched entries stay as they are, so a sale written
+    // before this link existed simply keeps its original amount.
+    if (!empty($old['customer_history_id'])) {
+        $pdo->prepare(
+            'UPDATE customer_balance_history SET amount = ?, signed_amount = ?, reason = ? WHERE id = ?'
+        )->execute([$total, -$total, itemLabel($itemName, $quantity), $old['customer_history_id']]);
+    }
+    recomputeCustomer($pdo, $old['customer_id']);
+
+    return $itemRowId;
+}
+
 function shapeMaterial(array $m): array
 {
     return [
@@ -505,6 +670,7 @@ function shapeMaterialTransaction(array $t): array
         'stock_after'    => (float) $t['stock_after'],
         'customer_id'    => $t['customer_id'] ?? null,
         'customer_name'  => $t['customer_name'] ?? null,
+        'on_tab'         => onTab($t),
         'unpaid'         => !empty($t['unpaid']),
         'note'           => $t['note'],
         'created_at'     => $t['created_at'],
@@ -1158,12 +1324,12 @@ on('POST', '/customers/{id}/items', function ($a) {
         // the product's own history can flag it instead of showing a plain
         // counter sale. The tab line is resolved first — the sale row needs its id.
         $saleProduct  = $pdo->prepare(
-            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id)
-             VALUES (?, ?, \'sale\', ?, ?, ?, 0, ?, ?)'
+            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id, customer_history_id)
+             VALUES (?, ?, \'sale\', ?, ?, ?, 0, ?, ?, ?)'
         );
         $saleMaterial = $pdo->prepare(
-            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id)
-             VALUES (?, ?, \'sale\', ?, ?, ?, 0, ?, ?)'
+            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id, customer_history_id)
+             VALUES (?, ?, \'sale\', ?, ?, ?, 0, ?, ?, ?)'
         );
         $debt = $pdo->prepare(
             'INSERT INTO customer_balance_history
@@ -1201,14 +1367,17 @@ on('POST', '/customers/{id}/items', function ($a) {
                 ]);
             }
 
-            ($isProduct ? $saleProduct : $saleMaterial)->execute([
-                $l['id'], $bookId, $l['quantity'], $l['price'], $l['total'],
-                $customer['id'], $itemRowId,
+            // The debt entry's id rides along on the sale, so editing the sale
+            // later can rewrite that one entry instead of guessing which it was.
+            $debtId = uuid4();
+            $debt->execute([
+                $debtId, $customer['id'], $bookId, $l['total'], -$l['total'],
+                itemLabel($l['name'], $l['quantity']), $timestamp,
             ]);
 
-            $debt->execute([
-                uuid4(), $customer['id'], $bookId, $l['total'], -$l['total'],
-                itemLabel($l['name'], $l['quantity']), $timestamp,
+            ($isProduct ? $saleProduct : $saleMaterial)->execute([
+                $l['id'], $bookId, $l['quantity'], $l['price'], $l['total'],
+                $customer['id'], $itemRowId, $debtId,
             ]);
         }
 
@@ -1471,17 +1640,17 @@ on('POST', '/products/{id}/transactions', function ($a) {
     // atomically below), so no update endpoint is needed.
     $replaces = isset($body['replaces']) && is_numeric($body['replaces']) ? (int) $body['replaces'] : 0;
 
+    // An edit of a tab sale has to carry the customer with it, so the replaced
+    // row is loaded up front (this also refuses editing an already-paid sale).
+    $old = loadReplaced($pdo, 'product_transactions', 'product_id', $replaces, (int) $product['id'], $type);
+
     // Stock guard (ready-made only): a sale can never exceed the stock in hand.
     // Manufacture stock is unknown, so no guard applies. For an edit, reverse the
     // replaced entry's effect to get the true baseline.
     if ($type === 'sale' && !$isManufacture) {
         $available = (float) $product['current_stock'];
-        if ($replaces > 0) {
-            $r = $pdo->prepare('SELECT type, quantity FROM product_transactions WHERE id = ? AND product_id = ?');
-            $r->execute([$replaces, (int) $product['id']]);
-            if ($old = $r->fetch()) {
-                $available += $old['type'] === 'sale' ? (float) $old['quantity'] : -(float) $old['quantity'];
-            }
+        if ($old) {
+            $available += $old['type'] === 'sale' ? (float) $old['quantity'] : -(float) $old['quantity'];
         }
         if ($quantity - $available > 0.0000001) {
             $avail = rtrim(rtrim(number_format($available, 3, '.', ''), '0'), '.');
@@ -1491,11 +1660,21 @@ on('POST', '/products/{id}/transactions', function ($a) {
 
     $pdo->beginTransaction();
     try {
+        // A tab sale keeps its customer; its outstanding line and debt entry are
+        // moved to match the edit before the new goods row points at them.
+        $itemRowId = $old && $old['line']
+            ? retabSale($pdo, $old, 'product', (int) $product['id'], $product['name'], $product['quantity_type'], $quantity, $price, $total)
+            : ($old['customer_item_id'] ?? null);
+
         // stock_after is set by recomputeProduct (NULL for manufacture).
         $pdo->prepare(
-            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, note)
-             VALUES (?, ?, ?, ?, ?, ?, ?)'
-        )->execute([$product['id'], (int) $product['book_id'], $type, $quantity, $price, $total, $note !== '' ? $note : null]);
+            'INSERT INTO product_transactions (product_id, book_id, type, quantity, price_per_unit, total_amount, note, customer_id, customer_item_id, customer_history_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        )->execute([
+            $product['id'], (int) $product['book_id'], $type, $quantity, $price, $total,
+            $note !== '' ? $note : null,
+            $old['customer_id'] ?? null, $itemRowId, $old['customer_history_id'] ?? null,
+        ]);
         $txId = (int) $pdo->lastInsertId();
         if ($replaces > 0) {
             $pdo->prepare('DELETE FROM product_transactions WHERE id = ? AND product_id = ?')
@@ -1529,8 +1708,19 @@ on('DELETE', '/product-transactions/{id}', function ($a) {
         json_error('Transaction not found.', 404, 'not_found');
     }
 
+    // Deleting the goods half of a tab sale has to take the debt with it, or
+    // the customer keeps owing for something no longer on record.
+    $line = tabLineFor(
+        $pdo,
+        $tx,
+        'This sale has already been paid for. Undo it from the customer’s tab instead.'
+    );
+
     $pdo->beginTransaction();
     try {
+        if ($line) {
+            untabSale($pdo, $tx, $line);
+        }
         $pdo->prepare('DELETE FROM product_transactions WHERE id = ?')->execute([(int) $a['id']]);
         recomputeProduct($pdo, (int) $tx['product_id']);
         $pdo->commit();
@@ -1652,16 +1842,16 @@ on('POST', '/materials/{id}/transactions', function ($a) {
     // When editing, this entry replaces an existing one (insert + delete atomically).
     $replaces = isset($body['replaces']) && is_numeric($body['replaces']) ? (int) $body['replaces'] : 0;
 
+    // An edit of a tab sale has to carry the customer with it, so the replaced
+    // row is loaded up front (this also refuses editing an already-paid sale).
+    $old = loadReplaced($pdo, 'material_transactions', 'material_id', $replaces, (int) $material['id'], $type);
+
     // Stock guard: a sale or used entry can never exceed the stock in hand, so
     // stock stays >= 0. For an edit, reverse the replaced entry's effect first.
     if ($type === 'sale' || $type === 'used') {
         $available = (float) $material['current_stock'];
-        if ($replaces > 0) {
-            $r = $pdo->prepare('SELECT type, quantity FROM material_transactions WHERE id = ? AND material_id = ?');
-            $r->execute([$replaces, (int) $material['id']]);
-            if ($old = $r->fetch()) {
-                $available += in_array($old['type'], ['sale', 'used'], true) ? (float) $old['quantity'] : -(float) $old['quantity'];
-            }
+        if ($old) {
+            $available += in_array($old['type'], ['sale', 'used'], true) ? (float) $old['quantity'] : -(float) $old['quantity'];
         }
         if ($quantity - $available > 0.0000001) {
             $avail = rtrim(rtrim(number_format($available, 3, '.', ''), '0'), '.');
@@ -1671,10 +1861,20 @@ on('POST', '/materials/{id}/transactions', function ($a) {
 
     $pdo->beginTransaction();
     try {
+        // A tab sale keeps its customer; its outstanding line and debt entry are
+        // moved to match the edit before the new goods row points at them.
+        $itemRowId = $old && $old['line']
+            ? retabSale($pdo, $old, 'material', (int) $material['id'], $material['name'], $material['quantity_type'], $quantity, $price, $total)
+            : ($old['customer_item_id'] ?? null);
+
         $pdo->prepare(
-            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, note)
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?)'
-        )->execute([$material['id'], (int) $material['book_id'], $type, $quantity, $price, $total, $note !== '' ? $note : null]);
+            'INSERT INTO material_transactions (material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, note, customer_id, customer_item_id, customer_history_id)
+             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)'
+        )->execute([
+            $material['id'], (int) $material['book_id'], $type, $quantity, $price, $total,
+            $note !== '' ? $note : null,
+            $old['customer_id'] ?? null, $itemRowId, $old['customer_history_id'] ?? null,
+        ]);
         if ($replaces > 0) {
             $pdo->prepare('DELETE FROM material_transactions WHERE id = ? AND material_id = ?')
                 ->execute([$replaces, (int) $material['id']]);
@@ -1704,8 +1904,19 @@ on('DELETE', '/material-transactions/{id}', function ($a) {
         json_error('Transaction not found.', 404, 'not_found');
     }
 
+    // Deleting the goods half of a tab sale has to take the debt with it, or
+    // the customer keeps owing for something no longer on record.
+    $line = tabLineFor(
+        $pdo,
+        $tx,
+        'This sale has already been paid for. Undo it from the customer’s tab instead.'
+    );
+
     $pdo->beginTransaction();
     try {
+        if ($line) {
+            untabSale($pdo, $tx, $line);
+        }
         $pdo->prepare('DELETE FROM material_transactions WHERE id = ?')->execute([(int) $a['id']]);
         recomputeMaterial($pdo, (int) $tx['material_id']);
         $pdo->commit();

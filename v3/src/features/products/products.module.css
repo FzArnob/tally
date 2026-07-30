@@ -408,6 +408,42 @@
   color: var(--muted-foreground);
 }
 
+/* Optional note on a history entry — one line, full text in the tooltip. */
+.entryNote {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Whose tab the sale went on, opposite the note. A button — tapping it opens
+   that customer's tab. Capped so a long name yields to the note rather than
+   pushing it out. */
+.entryCustomer {
+  flex-shrink: 0;
+  max-width: 55%;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: right;
+  cursor: pointer;
+  /* Underlined at rest so it reads as a link, not just coloured text. */
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entryCustomer:hover {
+  text-decoration-thickness: 2px;
+}
+
 .tabSwitch {
   display: flex;
   gap: 0.5rem;
@@ -654,8 +690,18 @@
 
 /* Sold on a customer's tab and still owed — rides alongside the Sale pill. */
 .typePill.unpaid {
-  background: color-mix(in srgb, var(--red-600) 14%, transparent);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--red-600) 45%, transparent);
   color: var(--red-600);
+}
+
+/* Same slot once the customer has settled. Outlined rather than filled so it
+   stays quieter than the Sale pill it sits beside. */
+.typePill.paidPill {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--green-600) 45%, transparent);
+  padding-block: calc(0.12rem - 1px);
+  color: var(--green-700);
 }
 
 /* Holds the type pill plus the optional Unpaid pill on one line. */
@@ -1001,4 +1047,11 @@
   .rowActions button {
     padding: 0.25rem;
   }
+}
+
+/* "(optional)" hint beside a field label. */
+.optional {
+  color: var(--muted-foreground);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--fs-xs);
 }

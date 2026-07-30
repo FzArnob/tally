@@ -4,9 +4,11 @@ import { translations, type LangCode, type Translation } from './translations';
 import { getCookie, setCookie } from '../lib/cookies';
 import {
   formatCurrency as fmtCurrency,
+  formatDayLabel as fmtDay,
   formatNumber as fmtNumber,
   formatSignedCurrency as fmtSigned,
   formatTimeFull as fmtTime,
+  formatTimeOfDay as fmtTimeOfDay,
   formatTimeShort as fmtTimeShort,
   localizeDigits as locDigits,
 } from '../lib/format';
@@ -21,6 +23,8 @@ interface LanguageContextValue {
   formatNumber: (value: number | string | null | undefined) => string;
   formatTimeFull: (value: Date | string | null | undefined) => string;
   formatTimeShort: (value: Date | string | null | undefined) => string;
+  formatTimeOfDay: (value: Date | string | null | undefined) => string;
+  formatDayLabel: (value: Date | string | null | undefined) => string;
   localizeDigits: (text: string) => string;
 }
 
@@ -61,6 +65,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       formatNumber: (v) => fmtNumber(v, locale),
       formatTimeFull: (v) => fmtTime(v, locale),
       formatTimeShort: (v) => fmtTimeShort(v, locale),
+      formatTimeOfDay: (v) => fmtTimeOfDay(v, locale),
+      formatDayLabel: (v) => fmtDay(v, locale),
       localizeDigits: (s) => locDigits(s, locale),
     }),
     [lang, setLang, t, locale],

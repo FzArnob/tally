@@ -149,7 +149,9 @@ export interface Translation {
   stockIn: string;
   sale: string;
   unpaidPill: string;
-  soldOnTab: string;
+  manufactured: string;
+  saleCash: string;
+  saleCustomer: string;
   quantity: string;
   buyingPrice: string;
   sellingPrice: string;
@@ -441,8 +443,11 @@ const en: Translation = {
   stockIn: 'Stock In',
   sale: 'Sale',
   unpaidPill: 'Unpaid',
-  // {name} is the customer; shown as the Unpaid pill's tooltip.
-  soldOnTab: 'On {name}’s tab — not paid for yet',
+  // Stands in for the running stock on manufacture rows, which have none.
+  manufactured: 'Manufactured',
+  // Day-bar split: sold over the counter vs put on a customer's tab.
+  saleCash: 'Cash',
+  saleCustomer: 'Customer',
   quantity: 'Quantity',
   buyingPrice: 'Buying Price / unit',
   sellingPrice: 'Selling Price / unit',
@@ -725,7 +730,9 @@ const bn: Translation = {
   stockIn: 'স্টক ইন',
   sale: 'বিক্রয়',
   unpaidPill: 'বাকি',
-  soldOnTab: '{name}-এর বাকিতে — এখনো পরিশোধ হয়নি',
+  manufactured: 'উৎপাদিত',
+  saleCash: 'নগদ',
+  saleCustomer: 'গ্রাহক',
   quantity: 'পরিমাণ',
   buyingPrice: 'ক্রয় মূল্য / একক',
   sellingPrice: 'বিক্রয় মূল্য / একক',

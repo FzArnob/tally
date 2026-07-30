@@ -1,0 +1,65 @@
+/* Day separator inside a history list. It pins to the top of the modal's scroll
+   area while its day is on screen, so entries pass cleanly underneath.
+   A padded scroll container parks the pinned bar exactly that far down — a
+   measured 20px for the body's 1.25rem — leaving a strip where the entry behind
+   it shows through, so the modal drops its top padding (Modal's `flushBody`).
+   Vertical air between days comes from the list's own gap rather than a margin
+   here: Chrome ignores a sticky element's margin when pinning, but the spec
+   keeps the margin box inside the sticky rect, so a top margin risks
+   reintroducing the same strip elsewhere. The negative side margins span the
+   body's side padding, which is published as --modal-body-pad. */
+.dayBar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin: 0 calc(-1 * var(--modal-body-pad, 1.25rem));
+  padding: 0.5rem var(--modal-body-pad, 1.25rem) 0.55rem;
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+}
+
+.dayDate {
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.dayStats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.dayStat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.dayStatLabel {
+  color: var(--muted-foreground);
+  font-weight: var(--font-weight-normal);
+}
+
+/* Units trail the amount, separated by a middot. */
+.dayStatQty {
+  color: var(--foreground);
+  font-weight: var(--font-weight-normal);
+}
+
+.dayStatQty::before {
+  content: '·';
+  margin-right: 0.3rem;
+  color: var(--muted-foreground);
+}

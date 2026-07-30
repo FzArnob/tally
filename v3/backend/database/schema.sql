@@ -174,6 +174,10 @@ CREATE INDEX idx_products_book_last_txn ON products(book_id, last_transaction_ti
 -- key, or the link would be nulled and the pill could never tell "paid" from
 -- "never on a tab". Re-taking the same goods later opens a NEW line, so the old
 -- sale stays paid instead of lighting up again.
+--
+-- customer_history_id names the debt entry the sale booked. Editing the sale
+-- from the product's own history rewrites that entry through this link, so the
+-- goods, the outstanding line and the customer's balance stay in step.
 -- ---------------------------------------------------------------------------
 CREATE TABLE product_transactions (
     id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -186,6 +190,7 @@ CREATE TABLE product_transactions (
     stock_after    DECIMAL(14,3)         NULL,       -- running stock (NULL for manufacture)
     customer_id    CHAR(36)              NULL,       -- set = sold on this customer's tab
     customer_item_id CHAR(36)            NULL,       -- the outstanding line; gone once settled
+    customer_history_id CHAR(36)         NULL,       -- the debt entry this sale booked
     note           VARCHAR(255)          NULL,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_pt_product  FOREIGN KEY (product_id)  REFERENCES products(id)  ON DELETE CASCADE,
@@ -286,6 +291,7 @@ CREATE TABLE material_transactions (
     stock_after    DECIMAL(14,3)         NOT NULL DEFAULT 0,
     customer_id    CHAR(36)              NULL,       -- set = sold on this customer's tab
     customer_item_id CHAR(36)            NULL,       -- the outstanding line; gone once settled
+    customer_history_id CHAR(36)         NULL,       -- the debt entry this sale booked
     note           VARCHAR(255)          NULL,
     created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_mt_material FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE,

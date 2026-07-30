@@ -21,6 +21,11 @@ interface ModalProps {
    * Defaults to on whenever a `footer` is present; pass `false` to opt out.
    */
   scrollFade?: boolean;
+  /**
+   * Drop the body's top padding, for bodies whose first child is sticky and must
+   * pin flush against the header (the history lists' day bars).
+   */
+  flushBody?: boolean;
 }
 
 const EXIT_MS = 280;
@@ -46,6 +51,7 @@ export function Modal({
   header,
   footer,
   scrollFade,
+  flushBody,
 }: ModalProps) {
   const [mounted, setMounted] = useState(open);
   const [entered, setEntered] = useState(false);
@@ -145,8 +151,8 @@ export function Modal({
             <div
               ref={scrollRef}
               className={`${styles.scroll} ${footer ? '' : styles.scrollNoFooter} ${
-                fade && canScrollDown ? styles.scrollFade : ''
-              }`}
+                flushBody ? styles.scrollFlushTop : ''
+              } ${fade && canScrollDown ? styles.scrollFade : ''}`}
             >
               {children}
             </div>

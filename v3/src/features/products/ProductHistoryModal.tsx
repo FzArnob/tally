@@ -1,5 +1,8 @@
+import { Fragment } from 'react';
+import { HistoryDayBar } from '../../components/HistoryDayBar';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
+import { groupByDay } from '../../lib/history';
 import type { Product, ProductTransaction } from '../../types';
 import styles from './products.module.css';
 
@@ -11,6 +14,8 @@ interface ProductHistoryModalProps {
   onClose: () => void;
   onEdit: (tx: ProductTransaction) => void;
   onDelete: (tx: ProductTransaction) => void;
+  /** Opens the tab of the customer a sale went to. */
+  onCustomer: (customerId: string) => void;
 }
 
 export function ProductHistoryModal({
@@ -21,8 +26,10 @@ export function ProductHistoryModal({
   onClose,
   onEdit,
   onDelete,
+  onCustomer,
 }: ProductHistoryModalProps) {
-  const { t, formatCurrency, formatNumber, formatTimeFull, localizeDigits } = useI18n();
+  // Time only — the day bar above each group already carries the date.
+  const { t, formatCurrency, formatNumber, formatTimeOfDay, localizeDigits } = useI18n();
   const unit = product?.quantity_type || 'piece';
 
   return (
@@ -30,6 +37,7 @@ export function ProductHistoryModal({
       open={open}
       onClose={onClose}
       labelledBy="historyTitle"
+      flushBody // the day bars stick to the top of the body
       header={
         <ModalHeader
           title={product ? `${product.name} — ${t.history}` : t.history}
@@ -44,62 +52,97 @@ export function ProductHistoryModal({
         {!loading && transactions.length === 0 ? (
           <div className="empty-state">{t.noEntries}</div>
         ) : (
-          transactions.map((tx) => {
-            const isStock = tx.type === 'stock';
-            return (
-              <div key={tx.id} className={styles.entry}>
-                <div className={styles.line}>
-                  <span className={styles.pillRow}>
-                    <span className={`${styles.typePill} ${isStock ? styles.stock : styles.sale}`}>
-                      {isStock ? t.stockIn : t.sale}
-                    </span>
-                    {/* A tab sale keeps this pill until the customer settles the line. */}
-                    {tx.unpaid && (
-                      <span
-                        className={`${styles.typePill} ${styles.unpaid}`}
-                        title={t.soldOnTab.replace('{name}', tx.customer_name ?? '')}
-                      >
-                        {t.unpaidPill}
+          // One bar per calendar day, carrying that day's cash / on-tab split.
+          groupByDay(transactions).map((day) => (
+            <Fragment key={day.key}>
+              <HistoryDayBar
+                date={day.date}
+                unit={unit}
+                totalSale={day.totalSale}
+                totalSaleQty={day.totalSaleQty}
+                totalTabSale={day.totalTabSale}
+                totalTabSaleQty={day.totalTabSaleQty}
+              />
+              {day.entries.map((tx) => {
+                const isStock = tx.type === 'stock';
+                return (
+                  <div key={tx.id} className={styles.entry}>
+                    <div className={styles.line}>
+                      <span className={styles.pillRow}>
+                        <span
+                          className={`${styles.typePill} ${isStock ? styles.stock : styles.sale}`}
+                        >
+                          {isStock ? t.stockIn : t.sale}
+                        </span>
+                        {/* A tab sale carries its settlement state: Unpaid until
+                            the customer clears the line, Paid once they have. */}
+                        {tx.on_tab && (
+                          <span
+                            className={`${styles.typePill} ${
+                              tx.unpaid ? styles.unpaid : styles.paidPill
+                            }`}
+                          >
+                            {tx.unpaid ? t.unpaidPill : t.paid}
+                          </span>
+                        )}
                       </span>
+                      <span
+                        className={`${styles.entryAmount} ${
+                          isStock ? 'text-invest' : tx.on_tab ? 'text-customer' : 'text-positive'
+                        }`}
+                      >
+                        {formatCurrency(tx.total_amount)}
+                      </span>
+                    </div>
+                    {/* Note, against whose tab it went on. */}
+                    {(tx.note || tx.customer_name) && (
+                      <div className={styles.line}>
+                        <span className={styles.entryNote} title={tx.note ?? undefined}>
+                          {tx.note}
+                        </span>
+                        {tx.customer_id && tx.customer_name && (
+                          <button
+                            type="button"
+                            className={`${styles.entryCustomer} text-customer`}
+                            onClick={() => onCustomer(tx.customer_id as string)}
+                          >
+                            {tx.customer_name}
+                          </button>
+                        )}
+                      </div>
                     )}
-                  </span>
-                  <span
-                    className={`${styles.entryAmount} ${isStock ? 'text-invest' : 'text-positive'}`}
-                  >
-                    {formatCurrency(tx.total_amount)}
-                  </span>
-                </div>
-                <div className={styles.line}>
-                  <span className={styles.entryDetail}>
-                    {localizeDigits(`${formatNumber(tx.quantity)} ${unit} × `)}
-                    {formatCurrency(tx.price_per_unit)}
-                  </span>
-                  <div className={styles.entryActions}>
-                    <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(tx)}>
-                      <span className="material-symbols-outlined icon-md">edit</span>
-                    </button>
-                    <button
-                      className="ghost-btn"
-                      aria-label={t.deleteAction}
-                      onClick={() => onDelete(tx)}
-                    >
-                      <span className="material-symbols-outlined icon-md">delete</span>
-                    </button>
+                    <div className={styles.line}>
+                      <span className={styles.entryDetail}>
+                        {localizeDigits(`${formatNumber(tx.quantity)} ${unit} × `)}
+                        {formatCurrency(tx.price_per_unit)}
+                      </span>
+                      <div className={styles.entryActions}>
+                        <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(tx)}>
+                          <span className="material-symbols-outlined icon-md">edit</span>
+                        </button>
+                        <button
+                          className="ghost-btn"
+                          aria-label={t.deleteAction}
+                          onClick={() => onDelete(tx)}
+                        >
+                          <span className="material-symbols-outlined icon-md">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className={`${styles.line} ${styles.entryFoot}`}>
+                      {/* Manufacture rows keep no running stock, so they say what they are. */}
+                      <span>
+                        {tx.stock_after != null
+                          ? `${t.stock}: ${localizeDigits(formatNumber(tx.stock_after))}`
+                          : t.manufactured}
+                      </span>
+                      <span>{localizeDigits(formatTimeOfDay(tx.created_at))}</span>
+                    </div>
                   </div>
-                </div>
-                <div className={`${styles.line} ${styles.entryFoot}`}>
-                  {tx.stock_after != null ? (
-                    <span>
-                      {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}
-                    </span>
-                  ) : (
-                    <span />
-                  )}
-                  <span>{localizeDigits(formatTimeFull(tx.created_at))}</span>
-                </div>
-              </div>
-            );
-          })
+                );
+              })}
+            </Fragment>
+          ))
         )}
       </div>
     </Modal>

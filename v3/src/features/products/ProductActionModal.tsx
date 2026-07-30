@@ -30,6 +30,7 @@ export function ProductActionModal({
   // total or the per-unit price. The other figure is derived for the readout.
   const [priceMode, setPriceMode] = useState<'total' | 'unit'>('total');
   const [price, setPrice] = useState('');
+  const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Manufacture products are sale-only (no stock-in).
@@ -50,11 +51,13 @@ export function ProductActionModal({
       setQty(String(editTx.quantity));
       setPriceMode('total');
       setPrice(money(editTx.total_amount));
+      setNote(editTx.note ?? '');
     } else {
       setTab(product.product_type === 'manufacture' ? 'sale' : 'stock');
       setQty('');
       setPriceMode('total');
       setPrice('');
+      setNote('');
     }
   }, [open, editTx, product]);
 
@@ -121,13 +124,19 @@ export function ProductActionModal({
         quantity: q,
         // The API stores the per-unit price and derives the total from it.
         pricePerUnit: Math.round(unitNum * 100) / 100,
+        note: note.trim() || null,
         replaces: editTx?.id ?? null,
       });
       seededFor.current = null;
       onSaved();
       onClose();
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'insufficient_stock') {
+      // 'settled' explains why a paid tab sale cannot be edited here; both it
+      // and the stock guard carry a message worth reading verbatim.
+      if (
+        err instanceof ApiError &&
+        (err.code === 'insufficient_stock' || err.code === 'settled' || err.code === 'validation')
+      ) {
         alert(err.message);
       } else {
         console.error('Failed to save transaction:', err);
@@ -278,6 +287,21 @@ export function ProductActionModal({
                 : formatCurrency(totalNum)}
             </span>
           </div>
+        </div>
+
+        <div className="field">
+          <label htmlFor="txNote">
+            {t.note} <span className={styles.optional}>({t.optional})</span>
+          </label>
+          <textarea
+            id="txNote"
+            className="textarea"
+            rows={2}
+            maxLength={255} // matches the column, so a long note can't 422
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t.notePlaceholder}
+          />
         </div>
       </div>
     </Modal>

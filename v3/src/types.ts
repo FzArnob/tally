@@ -193,6 +193,8 @@ export interface ProductTransaction {
   /** Set when the sale went onto a customer's tab rather than over the counter. */
   customer_id: string | null;
   customer_name: string | null;
+  /** Went onto a tab at all — stays true once the customer has paid. */
+  on_tab: boolean;
   /** True while that tab sale is still owed; clears when the customer settles. */
   unpaid: boolean;
   note: string | null;
@@ -292,6 +294,8 @@ export interface MaterialTransaction {
   /** Set when the sale went onto a customer's tab rather than over the counter. */
   customer_id: string | null;
   customer_name: string | null;
+  /** Went onto a tab at all — stays true once the customer has paid. */
+  on_tab: boolean;
   /** True while that tab sale is still owed; clears when the customer settles. */
   unpaid: boolean;
   note: string | null;

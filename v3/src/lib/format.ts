@@ -86,6 +86,45 @@ export function formatTimeFull(value: Date | string | null | undefined, locale: 
   }).format(date);
 }
 
+/**
+ * Clock-only label (e.g. "04:08:09 PM"), for rows that already sit under a day
+ * separator carrying the date.
+ */
+export function formatTimeOfDay(value: Date | string | null | undefined, locale: string): string {
+  const date = parseServerTime(value);
+  if (!date) return '';
+  return new Intl.DateTimeFormat(locale, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(date);
+}
+
+/** Date-only label for the history day separators (e.g. "Tue, 22 Jul 2025"). */
+export function formatDayLabel(value: Date | string | null | undefined, locale: string): string {
+  const date = parseServerTime(value);
+  if (!date) return '';
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+/**
+ * Grouping key for one calendar day IN THE VIEWER'S ZONE. Built from the local
+ * parts rather than toISOString(), which would re-answer in UTC and split a day
+ * in the middle for anyone east or west of it.
+ */
+export function dayKey(value: Date | string | null | undefined): string {
+  const date = parseServerTime(value);
+  if (!date) return '';
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 /** Compact date/time label for list rows (e.g. "22 Jul, 4:06 PM"), local zone. */
 export function formatTimeShort(value: Date | string | null | undefined, locale: string): string {
   const date = parseServerTime(value);

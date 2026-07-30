@@ -31,6 +31,8 @@
   --red-700: #cf1f2d;
   --orange-600: #fca103;
   --orange-700: #e08f00;
+  /* Customer/tab blue — marks money and names tied to a customer's tab. */
+  --blue-600: #008cff;
 
   --font-weight-normal: 400;
   --font-weight-medium: 500;

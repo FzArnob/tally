@@ -6,12 +6,13 @@ import {
   getProducts,
   getProductTransactions,
 } from '../../lib/api';
-import type { Product, ProductTransaction } from '../../types';
+import { ApiError, type Product, type ProductTransaction } from '../../types';
 import { ProductCard } from './ProductCard';
 import { ProductFormModal } from './ProductFormModal';
 import { ProductActionModal } from './ProductActionModal';
 import { ProductHistoryModal } from './ProductHistoryModal';
 import { ProductMaterialsModal } from './ProductMaterialsModal';
+import { useCustomerTabModal } from '../customers/useCustomerTabModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Toolbar } from '../../components/Toolbar';
 import styles from './products.module.css';
@@ -101,6 +102,12 @@ export function ProductsSection({ bookId }: { bookId: number }) {
     if (historyProduct) await loadHistory(historyProduct.id);
   };
 
+  // Tapping a customer's name in the history opens their tab. Settling in there
+  // clears Unpaid pills, so the history behind it is reloaded on any change.
+  const { openCustomerTab, customerTabModal } = useCustomerTabModal(() => {
+    void afterTxChange();
+  });
+
   const editFromHistory = (tx: ProductTransaction) => {
     setHistoryOpen(false);
     setActionProduct(historyProduct);
@@ -116,8 +123,14 @@ export function ProductsSection({ bookId }: { bookId: number }) {
       setPendingDeleteTx(null);
       await afterTxChange();
     } catch (err) {
-      console.error('Failed to delete transaction:', err);
-      alert(t.failedDeleteTransaction);
+      // 'settled' explains why a paid tab sale cannot be deleted here.
+      if (err instanceof ApiError && err.code === 'settled') {
+        setPendingDeleteTx(null);
+        alert(err.message);
+      } else {
+        console.error('Failed to delete transaction:', err);
+        alert(t.failedDeleteTransaction);
+      }
     } finally {
       setDeleting(false);
     }
@@ -207,7 +220,10 @@ export function ProductsSection({ bookId }: { bookId: number }) {
         onClose={() => setHistoryOpen(false)}
         onEdit={editFromHistory}
         onDelete={(tx) => setPendingDeleteTx(tx)}
+        onCustomer={(id) => void openCustomerTab(id)}
       />
+
+      {customerTabModal}
 
       <ProductMaterialsModal
         open={!!materialsProduct}

@@ -11,11 +11,12 @@ import {
   getMaterials,
   getMaterialTransactions,
 } from '../../lib/api';
-import type { Book, Material, MaterialTransaction } from '../../types';
+import { ApiError, type Book, type Material, type MaterialTransaction } from '../../types';
 import { MaterialCard } from './MaterialCard';
 import { MaterialFormModal } from './MaterialFormModal';
 import { MaterialActionModal } from './MaterialActionModal';
 import { MaterialHistoryModal } from './MaterialHistoryModal';
+import { useCustomerTabModal } from '../customers/useCustomerTabModal';
 import styles from './materials.module.css';
 
 export function MaterialsPage({ book }: { book: Book }) {
@@ -113,6 +114,12 @@ export function MaterialsPage({ book }: { book: Book }) {
     if (historyMaterial) await loadHistory(historyMaterial.id);
   };
 
+  // Tapping a customer's name in the history opens their tab. Settling in there
+  // clears Unpaid pills, so the history behind it is reloaded on any change.
+  const { openCustomerTab, customerTabModal } = useCustomerTabModal(() => {
+    void afterTxChange();
+  });
+
   const editFromHistory = (tx: MaterialTransaction) => {
     setHistoryOpen(false);
     setActionMaterial(historyMaterial);
@@ -128,8 +135,14 @@ export function MaterialsPage({ book }: { book: Book }) {
       setPendingDeleteTx(null);
       await afterTxChange();
     } catch (err) {
-      console.error('Failed to delete transaction:', err);
-      alert(t.failedDeleteTransaction);
+      // 'settled' explains why a paid tab sale cannot be deleted here.
+      if (err instanceof ApiError && err.code === 'settled') {
+        setPendingDeleteTx(null);
+        alert(err.message);
+      } else {
+        console.error('Failed to delete transaction:', err);
+        alert(t.failedDeleteTransaction);
+      }
     } finally {
       setDeleting(false);
     }
@@ -224,7 +237,10 @@ export function MaterialsPage({ book }: { book: Book }) {
         onClose={() => setHistoryOpen(false)}
         onEdit={editFromHistory}
         onDelete={(tx) => setPendingDeleteTx(tx)}
+        onCustomer={(id) => void openCustomerTab(id)}
       />
+
+      {customerTabModal}
 
       <ConfirmDialog
         open={!!pendingDeleteTx}

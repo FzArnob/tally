@@ -8,7 +8,7 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.9rem;
   padding: 0.85rem 0.9rem 2rem;
 }
 
@@ -209,7 +209,7 @@
 .historyList {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 1.25rem;
 }
 
 .entry {

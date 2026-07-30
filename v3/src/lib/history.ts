@@ -7,6 +7,8 @@ export interface HistoryEntry {
   total_amount: number;
   /** Sold onto a customer's tab (paid off since or not). */
   on_tab: boolean;
+  /** True while a tab sale is still owed; clears when the customer settles. */
+  unpaid: boolean;
   /** Business time — when it happened, preserved across edits. */
   timestamp: string;
 }
@@ -17,20 +19,22 @@ export interface HistoryDay<T> {
   /** Any entry from the day; the bar formats its own label from this. */
   date: string;
   entries: T[];
-  /** Takings that never went on a tab — the cash that came in that day. */
-  totalSale: number;
-  /** Units behind `totalSale`. */
-  totalSaleQty: number;
-  /** Everything sold onto a tab that day, whether or not it has since been paid. */
-  totalTabSale: number;
-  /** Units behind `totalTabSale`. */
-  totalTabSaleQty: number;
+  /** Money in hand: sold over the counter, plus tab sales already settled. */
+  totalCash: number;
+  /** Units behind `totalCash`. */
+  totalCashQty: number;
+  /** Still owed — tab sales the customer has yet to settle. */
+  totalDue: number;
+  /** Units behind `totalDue`. */
+  totalDueQty: number;
 }
 
 /**
  * Splits an already-sorted transaction list into calendar days, summing the two
- * sale figures the day bar shows. Stock-in and stock-used entries are grouped
- * like any other but count towards neither total — they are not sales.
+ * sale figures the day bar shows. The split is by settlement, not by tab: a tab
+ * sale counts as cash once it has been paid off, and only what is still owed
+ * lands in the due column. Stock-in and stock-used entries are grouped like any
+ * other but count towards neither total — they are not sales.
  *
  * The input order is preserved, so a newest-first list yields newest-first days.
  */
@@ -46,22 +50,22 @@ export function groupByDay<T extends HistoryEntry>(entries: T[]): HistoryDay<T>[
         key,
         date: entry.timestamp,
         entries: [],
-        totalSale: 0,
-        totalSaleQty: 0,
-        totalTabSale: 0,
-        totalTabSaleQty: 0,
+        totalCash: 0,
+        totalCashQty: 0,
+        totalDue: 0,
+        totalDueQty: 0,
       };
       byKey.set(key, day);
       days.push(day);
     }
     day.entries.push(entry);
     if (entry.type === 'sale') {
-      if (entry.on_tab) {
-        day.totalTabSale += entry.total_amount;
-        day.totalTabSaleQty += entry.quantity;
+      if (entry.on_tab && entry.unpaid) {
+        day.totalDue += entry.total_amount;
+        day.totalDueQty += entry.quantity;
       } else {
-        day.totalSale += entry.total_amount;
-        day.totalSaleQty += entry.quantity;
+        day.totalCash += entry.total_amount;
+        day.totalCashQty += entry.quantity;
       }
     }
   }

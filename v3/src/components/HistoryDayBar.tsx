@@ -6,27 +6,27 @@ interface HistoryDayBarProps {
   date: string;
   /** Unit the quantities are counted in (piece, packet, kg …). */
   unit: string;
-  /** Takings that never went on a tab. */
-  totalSale: number;
-  totalSaleQty: number;
-  /** Sold onto a tab that day, paid off since or not. */
-  totalTabSale: number;
-  totalTabSaleQty: number;
+  /** Sold over the counter, plus tab sales the customer has since settled. */
+  totalCash: number;
+  totalCashQty: number;
+  /** Sold onto a tab that day and still owed. */
+  totalDue: number;
+  totalDueQty: number;
 }
 
 /**
  * Separator between calendar days in a product/material history list, carrying
- * that day's split of takings: sold for cash on one side, put on a customer's
- * tab on the other. The two never overlap, so together they are the day's whole
- * sale value.
+ * that day's split of takings: money already in hand on one side, what is still
+ * owed on the other. The two never overlap, so together they are the day's
+ * whole sale value.
  */
 export function HistoryDayBar({
   date,
   unit,
-  totalSale,
-  totalSaleQty,
-  totalTabSale,
-  totalTabSaleQty,
+  totalCash,
+  totalCashQty,
+  totalDue,
+  totalDueQty,
 }: HistoryDayBarProps) {
   const { t, formatCurrency, formatDayLabel, formatNumber, localizeDigits } = useI18n();
   const qty = (value: number) => localizeDigits(`${formatNumber(value)} ${unit}`);
@@ -37,15 +37,15 @@ export function HistoryDayBar({
       <span className={styles.dayStats}>
         <span className={styles.dayStat}>
           <span className={styles.dayStatLabel}>{t.saleCash}:</span>
-          <span className="text-positive">{formatCurrency(totalSale)}</span>
-          <span className={styles.dayStatQty}>{qty(totalSaleQty)}</span>
+          <span className="text-positive">{formatCurrency(totalCash)}</span>
+          <span className={styles.dayStatQty}>{qty(totalCashQty)}</span>
         </span>
         <span className={styles.dayStat}>
-          <span className={styles.dayStatLabel}>{t.saleCustomer}:</span>
-          {/* Blue is the tab colour throughout: this figure, the entries behind
-              it and the customer names all match. */}
-          <span className="text-customer">{formatCurrency(totalTabSale)}</span>
-          <span className={styles.dayStatQty}>{qty(totalTabSaleQty)}</span>
+          <span className={styles.dayStatLabel}>{t.saleDue}:</span>
+          {/* Matches the red the unpaid entries below carry — this figure is
+              exactly their sum. */}
+          <span className="text-negative">{formatCurrency(totalDue)}</span>
+          <span className={styles.dayStatQty}>{qty(totalDueQty)}</span>
         </span>
       </span>
     </div>

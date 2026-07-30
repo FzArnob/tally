@@ -423,25 +423,32 @@
 .entryCustomer {
   flex-shrink: 0;
   max-width: 55%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0;
   border: none;
   background: none;
   font: inherit;
   font-size: var(--fs-sm);
   font-weight: var(--font-weight-medium);
+  /* Plain body text — the trailing arrow is what marks it tappable, so no
+     underline and no link colour. */
+  color: var(--foreground);
   text-align: right;
   cursor: pointer;
-  /* Underlined at rest so it reads as a link, not just coloured text. */
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.2em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  transition: opacity var(--dur-fast) ease;
 }
 
 .entryCustomer:hover {
-  text-decoration-thickness: 2px;
+  opacity: 0.75;
+}
+
+.entryCustomerName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tabSwitch {
@@ -727,9 +734,12 @@
   white-space: nowrap;
 }
 
+/* Sits opposite the quantity × price breakdown on the same line. */
 .entryAmount {
+  flex-shrink: 0;
   font-weight: var(--font-weight-medium);
   font-size: var(--fs-amount);
+  white-space: nowrap;
 }
 
 .entryTime {

@@ -58,10 +58,10 @@ export function ProductHistoryModal({
               <HistoryDayBar
                 date={day.date}
                 unit={unit}
-                totalSale={day.totalSale}
-                totalSaleQty={day.totalSaleQty}
-                totalTabSale={day.totalTabSale}
-                totalTabSaleQty={day.totalTabSaleQty}
+                totalCash={day.totalCash}
+                totalCashQty={day.totalCashQty}
+                totalDue={day.totalDue}
+                totalDueQty={day.totalDueQty}
               />
               {day.entries.map((tx) => {
                 const isStock = tx.type === 'stock';
@@ -86,36 +86,6 @@ export function ProductHistoryModal({
                           </span>
                         )}
                       </span>
-                      <span
-                        className={`${styles.entryAmount} ${
-                          isStock ? 'text-invest' : tx.on_tab ? 'text-customer' : 'text-positive'
-                        }`}
-                      >
-                        {formatCurrency(tx.total_amount)}
-                      </span>
-                    </div>
-                    {/* Note, against whose tab it went on. */}
-                    {(tx.note || tx.customer_name) && (
-                      <div className={styles.line}>
-                        <span className={styles.entryNote} title={tx.note ?? undefined}>
-                          {tx.note}
-                        </span>
-                        {tx.customer_id && tx.customer_name && (
-                          <button
-                            type="button"
-                            className={`${styles.entryCustomer} text-customer`}
-                            onClick={() => onCustomer(tx.customer_id as string)}
-                          >
-                            {tx.customer_name}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <div className={styles.line}>
-                      <span className={styles.entryDetail}>
-                        {localizeDigits(`${formatNumber(tx.quantity)} ${unit} × `)}
-                        {formatCurrency(tx.price_per_unit)}
-                      </span>
                       <div className={styles.entryActions}>
                         <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(tx)}>
                           <span className="material-symbols-outlined icon-md">edit</span>
@@ -128,6 +98,45 @@ export function ProductHistoryModal({
                           <span className="material-symbols-outlined icon-md">delete</span>
                         </button>
                       </div>
+                    </div>
+                    {/* Note, against whose tab it went on. */}
+                    {(tx.note || tx.customer_name) && (
+                      <div className={styles.line}>
+                        <span className={styles.entryNote} title={tx.note ?? undefined}>
+                          {tx.note}
+                        </span>
+                        {tx.customer_id && tx.customer_name && (
+                          <button
+                            type="button"
+                            className={styles.entryCustomer}
+                            onClick={() => onCustomer(tx.customer_id as string)}
+                          >
+                            <span className={styles.entryCustomerName}>{tx.customer_name}</span>
+                            <span className="material-symbols-outlined icon-sm">
+                              arrow_outward
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <div className={styles.line}>
+                      <span className={styles.entryDetail}>
+                        {localizeDigits(`${formatNumber(tx.quantity)} ${unit} × `)}
+                        {formatCurrency(tx.price_per_unit)}
+                      </span>
+                      {/* Settlement state carries the colour: still owed reads
+                          red, cash or settled reads green. */}
+                      <span
+                        className={`${styles.entryAmount} ${
+                          isStock
+                            ? 'text-invest'
+                            : tx.on_tab && tx.unpaid
+                              ? 'text-negative'
+                              : 'text-positive'
+                        }`}
+                      >
+                        {formatCurrency(tx.total_amount)}
+                      </span>
                     </div>
                     <div className={`${styles.line} ${styles.entryFoot}`}>
                       {/* Manufacture rows keep no running stock, so they say what they are. */}

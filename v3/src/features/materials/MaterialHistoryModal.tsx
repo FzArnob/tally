@@ -58,10 +58,10 @@ export function MaterialHistoryModal({
               <HistoryDayBar
                 date={day.date}
                 unit={unit}
-                totalSale={day.totalSale}
-                totalSaleQty={day.totalSaleQty}
-                totalTabSale={day.totalTabSale}
-                totalTabSaleQty={day.totalTabSaleQty}
+                totalCash={day.totalCash}
+                totalCashQty={day.totalCashQty}
+                totalDue={day.totalDue}
+                totalDueQty={day.totalDueQty}
               />
               {day.entries.map((tx) => {
                 const isStock = tx.type === 'stock';
@@ -85,17 +85,18 @@ export function MaterialHistoryModal({
                           </span>
                         )}
                       </span>
-                      {isUsed ? (
-                        <span />
-                      ) : (
-                        <span
-                          className={`${styles.entryAmount} ${
-                            isStock ? 'text-invest' : tx.on_tab ? 'text-customer' : 'text-positive'
-                          }`}
+                      <div className={styles.entryActions}>
+                        <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(tx)}>
+                          <span className="material-symbols-outlined icon-md">edit</span>
+                        </button>
+                        <button
+                          className="ghost-btn"
+                          aria-label={t.deleteAction}
+                          onClick={() => onDelete(tx)}
                         >
-                          {formatCurrency(tx.total_amount)}
-                        </span>
-                      )}
+                          <span className="material-symbols-outlined icon-md">delete</span>
+                        </button>
+                      </div>
                     </div>
                     {/* Note, against whose tab it went on. */}
                     {(tx.note || tx.customer_name) && (
@@ -106,10 +107,13 @@ export function MaterialHistoryModal({
                         {tx.customer_id && tx.customer_name && (
                           <button
                             type="button"
-                            className={`${styles.entryCustomer} text-customer`}
+                            className={styles.entryCustomer}
                             onClick={() => onCustomer(tx.customer_id as string)}
                           >
-                            {tx.customer_name}
+                            <span className={styles.entryCustomerName}>{tx.customer_name}</span>
+                            <span className="material-symbols-outlined icon-sm">
+                              arrow_outward
+                            </span>
                           </button>
                         )}
                       </div>
@@ -125,18 +129,21 @@ export function MaterialHistoryModal({
                               </>
                             )}
                       </span>
-                      <div className={styles.entryActions}>
-                        <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(tx)}>
-                          <span className="material-symbols-outlined icon-md">edit</span>
-                        </button>
-                        <button
-                          className="ghost-btn"
-                          aria-label={t.deleteAction}
-                          onClick={() => onDelete(tx)}
+                      {/* Used-up stock has no money side; the rest colour by
+                          settlement state — still owed red, settled green. */}
+                      {!isUsed && (
+                        <span
+                          className={`${styles.entryAmount} ${
+                            isStock
+                              ? 'text-invest'
+                              : tx.on_tab && tx.unpaid
+                                ? 'text-negative'
+                                : 'text-positive'
+                          }`}
                         >
-                          <span className="material-symbols-outlined icon-md">delete</span>
-                        </button>
-                      </div>
+                          {formatCurrency(tx.total_amount)}
+                        </span>
+                      )}
                     </div>
                     <div className={`${styles.line} ${styles.entryFoot}`}>
                       <span>

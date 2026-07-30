@@ -151,7 +151,7 @@ export interface Translation {
   unpaidPill: string;
   manufactured: string;
   saleCash: string;
-  saleCustomer: string;
+  saleDue: string;
   quantity: string;
   buyingPrice: string;
   sellingPrice: string;
@@ -445,9 +445,9 @@ const en: Translation = {
   unpaidPill: 'Unpaid',
   // Stands in for the running stock on manufacture rows, which have none.
   manufactured: 'Manufactured',
-  // Day-bar split: sold over the counter vs put on a customer's tab.
+  // Day-bar split: money already in hand vs what a customer still owes.
   saleCash: 'Cash',
-  saleCustomer: 'Customer',
+  saleDue: 'Due',
   quantity: 'Quantity',
   buyingPrice: 'Buying Price / unit',
   sellingPrice: 'Selling Price / unit',
@@ -732,7 +732,7 @@ const bn: Translation = {
   unpaidPill: 'বাকি',
   manufactured: 'উৎপাদিত',
   saleCash: 'নগদ',
-  saleCustomer: 'গ্রাহক',
+  saleDue: 'বাকি',
   quantity: 'পরিমাণ',
   buyingPrice: 'ক্রয় মূল্য / একক',
   sellingPrice: 'বিক্রয় মূল্য / একক',

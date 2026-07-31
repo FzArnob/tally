@@ -149,6 +149,7 @@ export interface Translation {
   stockIn: string;
   sale: string;
   unpaidPill: string;
+  partPaid: string;
   manufactured: string;
   saleCash: string;
   saleDue: string;
@@ -201,7 +202,6 @@ export interface Translation {
 
   // Customer items — goods taken on the tab (v3)
   customerTab: string;
-  balanceKeypad: string;
   itemsTitle: string;
   addItems: string;
   materialsTab: string;
@@ -218,6 +218,25 @@ export interface Translation {
   failedLoadItems: string;
   failedAddItems: string;
   failedSettleItem: string;
+
+  // Cash on a customer's tab, and editing what the ledger already holds (v3)
+  borrowedCash: string;
+  cashPaidBack: string;
+  recordBorrowedCash: string;
+  recordCashPaid: string;
+  unpaidCash: string;
+  cashAdvance: string;
+  paidBack: string;
+  tabTotalUnpaid: string;
+  tabTotalPaid: string;
+  editCashEntry: string;
+  editItemEntry: string;
+  editPayment: string;
+  quantityPaid: string;
+  of: string;
+  deleteTakingConfirm: string;
+  deletePaymentConfirm: string;
+  failedSaveEntry: string;
 
   // Customer page / form (v3)
   back: string;
@@ -443,6 +462,8 @@ const en: Translation = {
   stockIn: 'Stock In',
   sale: 'Sale',
   unpaidPill: 'Unpaid',
+  // A tab sale the customer has covered some, but not all, of.
+  partPaid: 'Part paid',
   // Stands in for the running stock on manufacture rows, which have none.
   manufactured: 'Manufactured',
   // Day-bar split: money already in hand vs what a customer still owes.
@@ -493,7 +514,6 @@ const en: Translation = {
   failedDeleteHistory: 'Failed to delete history entry. Please try again.',
 
   customerTab: 'Items on tab',
-  balanceKeypad: 'Balance keypad',
   itemsTitle: 'Items',
   addItems: 'Add items',
   // The picker sells the material itself, so the tab drops the "Costs" of the page name.
@@ -511,6 +531,27 @@ const en: Translation = {
   failedLoadItems: 'Failed to load items. Please try again.',
   failedAddItems: 'Failed to add items. Please try again.',
   failedSettleItem: 'Failed to settle item. Please try again.',
+
+  // The two cash buttons on the tab sheet: money lent out, money handed back.
+  borrowedCash: 'Borrowed cash',
+  cashPaidBack: 'Cash paid',
+  recordBorrowedCash: 'Record borrowed cash',
+  recordCashPaid: 'Record cash paid back',
+  unpaidCash: 'Unpaid cash',
+  cashAdvance: 'Cash advance',
+  paidBack: 'Paid back',
+  // Lifetime totals on the tab sheet, either side of what still stands.
+  tabTotalUnpaid: 'Total unpaid',
+  tabTotalPaid: 'Total paid',
+  editCashEntry: 'Edit cash entry',
+  editItemEntry: 'Edit item taken',
+  editPayment: 'Edit payment',
+  quantityPaid: 'Quantity paid',
+  // "৳360 paid — of ৳540" on a part-paid tab line.
+  of: 'of',
+  deleteTakingConfirm: 'This also removes the sale behind it and returns the goods to stock.',
+  deletePaymentConfirm: 'This puts the goods back on the tab as unpaid.',
+  failedSaveEntry: 'Failed to save the entry. Please try again.',
 
   back: 'Back',
   nickname: 'Nickname',
@@ -730,6 +771,7 @@ const bn: Translation = {
   stockIn: 'স্টক ইন',
   sale: 'বিক্রয়',
   unpaidPill: 'বাকি',
+  partPaid: 'আংশিক পরিশোধিত',
   manufactured: 'উৎপাদিত',
   saleCash: 'নগদ',
   saleDue: 'বাকি',
@@ -778,7 +820,6 @@ const bn: Translation = {
   failedDeleteHistory: 'ইতিহাস এন্ট্রি মুছে ফেলা যায়নি। আবার চেষ্টা করুন।',
 
   customerTab: 'বাকির পণ্য',
-  balanceKeypad: 'ব্যালেন্স কীপ্যাড',
   itemsTitle: 'পণ্য',
   addItems: 'পণ্য যোগ করুন',
   materialsTab: 'কাঁচামাল',
@@ -795,6 +836,24 @@ const bn: Translation = {
   failedLoadItems: 'পণ্য লোড করা যায়নি। আবার চেষ্টা করুন।',
   failedAddItems: 'পণ্য যোগ করা যায়নি। আবার চেষ্টা করুন।',
   failedSettleItem: 'পণ্যের দাম পরিশোধ করা যায়নি। আবার চেষ্টা করুন।',
+
+  borrowedCash: 'ধার নেওয়া নগদ',
+  cashPaidBack: 'ফেরত নগদ',
+  recordBorrowedCash: 'ধার নেওয়া নগদ যোগ করুন',
+  recordCashPaid: 'ফেরত দেওয়া নগদ যোগ করুন',
+  unpaidCash: 'বাকি নগদ',
+  cashAdvance: 'অগ্রিম নগদ',
+  paidBack: 'পরিশোধিত',
+  tabTotalUnpaid: 'মোট বাকি',
+  tabTotalPaid: 'মোট পরিশোধিত',
+  editCashEntry: 'নগদ এন্ট্রি সম্পাদনা',
+  editItemEntry: 'নেওয়া পণ্য সম্পাদনা',
+  editPayment: 'পরিশোধ সম্পাদনা',
+  quantityPaid: 'পরিশোধিত পরিমাণ',
+  of: 'এর মধ্যে',
+  deleteTakingConfirm: 'এটি এর পেছনের বিক্রয়টিও মুছে দেবে এবং পণ্য স্টকে ফেরত যাবে।',
+  deletePaymentConfirm: 'এটি পণ্যগুলো আবার বাকি হিসেবে তালিকায় ফিরিয়ে দেবে।',
+  failedSaveEntry: 'এন্ট্রি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
 
   back: 'পিছনে',
   nickname: 'ডাকনাম',

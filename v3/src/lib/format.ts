@@ -136,9 +136,3 @@ export function formatTimeShort(value: Date | string | null | undefined, locale:
     minute: '2-digit',
   }).format(date);
 }
-
-/** Turns raw operators (* /) into pretty display glyphs (× ÷). */
-export function formatDisplayExpression(expr: string): string {
-  if (!expr) return '';
-  return expr.replace(/\*/g, '×').replace(/\//g, '÷');
-}

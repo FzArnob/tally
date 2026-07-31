@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useI18n } from '../../i18n/LanguageContext';
 import { deleteCustomerBalanceHistory, getCustomerHistory } from '../../lib/api';
-import { formatDisplayExpression } from '../../lib/format';
 import type { BalanceHistoryEntry, Customer } from '../../types';
 import styles from './customers.module.css';
 
 interface CustomerHistoryModalProps {
   customer: Customer | null; // non-null => open
+  /** Bumped by the parent when an entry was edited elsewhere; forces a refetch. */
+  reloadKey?: number;
   onClose: () => void;
   onEdit: (entry: BalanceHistoryEntry) => void;
   onChanged: () => void;
@@ -16,24 +17,34 @@ interface CustomerHistoryModalProps {
 
 export function CustomerHistoryModal({
   customer,
+  reloadKey = 0,
   onClose,
   onEdit,
   onChanged,
 }: CustomerHistoryModalProps) {
-  const { t, formatCurrency, formatSignedCurrency, formatTimeFull, localizeDigits } = useI18n();
+  const { t, formatCurrency, formatSignedCurrency, formatNumber, formatTimeFull, localizeDigits } =
+    useI18n();
   const [current, setCurrent] = useState<Customer | null>(null);
   const [entries, setEntries] = useState<BalanceHistoryEntry[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<BalanceHistoryEntry | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Bumped by this modal's own writes (a delete) to re-pull the list.
+  const [reloadTick, setReloadTick] = useState(0);
   const open = !!customer;
+
+  // Whose history is on screen. A refetch for the SAME customer is a refresh,
+  // not a fresh open, so it must not blank the list back to the spinner.
+  const shownFor = useRef<string | null>(null);
 
   useEffect(() => {
     if (!customer) return;
     setCurrent(customer);
+    const isNewSubject = shownFor.current !== customer.id;
+    shownFor.current = customer.id;
     let active = true;
-    setStatus('loading');
+    if (isNewSubject) setStatus('loading');
     getCustomerHistory(customer.id)
       .then((data) => {
         if (!active) return;
@@ -47,8 +58,13 @@ export function CustomerHistoryModal({
     return () => {
       active = false;
     };
-  }, [customer]);
+  }, [customer, reloadKey, reloadTick]);
 
+  /**
+   * Removing an entry re-writes the running balance of every entry below it —
+   * and, for goods, the sale and stock behind it. None of that can be worked
+   * out here, so the list is re-pulled rather than having the row spliced out.
+   */
   const confirmDelete = async () => {
     if (!pendingDelete || deleting) return;
     const id = pendingDelete.id;
@@ -57,9 +73,10 @@ export function CustomerHistoryModal({
       await deleteCustomerBalanceHistory(id);
       setPendingDelete(null);
       setRemovingId(id);
+      // Let the row finish sliding out before the fresh list replaces it.
       window.setTimeout(() => {
-        setEntries((prev) => prev.filter((e) => e.id !== id));
         setRemovingId(null);
+        setReloadTick((n) => n + 1);
         onChanged();
       }, 280);
     } catch (err) {
@@ -92,9 +109,18 @@ export function CustomerHistoryModal({
         )}
         {entries.map((entry) => {
           const isPaid = entry.type === 'paid';
-          // Only show the expression when it involved an actual operation, not a
-          // bare number that just equals the amount.
-          const showExpr = !!entry.expression && /[+\-*/×÷]/.test(entry.expression);
+          const isItem = entry.source === 'item';
+          // Goods say what they were: "3 packet × ৳180". Cash has only its note.
+          const breakdown =
+            isItem && entry.quantity !== null
+              ? `${localizeDigits(
+                  `${formatNumber(entry.quantity)}${entry.quantity_type ? ` ${entry.quantity_type}` : ''} × `,
+                )}${formatCurrency(entry.price_per_unit ?? 0)}`
+              : null;
+          // Goods are paid off gradually, so a taking can be part covered. The
+          // figures are the same ones the tab sheet shows for its line.
+          const covered = entry.paid_amount ?? 0;
+          const partPaid = isItem && !isPaid && covered > 0 && covered < entry.amount;
           return (
             <div
               key={entry.id}
@@ -115,21 +141,25 @@ export function CustomerHistoryModal({
                 </span>
               </div>
 
-              {(showExpr || entry.reason) && (
+              {(breakdown || entry.reason) && (
                 <div className={styles.line}>
-                  {showExpr ? (
-                    <span className={styles.entryExpr}>
-                      {localizeDigits(formatDisplayExpression(entry.expression as string))} ={' '}
-                      {formatCurrency(entry.amount)}
-                    </span>
-                  ) : (
-                    <span />
-                  )}
+                  {breakdown ? <span className={styles.entryExpr}>{breakdown}</span> : <span />}
                   {entry.reason && (
                     <span className={styles.entryReason} title={entry.reason}>
                       {entry.reason}
                     </span>
                   )}
+                </div>
+              )}
+
+              {partPaid && (
+                <div className={styles.line}>
+                  <span className={styles.entryPaid}>
+                    {t.paidBack}: {formatCurrency(covered)}
+                  </span>
+                  <span className={styles.entryDue}>
+                    {t.saleDue}: {formatCurrency(entry.amount - covered)}
+                  </span>
                 </div>
               )}
 
@@ -159,7 +189,14 @@ export function CustomerHistoryModal({
     <ConfirmDialog
       open={!!pendingDelete}
       title={t.deleteEntry}
-      message={t.deleteEntryConfirm}
+      // Removing a goods entry takes its other half with it, so say which.
+      message={
+        pendingDelete?.source !== 'item'
+          ? t.deleteEntryConfirm
+          : pendingDelete.type === 'unpaid'
+            ? t.deleteTakingConfirm
+            : t.deletePaymentConfirm
+      }
       confirmLabel={t.deleteAction}
       onConfirm={confirmDelete}
       onCancel={() => setPendingDelete(null)}

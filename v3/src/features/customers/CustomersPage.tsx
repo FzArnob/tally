@@ -8,7 +8,8 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { deleteCustomer, getCustomers } from '../../lib/api';
 import type { BalanceHistoryEntry, Customer, CustomerTotals } from '../../types';
 import { CustomerFormModal } from './CustomerFormModal';
-import { BalanceModal } from './BalanceModal';
+import { CashEntryModal } from './CashEntryModal';
+import { ItemEntryModal } from './ItemEntryModal';
 import { CustomerItemsModal } from './CustomerItemsModal';
 import { CustomerHistoryModal } from './CustomerHistoryModal';
 import styles from './customers.module.css';
@@ -16,14 +17,12 @@ import styles from './customers.module.css';
 function CustomerRow({
   customer,
   onItems,
-  onBalance,
   onHistory,
   onEdit,
   onDelete,
 }: {
   customer: Customer;
   onItems: () => void;
-  onBalance: () => void;
   onHistory: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -61,9 +60,6 @@ function CustomerRow({
             {customer.phone ? ` · ${localizeDigits(customer.phone)}` : ''}
           </span>
           <div className={styles.cActions} onClick={stop}>
-            <button className="ghost-btn" aria-label={t.balanceKeypad} onClick={onBalance}>
-              <span className="material-symbols-outlined icon-md">calculate</span>
-            </button>
             <button className="ghost-btn" aria-label={t.history} onClick={onHistory}>
               <span className="material-symbols-outlined icon-md">history</span>
             </button>
@@ -94,9 +90,12 @@ export function CustomersPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [formCustomer, setFormCustomer] = useState<Customer | null>(null);
   const [itemsCustomer, setItemsCustomer] = useState<Customer | null>(null);
-  const [balanceCustomer, setBalanceCustomer] = useState<Customer | null>(null);
-  const [balanceEntry, setBalanceEntry] = useState<BalanceHistoryEntry | null>(null);
+  // The entry a history edit handed over, and whose tab it belongs to.
+  const [editEntry, setEditEntry] = useState<BalanceHistoryEntry | null>(null);
+  const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
   const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null);
+  // Bumped after an edit so the history list underneath re-pulls itself.
+  const [historyReload, setHistoryReload] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -127,17 +126,22 @@ export function CustomersPage() {
     );
   }, [customers, query]);
 
-  // Editing a history entry hands off to the balance keypad, prefilled with it.
+  // Editing a history entry hands off to whichever editor fits what it is:
+  // cash is an amount, goods are a quantity of something. The history stays
+  // open underneath, so closing the editor puts the reader back where they were.
   const editFromHistory = (entry: BalanceHistoryEntry) => {
-    const customer = historyCustomer;
-    setHistoryCustomer(null);
-    setBalanceEntry(entry);
-    setBalanceCustomer(customer);
+    setEditCustomer(historyCustomer);
+    setEditEntry(entry);
   };
 
-  const openBalance = (customer: Customer) => {
-    setBalanceEntry(null);
-    setBalanceCustomer(customer);
+  /**
+   * After an entry is corrected: the page's balances, and the history list
+   * behind the editor, which the server has just re-run end to end (an edit
+   * moves every running balance below it).
+   */
+  const entrySaved = () => {
+    void load();
+    setHistoryReload((n) => n + 1);
   };
 
   const confirmDelete = async () => {
@@ -203,7 +207,6 @@ export function CustomersPage() {
             key={c.id}
             customer={c}
             onItems={() => setItemsCustomer(c)}
-            onBalance={() => openBalance(c)}
             onHistory={() => setHistoryCustomer(c)}
             onEdit={() => {
               setFormCustomer(c);
@@ -228,15 +231,25 @@ export function CustomersPage() {
         onChanged={load}
       />
 
-      <BalanceModal
-        customer={balanceCustomer}
-        editEntry={balanceEntry}
-        onClose={() => setBalanceCustomer(null)}
-        onChanged={load}
+      <CashEntryModal
+        open={editEntry?.source === 'cash'}
+        customer={editCustomer}
+        type={editEntry?.type ?? 'unpaid'}
+        editEntry={editEntry}
+        onClose={() => setEditEntry(null)}
+        onSaved={entrySaved}
+      />
+
+      <ItemEntryModal
+        open={editEntry?.source === 'item'}
+        entry={editEntry}
+        onClose={() => setEditEntry(null)}
+        onSaved={entrySaved}
       />
 
       <CustomerHistoryModal
         customer={historyCustomer}
+        reloadKey={historyReload}
         onClose={() => setHistoryCustomer(null)}
         onEdit={editFromHistory}
         onChanged={load}

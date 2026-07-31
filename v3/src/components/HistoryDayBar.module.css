@@ -52,13 +52,14 @@
   font-weight: var(--font-weight-normal);
 }
 
-/* Units trail the amount, separated by a middot. */
-.dayStatQty {
-  color: var(--foreground);
+/* This side's share of the day's takings, trailing the amount after a middot.
+   Quieter than the figure itself — it is context, not the number that matters. */
+.dayStatShare {
+  color: var(--muted-foreground);
   font-weight: var(--font-weight-normal);
 }
 
-.dayStatQty::before {
+.dayStatShare::before {
   content: '·';
   margin-right: 0.3rem;
   color: var(--muted-foreground);

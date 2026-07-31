@@ -545,6 +545,23 @@
   white-space: nowrap;
 }
 
+/* How a part-paid tab sale divides: what has been covered on the left, what is
+   still owed on the right. Matches the customer tab's wording and colours. */
+.entryPaid {
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--green-700);
+  white-space: nowrap;
+}
+
+.entryDue {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--red-600);
+  white-space: nowrap;
+}
+
 /* Sits opposite the quantity × price breakdown on the same line. */
 .entryAmount {
   flex-shrink: 0;

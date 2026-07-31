@@ -176,32 +176,51 @@ export function getCustomerHistory(customerId: string): Promise<CustomerHistoryR
   return request<CustomerHistoryResponse>(`customers/${customerId}/history`);
 }
 
+/** Book plain cash: borrowed ('unpaid') or handed back ('paid'). */
 export function createCustomerBalance(params: {
   customerId: string;
   type: BalanceType;
   amount: number;
   reason?: string | null;
-  expression?: string | null;
 }): Promise<CreateBalanceResponse> {
-  const { customerId, type, amount, reason = null, expression = null } = params;
+  const { customerId, type, amount, reason = null } = params;
   return request<CreateBalanceResponse>(
     `customers/${customerId}/balance`,
-    jsonInit('POST', { type, amount, reason, expression }),
+    jsonInit('POST', { type, amount, reason }),
   );
 }
 
-/** Edit an existing balance entry in place (keeps its slot in the history). */
+/** Edit a cash entry in place (keeps its slot in the history). */
 export function updateCustomerBalance(params: {
   historyId: string;
   type: BalanceType;
   amount: number;
   reason?: string | null;
-  expression?: string | null;
 }): Promise<CreateBalanceResponse> {
-  const { historyId, type, amount, reason = null, expression = null } = params;
+  const { historyId, type, amount, reason = null } = params;
   return request<CreateBalanceResponse>(
     `balance-history/${historyId}`,
-    jsonInit('PUT', { type, amount, reason, expression }),
+    jsonInit('PUT', { type, amount, reason }),
+  );
+}
+
+/**
+ * Edit an item entry by quantity. A taking also re-prices and rewrites the sale
+ * behind it (stock included); a payment only moves units on and off the tab, so
+ * it takes no price.
+ */
+export function updateCustomerItemEntry(params: {
+  historyId: string;
+  quantity: number;
+  pricePerUnit?: number;
+}): Promise<CreateBalanceResponse> {
+  const { historyId, quantity, pricePerUnit } = params;
+  return request<CreateBalanceResponse>(
+    `balance-history/${historyId}`,
+    jsonInit('PUT', {
+      quantity,
+      ...(pricePerUnit === undefined ? {} : { price_per_unit: pricePerUnit }),
+    }),
   );
 }
 

@@ -179,14 +179,42 @@
 }
 
 .itemRow {
+  position: relative;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 0.65rem;
-  padding: 0.7rem 0.8rem;
+  padding: 0.7rem 0.8rem 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  overflow: hidden; /* keeps the progress bar inside the rounded corners */
   animation: rowIn var(--dur-fast) ease both;
+}
+
+/* How far this line has been paid, along its bottom edge: green up to
+   --paid-share, red for the rest. A line nobody has paid anything towards is
+   all red, which is exactly what it should look like. */
+.itemProgress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(
+    to right,
+    var(--green-600) 0,
+    var(--green-600) var(--paid-share, 0%),
+    color-mix(in srgb, var(--red-600) 55%, transparent) var(--paid-share, 0%)
+  );
+  transition: background var(--dur-fast) ease;
+}
+
+/* The money already put against this line, opposite its full price. */
+.itemPaid {
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--green-700);
+  white-space: nowrap;
 }
 
 .itemName {
@@ -637,15 +665,8 @@
 }
 
 /* =========================================================
-   Balance modal + calculator
+   Tab sheet header + cash entries
    ========================================================= */
-/* Compact calculator column on desktop; full-bleed bottom sheet on mobile. */
-@media (min-width: 641px) {
-  .balancePanel {
-    max-width: 27rem !important;
-  }
-}
-
 .balHeaderInfo {
   display: flex;
   flex-direction: column;
@@ -666,174 +687,131 @@
   white-space: nowrap;
 }
 
-.balCalc {
-  margin-top: 0.9rem;
-}
-
-.calc {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.calcDisplay {
-  background: var(--input-background);
-  border: 1px solid var(--border);
-  border-radius: 0.8rem;
-  padding: 0.45rem 0.85rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.1rem;
-  min-height: 3rem;
-}
-
-.calcExpr {
-  text-align: right;
-  font-size: var(--fs-sm);
-  color: var(--muted-foreground);
-  min-height: 1.1rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Validation error shown in the display's expression line, in red. */
-.calcError {
-  display: block;
-  text-align: left;
-  white-space: normal;
-  color: var(--red-600);
-  font-weight: var(--font-weight-medium);
-}
-
-.calcValue {
-  text-align: right;
-  font-size: 1.55rem;
-  font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.keys {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
-}
-
-/* Every keypad button is a uniform square (equal width & height) so numbers,
-   operators and function keys all read as the same size. */
-.key {
-  border: 1px solid var(--border);
-  border-radius: 0.7rem;
-  aspect-ratio: 1.7 / 1;
-  width: 100%;
-  font-size: var(--fs-key);
-  font-weight: var(--font-weight-medium);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.3rem;
-  transition: filter var(--dur-fast) ease, transform var(--dur-fast) ease,
-    background-color var(--dur-fast) ease;
-}
-
-.key:active {
-  transform: scale(0.94);
-}
-
-.key:disabled {
-  opacity: 0.55;
-  filter: grayscale(25%);
-}
-
-.keyNum {
-  background: var(--card);
-  color: var(--foreground);
-}
-.keyNum:hover {
-  background: var(--muted);
-}
-
-.keyOp {
-  background: var(--accent);
-  color: var(--accent-foreground);
-}
-.keyOp:hover {
-  filter: brightness(0.96);
-}
-
-.keyFn {
-  background: var(--secondary);
-  color: var(--secondary-foreground);
-  font-weight: var(--font-weight-semibold);
-}
-.keyFn:hover {
-  background: var(--muted);
-}
-
-.keyEquals {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-weight: var(--font-weight-semibold);
-}
-.keyEquals:hover {
-  filter: brightness(1.1);
-}
-
-/* ---- Sticky footer: Paid / Unpaid commit buttons ---- */
-.commit {
-  padding: 1.25rem 1.25rem 1.25rem 1.25rem;
+/* ---- Cash on the tab: the two directions money moves ---- */
+.cashActions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.65rem;
+  gap: 0.6rem;
+  margin-bottom: 0.9rem;
 }
 
-.commitBtn {
-  height: 3.1rem;
+/* Both keep the colour of the direction they book, so lending money out can
+   never be mistaken for taking it in. Shared by the sheet and the cash form. */
+.cashOutBtn,
+.cashInBtn {
+  height: 2.9rem;
   border: none;
-  border-radius: 0.85rem;
+  border-radius: 0.8rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
   font-size: var(--fs-base);
   font-weight: var(--font-weight-semibold);
+  color: #fff;
   box-shadow: var(--shadow-sm);
   transition: filter var(--dur-fast) ease, transform var(--dur-fast) ease,
     background-color var(--dur-fast) ease;
 }
-.commitBtn:active {
+
+.cashOutBtn:active,
+.cashInBtn:active {
   transform: scale(0.96);
 }
-.commitBtn:disabled {
+
+.cashOutBtn:disabled,
+.cashInBtn:disabled {
   opacity: 0.55;
   filter: grayscale(25%);
 }
 
-/* While editing an entry, ring the type it currently has. */
-.commitCurrent {
-  outline: 2px solid var(--foreground);
-  outline-offset: 2px;
-}
-
-.keyUnpaid {
+.cashOutBtn {
   background: var(--red-600);
-  color: #fff;
 }
-.keyUnpaid:hover {
+.cashOutBtn:hover:not(:disabled) {
   background: var(--red-700);
 }
 
-.keyPaid {
+.cashInBtn {
   background: var(--green-600);
-  color: #fff;
 }
-.keyPaid:hover {
+.cashInBtn:hover:not(:disabled) {
   background: var(--green-700);
 }
 
+/* ---- Where the tab stands: lifetime totals over what is still outstanding ---- */
+.tabStats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.9rem;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Everything ever owed / ever paid. An arrow each way marks the direction, the
+   same pair the Borrowed cash and Cash paid buttons use. */
+.tabTotals {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tabTotal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.tabSplit {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 0.75rem;
+}
+
+.tabStat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.tabStat:last-child {
+  align-items: flex-end;
+}
+
+.tabStatLabel {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.tabStatValue {
+  font-size: var(--fs-base);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+/* Which item an entry editor is about, beside the sheet's title. */
+.entryItemName {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* =========================================================
    History list
    ========================================================= */
@@ -893,6 +871,23 @@
   color: var(--muted-foreground);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* How a part-covered goods entry divides — the same wording and colours the
+   tab sheet and the product history use. */
+.entryPaid {
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--green-700);
+  white-space: nowrap;
+}
+
+.entryDue {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--red-600);
   white-space: nowrap;
 }
 

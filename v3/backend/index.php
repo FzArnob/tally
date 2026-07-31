@@ -178,32 +178,165 @@ function verifyGoogleIdToken(string $jwt): array
 // Shared recompute helpers (denormalisation lives here)
 // ===========================================================================
 
-/** Recompute a customer's total_balance, count, last time + per-row snapshots. */
+/**
+ * Replay a customer's whole ledger and write back everything derived from it:
+ * each entry's running balance, how far every tab line has been paid off, and
+ * the figures the tab sheet reads straight off the customer row.
+ *
+ * FIRST IN, FIRST OUT. Debts are settled in the order they were run up — the
+ * oldest one outstanding is always paid first, whether it is cash borrowed or
+ * goods taken. Money and goods share ONE queue; nothing jumps it.
+ *
+ *   cash borrowed   -> joins the queue as a debt.
+ *   goods taken     -> joins the queue as a debt, held on its customer_items
+ *                      line (the row the tab sheet lists and fills up).
+ *   money paid      -> pays the queue down from the front. Whatever is left when
+ *                      the queue is clear stays in hand as credit.
+ *   credit in hand  -> pays each NEW debt the moment it is booked, so paying
+ *                      ahead covers whatever the customer takes next.
+ *
+ * The one deliberate exception: a payment made against a specific line (the
+ * Paid button on the tab) goes to THAT line first. It is an instruction, not
+ * loose change. Anything above what the line owes rejoins the queue.
+ *
+ * That exception aside, this is what stops a later debt from helping itself to
+ * money an older one had first claim on — the customer's balance is the same
+ * either way, but which debts still stand is not.
+ *
+ * Because this is a pure function of the ledger, correcting or deleting any
+ * entry needs no unwinding: rewrite the entry and replay.
+ */
 function recomputeCustomer(PDO $pdo, string $customerId): array
 {
     $rows = $pdo->prepare(
-        'SELECT id, signed_amount, timestamp FROM customer_balance_history
-         WHERE customer_id = ? ORDER BY seq ASC'
+        'SELECT id, seq, type, source, amount, signed_amount, customer_item_id, timestamp
+         FROM customer_balance_history WHERE customer_id = ? ORDER BY seq ASC'
     );
     $rows->execute([$customerId]);
     $entries = $rows->fetchAll();
 
-    $running = 0.0;
-    $lastTime = null;
+    // Every tab line, in the order it was taken; `owed` is what it still needs.
+    $lineRows = $pdo->prepare(
+        'SELECT id, total_amount FROM customer_items WHERE customer_id = ? ORDER BY seq ASC'
+    );
+    $lineRows->execute([$customerId]);
+    $lines = [];
+    foreach ($lineRows->fetchAll() as $l) {
+        $lines[$l['id']] = ['owed' => (float) $l['total_amount'], 'paid' => 0.0, 'queued' => false];
+    }
+
+    // Debts in the order they were run up. A cash debt carries its own balance;
+    // a goods debt points at the line that carries it.
+    $queue  = [];
+    $credit = 0.0; // money in hand that has not met a debt yet
+
+    /** Pay debts from the front of the queue. Returns what is left over. */
+    $payQueue = function (float $money) use (&$queue, &$lines): float {
+        foreach ($queue as $i => $debt) {
+            if ($money <= 0.0000001) {
+                break;
+            }
+            if ($debt['kind'] === 'item') {
+                $id   = $debt['line'];
+                $take = min($money, $lines[$id]['owed']);
+                $lines[$id]['paid'] += $take;
+                $lines[$id]['owed'] -= $take;
+            } else {
+                $take = min($money, $queue[$i]['owed']);
+                $queue[$i]['owed'] -= $take;
+            }
+            $money -= $take;
+        }
+        return $money;
+    };
+
+    $running     = 0.0;
+    $paidBack    = 0.0; // every payment ever made
+    $totalUnpaid = 0.0; // every debt ever run up
+    $lastTime    = null;
     $update = $pdo->prepare('UPDATE customer_balance_history SET balance_after = ? WHERE id = ?');
+
     foreach ($entries as $e) {
+        $amount   = (float) $e['amount'];
         $running += (float) $e['signed_amount'];
+        $lineId   = $e['customer_item_id'];
+
+        if ($e['type'] === 'unpaid') {
+            $totalUnpaid += $amount;
+            if ($e['source'] === 'cash') {
+                // Credit in hand settles it on the spot; the rest joins the queue.
+                $take    = min($credit, $amount);
+                $credit -= $take;
+                $queue[] = ['kind' => 'cash', 'owed' => $amount - $take];
+            } elseif ($lineId !== null && isset($lines[$lineId])) {
+                // A line joins the queue once, at its first taking. Later goods
+                // merged onto it are the same debt, and take credit here too.
+                if (!$lines[$lineId]['queued']) {
+                    $lines[$lineId]['queued'] = true;
+                    $queue[] = ['kind' => 'item', 'line' => $lineId];
+                }
+                $take = min($credit, $lines[$lineId]['owed']);
+                $lines[$lineId]['paid'] += $take;
+                $lines[$lineId]['owed'] -= $take;
+                $credit -= $take;
+            }
+        } else {
+            $paidBack += $amount;
+            $left = $amount;
+            if ($e['source'] === 'item' && $lineId !== null && isset($lines[$lineId])) {
+                // Aimed at one line — an instruction, so it goes there first.
+                $take = min($left, max($lines[$lineId]['owed'], 0.0));
+                $lines[$lineId]['paid'] += $take;
+                $lines[$lineId]['owed'] -= $take;
+                $left -= $take;
+            }
+            $credit += $payQueue($left);
+        }
+
         $update->execute([$running, $e['id']]);
         $lastTime = $e['timestamp'];
     }
 
+    // Nothing should be both owed and paid for; this only bites if a line grew
+    // after it was cleared, which an edit can do.
+    $credit = $payQueue($credit);
+
+    $itemsDue = 0.0;
+    $setPaid  = $pdo->prepare('UPDATE customer_items SET paid_amount = ? WHERE id = ?');
+    foreach ($lines as $id => $line) {
+        $setPaid->execute([round($line['paid'], 2), $id]);
+        $itemsDue += $line['owed'];
+    }
+
+    // What is left of the cash side: credit in hand, less cash still borrowed.
+    $cashOwed = 0.0;
+    foreach ($queue as $debt) {
+        if ($debt['kind'] === 'cash') {
+            $cashOwed += $debt['owed'];
+        }
+    }
+    $cashBalance = $credit - $cashOwed;
+
     $pdo->prepare(
         'UPDATE customers
-         SET total_balance = ?, transaction_count = ?, last_transaction_time = ?
+         SET total_balance = ?, cash_balance = ?, items_due = ?,
+             total_unpaid = ?, total_paid_back = ?,
+             transaction_count = ?, last_transaction_time = ?
          WHERE id = ?'
-    )->execute([$running, count($entries), $lastTime, $customerId]);
+    )->execute([
+        $running, $cashBalance, $itemsDue, $totalUnpaid, $paidBack,
+        count($entries), $lastTime, $customerId,
+    ]);
 
-    return ['total_balance' => round($running, 2), 'transaction_count' => count($entries), 'last_transaction_time' => $lastTime];
+    return [
+        'total_balance'         => round($running, 2),
+        'cash_balance'          => round($cashBalance, 2),
+        'items_due'             => round($itemsDue, 2),
+        'total_unpaid'          => round($totalUnpaid, 2),
+        'total_paid_back'       => round($paidBack, 2),
+        'transaction_count'     => count($entries),
+        'last_transaction_time' => $lastTime,
+    ];
 }
 
 /**
@@ -377,8 +510,30 @@ function shapeCustomer(array $c): array
         'phone'                 => $c['phone'],
         'address'               => $c['address'],
         'total_balance'         => (float) $c['total_balance'],
+        // What is still outstanding, split by kind …
+        'cash_balance'          => (float) $c['cash_balance'],
+        'items_due'             => (float) $c['items_due'],
+        // … and the lifetime totals either side of it.
+        'total_unpaid'          => (float) $c['total_unpaid'],
+        'total_paid_back'       => (float) $c['total_paid_back'],
         'transaction_count'     => (int) $c['transaction_count'],
         'last_transaction_time' => $c['last_transaction_time'],
+    ];
+}
+
+/**
+ * The tab sheet's figures, returned beside every write that moves a balance so
+ * the sheet can restate itself without a reload. Takes recomputeCustomer()'s
+ * return value.
+ */
+function customerStats(array $totals): array
+{
+    return [
+        'total_balance'   => $totals['total_balance'],
+        'cash_balance'    => $totals['cash_balance'],
+        'items_due'       => $totals['items_due'],
+        'total_unpaid'    => $totals['total_unpaid'],
+        'total_paid_back' => $totals['total_paid_back'],
     ];
 }
 
@@ -417,11 +572,13 @@ function shapeTransaction(array $t): array
         'stock_after'    => $t['stock_after'] !== null ? (float) $t['stock_after'] : null,
         'customer_id'    => $t['customer_id'] ?? null,
         'customer_name'  => $t['customer_name'] ?? null,
-        // Went onto a tab at all, paid off since or not — the day totals split
-        // takings on this, so a settled line must still count as a tab sale.
+        // Went onto a tab at all, paid off since or not.
         'on_tab'         => onTab($t),
-        // Only the history query computes this (see UNPAID_FLAG); elsewhere a
-        // freshly written row is never on a tab, so false is right.
+        // How much of this sale the customer has covered, and whether anything
+        // is still owed on it. Only the history query works these out (see
+        // attachTabPayment); a freshly written row is never on a tab, so it
+        // counts as paid in full.
+        'paid_amount'    => isset($t['paid_amount']) ? (float) $t['paid_amount'] : (float) $t['total_amount'],
         'unpaid'         => !empty($t['unpaid']),
         'note'           => $t['note'],
         // Business time: when the goods moved. Preserved across edits, which is
@@ -442,15 +599,57 @@ function onTab(array $t): bool
 }
 
 /**
- * SQL fragment marking a tab sale that is STILL owed. It asks one thing: does
- * the exact outstanding line this sale wrote still exist? Settling in full
- * deletes that line, so the flag clears on payment without the transaction ever
- * being rewritten, and a later sale of the same goods opens a different line —
- * so paying once keeps that sale paid no matter what is bought afterwards.
+ * Work out how much of each tab sale has been paid for, and mark the ones still
+ * owed. A sale's money is not settled in isolation: it went onto a tab line,
+ * which fills up as the customer pays (its own Paid button, or cash flowing
+ * down the waterfall in recomputeCustomer). Several sales can share a line —
+ * same goods, same agreed price — so the line's paid_amount is spread over them
+ * OLDEST FIRST, the same order money reaches the lines themselves.
+ *
+ * Every sale on a line belongs to the same product/material, so a product's own
+ * history always holds all of them and the split is exact.
+ *
+ * Takes the rows as fetched (any order) and returns them with `paid_amount` and
+ * `unpaid` filled in. A sale that never went on a tab is paid by definition.
  */
-const UNPAID_FLAG = 'EXISTS (
-                SELECT 1 FROM customer_items ci WHERE ci.id = t.customer_item_id
-            ) AS unpaid';
+function attachTabPayment(PDO $pdo, array $txns): array
+{
+    $lineIds = array_values(array_unique(array_filter(
+        array_column($txns, 'customer_item_id')
+    )));
+    $lines = [];
+    if ($lineIds) {
+        $in   = implode(',', array_fill(0, count($lineIds), '?'));
+        $stmt = $pdo->prepare("SELECT id, paid_amount FROM customer_items WHERE id IN ($in)");
+        $stmt->execute($lineIds);
+        foreach ($stmt->fetchAll() as $l) {
+            $lines[$l['id']] = (float) $l['paid_amount'];
+        }
+    }
+
+    // Oldest first within each line, so the earliest sale is covered first.
+    $order = array_keys($txns);
+    usort($order, fn($x, $y) => (int) $txns[$x]['seq'] <=> (int) $txns[$y]['seq']);
+
+    foreach ($order as $i) {
+        $tx     = $txns[$i];
+        $lineId = $tx['customer_item_id'] ?? null;
+        $total  = (float) $tx['total_amount'];
+
+        if ($lineId === null || !isset($lines[$lineId])) {
+            // No tab line left (a counter sale, or one whose line is gone).
+            // onTab() decides whether it was ever on a tab at all.
+            $txns[$i]['paid_amount'] = $total;
+            $txns[$i]['unpaid']      = false;
+            continue;
+        }
+        $paid = min($lines[$lineId], $total);
+        $lines[$lineId] -= $paid;
+        $txns[$i]['paid_amount'] = round($paid, 2);
+        $txns[$i]['unpaid']      = $total - $paid > 0.005;
+    }
+    return $txns;
+}
 
 function shapeHistory(array $h): array
 {
@@ -459,16 +658,73 @@ function shapeHistory(array $h): array
         'customer_id'   => $h['customer_id'],
         'amount'        => (float) $h['amount'],
         'type'          => $h['type'],
+        // 'cash' or 'item' — decides how the entry may be edited.
+        'source'        => $h['source'],
         'signed_amount' => (float) $h['signed_amount'],
         'balance_after' => (float) $h['balance_after'],
         'reason'        => $h['reason'],
-        'expression'    => $h['expression'],
+        // Item entries only; null throughout on a cash entry.
+        'customer_item_id' => $h['customer_item_id'],
+        'item_name'        => $h['item_name'],
+        'quantity_type'    => $h['quantity_type'],
+        'quantity'         => $h['quantity']       !== null ? (float) $h['quantity'] : null,
+        'price_per_unit'   => $h['price_per_unit'] !== null ? (float) $h['price_per_unit'] : null,
+        // Goods takings only: how much of this one the customer has covered.
+        // Filled in by attachEntryPayment(); null everywhere else.
+        'paid_amount'      => isset($h['paid_amount']) ? (float) $h['paid_amount'] : null,
         'timestamp'     => $h['timestamp'],
     ];
 }
 
+/**
+ * Fill in how much of each goods TAKING has been covered, so the customer's own
+ * history reads the same way their tab does. The money sits on the line, and
+ * several takings can share one line, so a line's paid_amount is spread over
+ * its takings oldest first — the order the queue itself pays them.
+ *
+ * Cash entries and payments are left alone: `paid_amount` is null on those.
+ */
+function attachEntryPayment(PDO $pdo, array $entries): array
+{
+    $lineIds = [];
+    foreach ($entries as $e) {
+        if ($e['source'] === 'item' && $e['type'] === 'unpaid' && $e['customer_item_id']) {
+            $lineIds[$e['customer_item_id']] = true;
+        }
+    }
+    $paid = [];
+    if ($lineIds) {
+        $ids  = array_keys($lineIds);
+        $in   = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $pdo->prepare("SELECT id, paid_amount FROM customer_items WHERE id IN ($in)");
+        $stmt->execute($ids);
+        foreach ($stmt->fetchAll() as $l) {
+            $paid[$l['id']] = (float) $l['paid_amount'];
+        }
+    }
+
+    $order = array_keys($entries);
+    usort($order, fn($x, $y) => (int) $entries[$x]['seq'] <=> (int) $entries[$y]['seq']);
+    foreach ($order as $i) {
+        $e = $entries[$i];
+        if ($e['source'] !== 'item' || $e['type'] !== 'unpaid') {
+            continue;
+        }
+        $lineId = $e['customer_item_id'];
+        if ($lineId === null || !isset($paid[$lineId])) {
+            continue;
+        }
+        $take = min($paid[$lineId], (float) $e['amount']);
+        $paid[$lineId] -= $take;
+        $entries[$i]['paid_amount'] = round($take, 2);
+    }
+    return $entries;
+}
+
 function shapeCustomerItem(array $i): array
 {
+    $total = (float) $i['total_amount'];
+    $paid  = min((float) $i['paid_amount'], $total);
     return [
         'id'             => $i['id'],
         'customer_id'    => $i['customer_id'],
@@ -477,12 +733,23 @@ function shapeCustomerItem(array $i): array
         'material_id'    => $i['material_id'],
         'item_name'      => $i['item_name'],
         'quantity_type'  => $i['quantity_type'],
+        // Units taken — payment does not lower this; `paid_amount` does the work.
         'quantity'       => (float) $i['quantity'],
         'price_per_unit' => (float) $i['price_per_unit'],
-        'total_amount'   => (float) $i['total_amount'],
+        'total_amount'   => $total,
+        'paid_amount'    => round($paid, 2),
+        'remaining'      => round($total - $paid, 2),
         'timestamp'      => $i['timestamp'],
     ];
 }
+
+/**
+ * The tab lines still owing something, oldest first — the order the payment
+ * waterfall fills them in, so the sheet reads top-down the way money lands.
+ */
+const OUTSTANDING_ITEMS = 'SELECT * FROM customer_items
+     WHERE customer_id = ? AND paid_amount < total_amount - 0.005
+     ORDER BY seq ASC';
 
 /**
  * History `reason` for an item movement, e.g. "Rice × 2". Language-neutral on
@@ -495,33 +762,35 @@ function itemLabel(string $name, float $quantity): string
 }
 
 /**
- * The live tab line behind a sale about to be edited or deleted, or null when
- * the sale never went on a tab.
+ * The tab line behind a sale about to be edited or deleted, or null when the
+ * sale never went on a tab.
  *
- * A sale taken onto a customer's tab is three rows — the goods, the outstanding
- * line in customer_items, the debt in customer_balance_history — so touching the
- * goods alone would leave the customer owing the old amount.
+ * A sale taken onto a customer's tab is three rows — the goods, the line in
+ * customer_items, the debt in customer_balance_history — so touching the goods
+ * alone would leave the customer owing the old amount.
  *
- * Refuses outright once the customer has paid: that money is banked, and
- * rewriting or removing the goods would move a balance they have cleared.
+ * Payment is no obstacle: money is not attached to a line, it is poured over
+ * the lines by recomputeCustomer(). Change the goods and the replay redirects
+ * whatever had landed on them — onto the customer's other debts, or into an
+ * advance if there are none.
  */
-function tabLineFor(PDO $pdo, array $tx, string $settledMessage): ?array
+function tabLineFor(PDO $pdo, array $tx): ?array
 {
     if (empty($tx['customer_item_id'])) {
         return null;
     }
     $stmt = $pdo->prepare('SELECT * FROM customer_items WHERE id = ?');
     $stmt->execute([$tx['customer_item_id']]);
-    if (!$line = $stmt->fetch()) {
-        json_error($settledMessage, 422, 'settled');
-    }
-    return $line;
+    return $stmt->fetch() ?: null;
 }
 
 /**
  * Take a deleted tab sale's goods back off the customer's tab: the units leave
- * the outstanding line (which goes with them if nothing is left owing) and the
- * debt entry it booked is removed. Runs inside the caller's transaction.
+ * the line (which goes with them if it held nothing else) and the debt entry it
+ * booked is removed. Money that had landed on the line is not lost — the replay
+ * at the end pours it over whatever the customer still owes.
+ *
+ * Runs inside the caller's transaction.
  */
 function untabSale(PDO $pdo, array $tx, array $line): void
 {
@@ -542,11 +811,13 @@ function untabSale(PDO $pdo, array $tx, array $line): void
 }
 
 /**
- * Re-point a tab sale's debt after its goods row is edited: the outstanding
- * line is re-quantified (a changed price moves the units to the line for that
- * price, merging as taking items does) and the customer's debt entry is
- * rewritten. Returns the line the sale now belongs to — a line that has just
- * been emptied is deleted, and the id kept, so the entry reads as paid.
+ * Re-point a tab sale's debt after its goods row is edited: the line is
+ * re-quantified (a changed price moves the units to the line for that price,
+ * merging as taking items does) and the customer's debt entry is rewritten.
+ * Returns the line the sale now belongs to.
+ *
+ * Only the goods move here. What has been paid is re-derived from the ledger by
+ * the caller's recomputeCustomer(), so an edit can never strand money.
  *
  * Runs inside the caller's transaction.
  */
@@ -563,7 +834,7 @@ function retabSale(PDO $pdo, array $old, array $line, string $itemType, string $
             $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
                 ->execute([$next, round($next * $price, 2), $line['id']]);
         } else {
-            // Already paid for at least what the edit leaves owing.
+            // Nothing of this line is left on the tab at all.
             $pdo->prepare('DELETE FROM customer_items WHERE id = ?')->execute([$line['id']]);
         }
         $itemRowId = $line['id'];
@@ -577,10 +848,11 @@ function retabSale(PDO $pdo, array $old, array $line, string $itemType, string $
             $pdo->prepare('DELETE FROM customer_items WHERE id = ?')->execute([$line['id']]);
         }
 
-        // … and put the new ones on the line for the new price.
+        // … and put the new ones on a still-owed line for the new price.
         $match = $pdo->prepare(
             "SELECT id, quantity FROM customer_items
-             WHERE customer_id = ? AND item_type = ? AND $column = ? AND price_per_unit = ?"
+             WHERE customer_id = ? AND item_type = ? AND $column = ? AND price_per_unit = ?
+               AND paid_amount < total_amount - 0.005"
         );
         $match->execute([$old['customer_id'], $itemType, $itemId, $price]);
         if ($target = $match->fetch()) {
@@ -601,16 +873,40 @@ function retabSale(PDO $pdo, array $old, array $line, string $itemType, string $
         }
     }
 
-    // The debt itself. Untouched entries stay as they are, so a sale written
-    // before this link existed simply keeps its original amount.
+    // The debt itself, snapshot and all — the entry has to describe the goods it
+    // now stands for, and point at whichever line they ended up on. Untouched
+    // entries stay as they are, so a sale written before this link existed
+    // simply keeps its original amount.
     if (!empty($old['customer_history_id'])) {
         $pdo->prepare(
-            'UPDATE customer_balance_history SET amount = ?, signed_amount = ?, reason = ? WHERE id = ?'
-        )->execute([$total, -$total, itemLabel($itemName, $quantity), $old['customer_history_id']]);
+            'UPDATE customer_balance_history
+             SET amount = ?, signed_amount = ?, reason = ?,
+                 customer_item_id = ?, item_name = ?, quantity_type = ?, quantity = ?, price_per_unit = ?
+             WHERE id = ?'
+        )->execute([
+            $total, -$total, itemLabel($itemName, $quantity),
+            $itemRowId, $itemName, $unit, $quantity, $price, $old['customer_history_id'],
+        ]);
     }
     recomputeCustomer($pdo, $old['customer_id']);
 
     return $itemRowId;
+}
+
+/**
+ * The goods row a taking entry was written beside, together with which of the
+ * two transaction tables it lives in. Null when the sale is gone.
+ */
+function tabSaleForEntry(PDO $pdo, array $entry): ?array
+{
+    foreach (['product' => 'product_transactions', 'material' => 'material_transactions'] as $kind => $table) {
+        $stmt = $pdo->prepare("SELECT * FROM $table WHERE customer_history_id = ? LIMIT 1");
+        $stmt->execute([$entry['id']]);
+        if ($tx = $stmt->fetch()) {
+            return ['kind' => $kind, 'tx' => $tx];
+        }
+    }
+    return null;
 }
 
 function shapeMaterial(array $m): array
@@ -644,6 +940,8 @@ function shapeMaterialTransaction(array $t): array
         'customer_id'    => $t['customer_id'] ?? null,
         'customer_name'  => $t['customer_name'] ?? null,
         'on_tab'         => onTab($t),
+        // See shapeTransaction(): the paid share comes from attachTabPayment().
+        'paid_amount'    => isset($t['paid_amount']) ? (float) $t['paid_amount'] : (float) $t['total_amount'],
         'unpaid'         => !empty($t['unpaid']),
         'note'           => $t['note'],
         // Business time: when the goods moved. Preserved across edits, which is
@@ -1084,10 +1382,19 @@ on('GET', '/customers/{id}/history', function ($a) {
     $stmt->execute([$a['id']]);
     json_response([
         'customer_id' => $a['id'],
-        'history'     => array_map('shapeHistory', $stmt->fetchAll()),
+        'history'     => array_map('shapeHistory', attachEntryPayment($pdo, $stmt->fetchAll())),
     ]);
 });
 
+/**
+ * Book plain cash: money the customer borrowed ('unpaid') or handed back
+ * ('paid'). Goods never come through here — those are customer items, which
+ * write their own 'item' entries alongside a sale.
+ *
+ * A repayment is not aimed at anything: recomputeCustomer()'s waterfall clears
+ * the borrowed cash first and then works down the open tab lines, so handing
+ * over enough money marks the goods paid without anyone picking them off a list.
+ */
 on('POST', '/customers/{id}/balance', function ($a) {
     $pdo = db();
     $customer = findCustomer($pdo, $a['id']);
@@ -1099,7 +1406,6 @@ on('POST', '/customers/{id}/balance', function ($a) {
     }
     $amount     = v_amount($body['amount'] ?? null, 'Amount');
     $reason     = v_string($body['reason']     ?? '', 255, false, 'Reason');
-    $expression = v_string($body['expression'] ?? '', 255, false, 'Expression');
     $signed     = $type === 'paid' ? $amount : -$amount;
     $timestamp  = date('Y-m-d H:i:s');
 
@@ -1108,11 +1414,11 @@ on('POST', '/customers/{id}/balance', function ($a) {
         $historyId = uuid4();
         $pdo->prepare(
             'INSERT INTO customer_balance_history
-                (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp)
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'
+                (id, customer_id, book_id, amount, type, source, signed_amount, balance_after, reason, timestamp)
+             VALUES (?, ?, ?, ?, ?, \'cash\', ?, 0, ?, ?)'
         )->execute([
             $historyId, $customer['id'], $customer['book_id'], $amount, $type, $signed,
-            $reason !== '' ? $reason : null, $expression !== '' ? $expression : null, $timestamp,
+            $reason !== '' ? $reason : null, $timestamp,
         ]);
         $totals = recomputeCustomer($pdo, $customer['id']);
         $pdo->commit();
@@ -1126,49 +1432,166 @@ on('POST', '/customers/{id}/balance', function ($a) {
         'history_id'  => $historyId,
         'customer_id' => $customer['id'],
         'new_balance' => $totals['total_balance'],
+        'totals'      => customerStats($totals),
     ], 201);
 });
 
-// Edit one history entry IN PLACE: seq and timestamp are kept, so the entry holds
-// its position in the running-balance chain (recomputeCustomer walks seq ASC).
-on('PUT', '/balance-history/{id}', function ($a) {
-    $pdo = db();
+/** One balance entry, guarded by ownership through its book. */
+function findBalanceEntry(PDO $pdo, string $id): array
+{
     $stmt = $pdo->prepare(
         'SELECT h.* FROM customer_balance_history h JOIN books b ON b.id = h.book_id
          WHERE h.id = ? AND b.user_id = ?'
     );
-    $stmt->execute([$a['id'], authUser()['id']]);
+    $stmt->execute([$id, authUser()['id']]);
     $entry = $stmt->fetch();
     if (!$entry) {
         json_error('History entry not found.', 404, 'not_found');
     }
+    return $entry;
+}
 
-    $body = read_json_body();
+/**
+ * Correct a cash entry: a free-standing amount, so nothing outside the ledger
+ * moves. The direction may flip — a payment wrongly booked as borrowed is the
+ * common case.
+ */
+function updateCashEntry(PDO $pdo, array $entry, array $body): array
+{
     $type = $body['type'] ?? '';
     if (!in_array($type, ['paid', 'unpaid'], true)) {
         json_error('Type must be "paid" or "unpaid".', 422, 'validation');
     }
-    $amount     = v_amount($body['amount'] ?? null, 'Amount');
-    $reason     = v_string($body['reason']     ?? '', 255, false, 'Reason');
-    $expression = v_string($body['expression'] ?? '', 255, false, 'Expression');
-    $signed     = $type === 'paid' ? $amount : -$amount;
+    $amount = v_amount($body['amount'] ?? null, 'Amount');
+    $reason = v_string($body['reason'] ?? '', 255, false, 'Reason');
+    $signed = $type === 'paid' ? $amount : -$amount;
 
     $pdo->beginTransaction();
     try {
         $pdo->prepare(
             'UPDATE customer_balance_history
-             SET amount = ?, type = ?, signed_amount = ?, reason = ?, expression = ?
+             SET amount = ?, type = ?, signed_amount = ?, reason = ?
              WHERE id = ?'
-        )->execute([
-            $amount, $type, $signed,
-            $reason !== '' ? $reason : null, $expression !== '' ? $expression : null,
-            $entry['id'],
-        ]);
+        )->execute([$amount, $type, $signed, $reason !== '' ? $reason : null, $entry['id']]);
         $totals = recomputeCustomer($pdo, $entry['customer_id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
         json_error('Failed to update history entry.', 500);
+    }
+    return $totals;
+}
+
+/**
+ * Correct a taking — goods that went onto the tab. The entry is only the money
+ * half of a sale, so the edit is really an edit of that sale: stock, the
+ * outstanding line and the debt all move together, exactly as they would from
+ * the product's own history. Quantity and price are what can change; the goods
+ * themselves cannot become something else.
+ */
+function updateTakingEntry(PDO $pdo, array $entry, array $body): array
+{
+    $link = tabSaleForEntry($pdo, $entry);
+    if (!$link) {
+        json_error('The goods behind this entry are no longer on record.', 422, 'validation');
+    }
+    $tx        = $link['tx'];
+    $isProduct = $link['kind'] === 'product';
+    $src       = $isProduct ? findProduct($pdo, $tx['product_id']) : findMaterial($pdo, $tx['material_id']);
+
+    // Price is optional: leaving it out re-quantifies at the agreed price.
+    $price = $body['price_per_unit'] ?? $entry['price_per_unit'];
+    if (!is_numeric($price) || (float) $price < 0) {
+        json_error('Price must be 0 or more.', 422, 'validation');
+    }
+    $price = round((float) $price, 2);
+    $qty   = v_amount($body['quantity'] ?? null, 'Quantity');
+
+    // Reuse the sale validators so the stock guard is the one and only rule.
+    // Materials are priced by total, products per unit.
+    $draft = ['type' => 'sale', 'quantity' => $qty, 'note' => $tx['note'] ?? ''];
+    $draft += $isProduct
+        ? ['price_per_unit' => $price]
+        : ['total_amount' => round($qty * $price, 2)];
+    [, $quantity, $price, $total, $note] = $isProduct
+        ? validateProductTx($draft, $src, $tx)
+        : validateMaterialTx($draft, $src, $tx);
+
+    $line = tabLineFor($pdo, $tx);
+    if (!$line) {
+        json_error('These goods are no longer on the tab.', 422, 'validation');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        // Rewrites the tab line AND this very entry, then recomputes the
+        // customer — the entry is $tx['customer_history_id'].
+        $itemRowId = retabSale(
+            $pdo, $tx, $line, $link['kind'], $src['id'], $src['name'], $src['quantity_type'],
+            $quantity, $price, $total
+        );
+        $table = $isProduct ? 'product_transactions' : 'material_transactions';
+        $pdo->prepare(
+            "UPDATE $table
+             SET quantity = ?, price_per_unit = ?, total_amount = ?, note = ?, customer_item_id = ?
+             WHERE id = ?"
+        )->execute([$quantity, $price, $total, $note, $itemRowId, $tx['id']]);
+        $isProduct ? recomputeProduct($pdo, $src['id']) : recomputeMaterial($pdo, $src['id']);
+        $totals = recomputeCustomer($pdo, $entry['customer_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to update the goods on this entry.', 500);
+    }
+    return $totals;
+}
+
+/**
+ * Correct a payment for goods — how many units the customer actually paid for.
+ * The price is the one agreed when the goods were taken and is not editable
+ * here; only the count is. Nothing but the entry is touched: the replay works
+ * out what that money now covers, and hands any excess to the customer's other
+ * debts (or back as an advance).
+ */
+function updateSettlementEntry(PDO $pdo, array $entry, array $body): array
+{
+    $qty    = v_amount($body['quantity'] ?? null, 'Quantity');
+    $price  = (float) $entry['price_per_unit'];
+    $amount = round($qty * $price, 2);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            'UPDATE customer_balance_history
+             SET amount = ?, signed_amount = ?, quantity = ?, reason = ?
+             WHERE id = ?'
+        )->execute([$amount, $amount, $qty, itemLabel((string) $entry['item_name'], $qty), $entry['id']]);
+        $totals = recomputeCustomer($pdo, $entry['customer_id']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_error('Failed to update the payment.', 500);
+    }
+    return $totals;
+}
+
+// Edit one history entry IN PLACE: seq and timestamp are kept, so the entry holds
+// its position in the running-balance chain (recomputeCustomer walks seq ASC).
+//
+// What "editing" means depends on what the entry is. Cash is an amount and
+// nothing else. Goods are one half of a sale, so they are edited as goods —
+// by quantity — and the sale, the outstanding line and this entry move together.
+on('PUT', '/balance-history/{id}', function ($a) {
+    $pdo   = db();
+    $entry = findBalanceEntry($pdo, $a['id']);
+    $body  = read_json_body();
+
+    if ($entry['source'] !== 'item') {
+        $totals = updateCashEntry($pdo, $entry, $body);
+    } elseif ($entry['type'] === 'unpaid') {
+        $totals = updateTakingEntry($pdo, $entry, $body);
+    } else {
+        $totals = updateSettlementEntry($pdo, $entry, $body);
     }
 
     json_response([
@@ -1176,24 +1599,61 @@ on('PUT', '/balance-history/{id}', function ($a) {
         'history_id'  => $entry['id'],
         'customer_id' => $entry['customer_id'],
         'new_balance' => $totals['total_balance'],
+        'totals'      => customerStats($totals),
     ]);
 });
 
+/**
+ * Remove one entry. A cash entry is just dropped; the replay redistributes
+ * whatever it had been paying for. A taking takes its other halves with it —
+ * the sale is deleted and the stock comes back — because goods that were never
+ * handed over cannot stay on the tab. A payment for goods is likewise just
+ * dropped, which puts what it covered back into the outstanding pile.
+ */
 on('DELETE', '/balance-history/{id}', function ($a) {
-    $pdo = db();
-    $stmt = $pdo->prepare(
-        'SELECT h.* FROM customer_balance_history h JOIN books b ON b.id = h.book_id
-         WHERE h.id = ? AND b.user_id = ?'
-    );
-    $stmt->execute([$a['id'], authUser()['id']]);
-    $entry = $stmt->fetch();
-    if (!$entry) {
-        json_error('History entry not found.', 404, 'not_found');
+    $pdo   = db();
+    $entry = findBalanceEntry($pdo, $a['id']);
+
+    // Only a taking has a sale behind it; look it up before opening the write.
+    $link = $entry['source'] === 'item' && $entry['type'] === 'unpaid'
+        ? tabSaleForEntry($pdo, $entry)
+        : null;
+    if ($link) {
+        $link['line'] = tabLineFor($pdo, $link['tx']);
     }
 
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('DELETE FROM customer_balance_history WHERE id = ?')->execute([$a['id']]);
+        if ($link) {
+            $tx = $link['tx'];
+            if ($link['line']) {
+                // Takes the units off the tab and deletes this very entry.
+                untabSale($pdo, $tx, $link['line']);
+            }
+            $table = $link['kind'] === 'product' ? 'product_transactions' : 'material_transactions';
+            $pdo->prepare("DELETE FROM $table WHERE id = ?")->execute([$tx['id']]);
+            $link['kind'] === 'product'
+                ? recomputeProduct($pdo, $tx['product_id'])
+                : recomputeMaterial($pdo, $tx['material_id']);
+        } elseif ($entry['source'] === 'item' && $entry['type'] === 'unpaid' && $entry['customer_item_id']) {
+            // No sale row left to delete — the product itself was deleted, which
+            // cascades its transactions away but keeps the debt. The tab line is
+            // still there, so its units have to come off by hand or it would sit
+            // on the sheet with nothing in the ledger backing it.
+            $stmt = $pdo->prepare('SELECT * FROM customer_items WHERE id = ?');
+            $stmt->execute([$entry['customer_item_id']]);
+            if ($line = $stmt->fetch()) {
+                $left = round((float) $line['quantity'] - (float) $entry['quantity'], 3);
+                if ($left > 0.0000001) {
+                    $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
+                        ->execute([$left, round($left * (float) $line['price_per_unit'], 2), $line['id']]);
+                } else {
+                    $pdo->prepare('DELETE FROM customer_items WHERE id = ?')->execute([$line['id']]);
+                }
+            }
+        }
+
+        $pdo->prepare('DELETE FROM customer_balance_history WHERE id = ?')->execute([$entry['id']]);
         $totals = recomputeCustomer($pdo, $entry['customer_id']);
         $pdo->commit();
     } catch (Throwable $e) {
@@ -1201,25 +1661,26 @@ on('DELETE', '/balance-history/{id}', function ($a) {
         json_error('Failed to delete history entry.', 500);
     }
 
-    json_response(['success' => true, 'new_balance' => $totals['total_balance']]);
+    json_response([
+        'success'     => true,
+        'new_balance' => $totals['total_balance'],
+        'totals'      => customerStats($totals),
+    ]);
 });
 
 // ---- Customer items (goods taken on the tab, not yet paid for) --------------
 
-/** Outstanding items for a customer, newest first. */
+/** The goods a customer still owes for, oldest first. */
 on('GET', '/customers/{id}/items', function ($a) {
     $pdo = db();
     findCustomer($pdo, $a['id']);
-    // Biggest debt first; newest breaks a tie.
-    $stmt = $pdo->prepare(
-        'SELECT * FROM customer_items WHERE customer_id = ? ORDER BY total_amount DESC, seq DESC'
-    );
+    $stmt = $pdo->prepare(OUTSTANDING_ITEMS);
     $stmt->execute([$a['id']]);
     $items = array_map('shapeCustomerItem', $stmt->fetchAll());
     json_response([
         'customer_id' => $a['id'],
         'items'       => $items,
-        'total'       => round(array_sum(array_column($items, 'total_amount')), 2),
+        'total'       => round(array_sum(array_column($items, 'remaining')), 2),
     ]);
 });
 
@@ -1307,23 +1768,27 @@ on('POST', '/customers/{id}/items', function ($a) {
             'INSERT INTO material_transactions (id, material_id, book_id, type, quantity, price_per_unit, total_amount, stock_after, customer_id, customer_item_id, customer_history_id, timestamp)
              VALUES (?, ?, ?, \'sale\', ?, ?, ?, 0, ?, ?, ?, ?)'
         );
+        // source 'item' + the snapshot make the entry self-describing: the tab
+        // sheet totals off it, and editing it later knows it means goods.
         $debt = $pdo->prepare(
             'INSERT INTO customer_balance_history
-                (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, timestamp)
-             VALUES (?, ?, ?, ?, \'unpaid\', ?, 0, ?, ?)'
+                (id, customer_id, book_id, amount, type, source, signed_amount, balance_after, reason,
+                 customer_item_id, item_name, quantity_type, quantity, price_per_unit, timestamp)
+             VALUES (?, ?, ?, ?, \'unpaid\', \'item\', ?, 0, ?, ?, ?, ?, ?, ?, ?)'
         );
 
         foreach ($lines as $l) {
             $isProduct = $l['type'] === 'product';
 
-            // Merge into an existing unpaid line for the same item at the same
-            // price; a different agreed price stays its own row. A line settled
-            // earlier is gone, so re-taking the goods opens a fresh one — which
-            // is what keeps the older, already-paid sale from re-flagging.
+            // Merge into a line for the same item at the same price that is
+            // still owed; a different agreed price stays its own row. A line
+            // already paid off is left alone and the goods open a fresh one —
+            // which is what keeps the older, already-paid sale from re-flagging.
             $col   = $isProduct ? 'product_id' : 'material_id';
             $match = $pdo->prepare(
                 "SELECT id, quantity FROM customer_items
-                 WHERE customer_id = ? AND item_type = ? AND $col = ? AND price_per_unit = ?"
+                 WHERE customer_id = ? AND item_type = ? AND $col = ? AND price_per_unit = ?
+                   AND paid_amount < total_amount - 0.005"
             );
             $match->execute([$customer['id'], $l['type'], $l['id'], $l['price']]);
             if ($existing = $match->fetch()) {
@@ -1348,7 +1813,8 @@ on('POST', '/customers/{id}/items', function ($a) {
             $debtId = uuid4();
             $debt->execute([
                 $debtId, $customer['id'], $bookId, $l['total'], -$l['total'],
-                itemLabel($l['name'], $l['quantity']), $timestamp,
+                itemLabel($l['name'], $l['quantity']),
+                $itemRowId, $l['name'], $l['unit'], $l['quantity'], $l['price'], $timestamp,
             ]);
 
             ($isProduct ? $saleProduct : $saleMaterial)->execute([
@@ -1369,23 +1835,24 @@ on('POST', '/customers/{id}/items', function ($a) {
         json_error('Failed to add items.', 500);
     }
 
-    // Biggest debt first; newest breaks a tie.
-    $stmt = $pdo->prepare(
-        'SELECT * FROM customer_items WHERE customer_id = ? ORDER BY total_amount DESC, seq DESC'
-    );
+    $stmt = $pdo->prepare(OUTSTANDING_ITEMS);
     $stmt->execute([$customer['id']]);
     json_response([
         'success'     => true,
         'items'       => array_map('shapeCustomerItem', $stmt->fetchAll()),
         'new_balance' => $totals['total_balance'],
+        'totals'      => customerStats($totals),
     ], 201);
 });
 
 /**
- * Settle units of an outstanding item — the customer pays for what they already
- * took. Stock is untouched (the goods left the shop when the item was added);
- * only the unpaid count drops and a 'paid' entry is booked. The row disappears
- * once nothing is left owing.
+ * Pay for units of an item the customer already took. Stock is untouched (the
+ * goods left the shop when the item was added) — this only books a 'paid' entry
+ * aimed at that line. The line then fills up rather than shrinking, and drops
+ * off the sheet once it is covered.
+ *
+ * Paying more than the line still owes is not an error: the surplus behaves
+ * like cash and flows on to whatever else is outstanding.
  */
 on('POST', '/customer-items/{id}/settle', function ($a) {
     $pdo  = db();
@@ -1399,36 +1866,34 @@ on('POST', '/customer-items/{id}/settle', function ($a) {
         json_error('Item not found.', 404, 'not_found');
     }
 
-    $body    = read_json_body();
-    $onHand  = (float) $item['quantity'];
-    // Default to a single unit — the list's minus button settles one per tap.
-    $qty     = isset($body['quantity']) && is_numeric($body['quantity']) ? (float) $body['quantity'] : 1.0;
+    $body  = read_json_body();
+    $taken = (float) $item['quantity'];
+    // Default to a single unit — the list's Paid button offers the whole line.
+    $qty   = isset($body['quantity']) && is_numeric($body['quantity']) ? (float) $body['quantity'] : 1.0;
     if ($qty <= 0) {
         json_error('Quantity must be greater than 0.', 422, 'validation');
     }
-    $qty       = min(round($qty, 3), $onHand); // never settle more than is owed
-    $price     = (float) $item['price_per_unit'];
-    $amount    = round($qty * $price, 2);
-    $remaining = round($onHand - $qty, 3);
+    // Never book more units than the customer took; paying for fewer is the
+    // whole point of a part payment.
+    $qty    = min(round($qty, 3), $taken);
+    $price  = (float) $item['price_per_unit'];
+    $amount = round($qty * $price, 2);
 
     $pdo->beginTransaction();
     try {
-        if ($remaining > 0) {
-            $pdo->prepare('UPDATE customer_items SET quantity = ?, total_amount = ? WHERE id = ?')
-                ->execute([$remaining, round($remaining * $price, 2), $item['id']]);
-        } else {
-            $pdo->prepare('DELETE FROM customer_items WHERE id = ?')->execute([$item['id']]);
-        }
-        if ($amount > 0) {
-            $pdo->prepare(
-                'INSERT INTO customer_balance_history
-                    (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, timestamp)
-                 VALUES (?, ?, ?, ?, \'paid\', ?, 0, ?, ?)'
-            )->execute([
-                uuid4(), $item['customer_id'], $item['book_id'], $amount, $amount,
-                itemLabel($item['item_name'], $qty), date('Y-m-d H:i:s'),
-            ]);
-        }
+        // The line is not touched: recomputeCustomer() fills in paid_amount from
+        // this entry (and from any cash that reaches it).
+        $pdo->prepare(
+            'INSERT INTO customer_balance_history
+                (id, customer_id, book_id, amount, type, source, signed_amount, balance_after, reason,
+                 customer_item_id, item_name, quantity_type, quantity, price_per_unit, timestamp)
+             VALUES (?, ?, ?, ?, \'paid\', \'item\', ?, 0, ?, ?, ?, ?, ?, ?, ?)'
+        )->execute([
+            uuid4(), $item['customer_id'], $item['book_id'], $amount, $amount,
+            itemLabel($item['item_name'], $qty),
+            $item['id'], $item['item_name'], $item['quantity_type'], $qty, $price,
+            date('Y-m-d H:i:s'),
+        ]);
         $totals = recomputeCustomer($pdo, $item['customer_id']);
         $pdo->commit();
     } catch (Throwable $e) {
@@ -1436,15 +1901,13 @@ on('POST', '/customer-items/{id}/settle', function ($a) {
         json_error('Failed to settle item.', 500);
     }
 
-    // Biggest debt first; newest breaks a tie.
-    $stmt = $pdo->prepare(
-        'SELECT * FROM customer_items WHERE customer_id = ? ORDER BY total_amount DESC, seq DESC'
-    );
+    $stmt = $pdo->prepare(OUTSTANDING_ITEMS);
     $stmt->execute([$item['customer_id']]);
     json_response([
         'success'     => true,
         'items'       => array_map('shapeCustomerItem', $stmt->fetchAll()),
         'new_balance' => $totals['total_balance'],
+        'totals'      => customerStats($totals),
     ]);
 });
 
@@ -1574,13 +2037,13 @@ on('GET', '/products/{id}/transactions', function ($a) {
     findProduct($pdo, $a['id']);
     // The customer join is for the tab-sale label; it stays NULL for counter sales.
     $stmt = $pdo->prepare(
-        'SELECT t.*, c.name AS customer_name, ' . UNPAID_FLAG . '
+        'SELECT t.*, c.name AS customer_name
          FROM product_transactions t
          LEFT JOIN customers c ON c.id = t.customer_id
          WHERE t.product_id = ? ORDER BY t.seq DESC'
     );
     $stmt->execute([$a['id']]);
-    $txns = $stmt->fetchAll();
+    $txns = attachTabPayment($pdo, $stmt->fetchAll());
 
     json_response([
         'product_id'   => $a['id'],
@@ -1690,11 +2153,9 @@ on('PUT', '/product-transactions/{id}', function ($a) {
     if (!empty($tx['customer_item_id']) && $type !== 'sale') {
         json_error('A sale on a customer’s tab cannot become a stock entry.', 422, 'validation');
     }
-    $line = tabLineFor(
-        $pdo,
-        $tx,
-        'This sale has already been paid for. Edit it from the customer’s tab instead.'
-    );
+    // Payment is no obstacle: whatever had landed on this line is re-poured over
+    // the customer's remaining debts by the replay inside retabSale().
+    $line = tabLineFor($pdo, $tx);
 
     $pdo->beginTransaction();
     try {
@@ -1730,11 +2191,7 @@ on('DELETE', '/product-transactions/{id}', function ($a) {
 
     // Deleting the goods half of a tab sale has to take the debt with it, or
     // the customer keeps owing for something no longer on record.
-    $line = tabLineFor(
-        $pdo,
-        $tx,
-        'This sale has already been paid for. Undo it from the customer’s tab instead.'
-    );
+    $line = tabLineFor($pdo, $tx);
 
     $pdo->beginTransaction();
     try {
@@ -1822,7 +2279,7 @@ on('GET', '/materials/{id}/transactions', function ($a) {
     $pdo = db();
     findMaterial($pdo, $a['id']);
     $stmt = $pdo->prepare(
-        'SELECT t.*, c.name AS customer_name, ' . UNPAID_FLAG . '
+        'SELECT t.*, c.name AS customer_name
          FROM material_transactions t
          LEFT JOIN customers c ON c.id = t.customer_id
          WHERE t.material_id = ? ORDER BY t.seq DESC'
@@ -1830,7 +2287,7 @@ on('GET', '/materials/{id}/transactions', function ($a) {
     $stmt->execute([$a['id']]);
     json_response([
         'material_id'  => $a['id'],
-        'transactions' => array_map('shapeMaterialTransaction', $stmt->fetchAll()),
+        'transactions' => array_map('shapeMaterialTransaction', attachTabPayment($pdo, $stmt->fetchAll())),
     ]);
 });
 
@@ -1931,11 +2388,9 @@ on('PUT', '/material-transactions/{id}', function ($a) {
     if (!empty($tx['customer_item_id']) && $type !== 'sale') {
         json_error('A sale on a customer’s tab cannot become a stock entry.', 422, 'validation');
     }
-    $line = tabLineFor(
-        $pdo,
-        $tx,
-        'This sale has already been paid for. Edit it from the customer’s tab instead.'
-    );
+    // Payment is no obstacle: whatever had landed on this line is re-poured over
+    // the customer's remaining debts by the replay inside retabSale().
+    $line = tabLineFor($pdo, $tx);
 
     $pdo->beginTransaction();
     try {
@@ -1968,11 +2423,7 @@ on('DELETE', '/material-transactions/{id}', function ($a) {
 
     // Deleting the goods half of a tab sale has to take the debt with it, or
     // the customer keeps owing for something no longer on record.
-    $line = tabLineFor(
-        $pdo,
-        $tx,
-        'This sale has already been paid for. Undo it from the customer’s tab instead.'
-    );
+    $line = tabLineFor($pdo, $tx);
 
     $pdo->beginTransaction();
     try {
@@ -2364,4 +2815,8 @@ on('DELETE', '/personal-transactions/{id}', function ($a) {
     json_response(['success' => true]);
 });
 
-dispatch();
+// Serving a request dispatches it. A maintenance script that only wants the
+// helpers (see database/migrations/) defines TALLY_NO_DISPATCH first.
+if (!defined('TALLY_NO_DISPATCH')) {
+    dispatch();
+}

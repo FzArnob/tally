@@ -55,33 +55,31 @@ export function MaterialHistoryModal({
           // One bar per calendar day, carrying that day's cash / on-tab split.
           groupByDay(transactions).map((day) => (
             <Fragment key={day.key}>
-              <HistoryDayBar
-                date={day.date}
-                unit={unit}
-                totalCash={day.totalCash}
-                totalCashQty={day.totalCashQty}
-                totalDue={day.totalDue}
-                totalDueQty={day.totalDueQty}
-              />
+              <HistoryDayBar date={day.date} totalCash={day.totalCash} totalDue={day.totalDue} />
               {day.entries.map((tx) => {
                 const isStock = tx.type === 'stock';
                 const isUsed = tx.type === 'used';
                 const pillClass = isStock ? styles.stock : isUsed ? styles.used : styles.sale;
                 const label = isStock ? t.stockIn : isUsed ? t.stockUsed : t.sale;
+                // A tab sale is paid off gradually, so it can sit between the
+                // two states: some of it cash, the rest still owed.
+                const partPaid =
+                  tx.on_tab && tx.unpaid && tx.paid_amount > 0 && tx.paid_amount < tx.total_amount;
                 return (
                   <div key={tx.id} className={styles.entry}>
                     <div className={styles.line}>
                       <span className={styles.pillRow}>
                         <span className={`${styles.typePill} ${pillClass}`}>{label}</span>
                         {/* A tab sale carries its settlement state: Unpaid until
-                            the customer clears the line, Paid once they have. */}
+                            the customer clears the line, Paid once they have —
+                            and Part paid while the money only covers some of it. */}
                         {tx.on_tab && (
                           <span
                             className={`${styles.typePill} ${
                               tx.unpaid ? styles.unpaid : styles.paidPill
                             }`}
                           >
-                            {tx.unpaid ? t.unpaidPill : t.paid}
+                            {partPaid ? t.partPaid : tx.unpaid ? t.unpaidPill : t.paid}
                           </span>
                         )}
                       </span>
@@ -145,6 +143,18 @@ export function MaterialHistoryModal({
                         </span>
                       )}
                     </div>
+                    {/* Part paid: say how the sale's money divides, the same way
+                        the customer's tab shows it. */}
+                    {partPaid && (
+                      <div className={styles.line}>
+                        <span className={styles.entryPaid}>
+                          {t.paidBack}: {formatCurrency(tx.paid_amount)}
+                        </span>
+                        <span className={styles.entryDue}>
+                          {t.saleDue}: {formatCurrency(tx.total_amount - tx.paid_amount)}
+                        </span>
+                      </div>
+                    )}
                     <div className={`${styles.line} ${styles.entryFoot}`}>
                       <span>
                         {t.stock}: {localizeDigits(formatNumber(tx.stock_after))}

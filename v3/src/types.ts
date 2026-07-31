@@ -43,8 +43,29 @@ export interface Customer {
   phone: string;
   address: string;
   total_balance: number; // + advance paid, - owed
+  /** Cash still outstanding: + paid ahead, - still borrowed. */
+  cash_balance: number;
+  /** Goods taken and not paid for. Never negative. */
+  items_due: number;
+  /** Lifetime: every debt ever run up, whatever has since been paid. */
+  total_unpaid: number;
+  /** Lifetime: every payment ever made, cash and goods together. */
+  total_paid_back: number;
   transaction_count: number;
   last_transaction_time: string | null;
+}
+
+/**
+ * The tab sheet's figures, restated after any write that moves a balance.
+ * `cash_balance - items_due === total_balance`; the two lifetime totals stand
+ * apart from that sum.
+ */
+export interface CustomerStats {
+  total_balance: number;
+  cash_balance: number;
+  items_due: number;
+  total_unpaid: number;
+  total_paid_back: number;
 }
 
 export interface CustomerTotals {
@@ -59,15 +80,33 @@ export interface CustomersResponse {
 
 export type BalanceType = 'paid' | 'unpaid';
 
+/**
+ * What an entry is, and therefore how it is edited: `cash` is a plain amount
+ * (borrowed or handed back), `item` is one half of a goods movement — a taking
+ * (unpaid) or a payment for one (paid) — edited by quantity.
+ */
+export type BalanceSource = 'cash' | 'item';
+
 export interface BalanceHistoryEntry {
   id: string;
   customer_id: string;
   amount: number; // always positive
   type: BalanceType;
+  source: BalanceSource;
   signed_amount: number;
   balance_after: number;
   reason: string | null;
-  expression: string | null;
+  /** Item entries only — null throughout on a cash entry. */
+  customer_item_id: string | null;
+  item_name: string | null;
+  quantity_type: string | null;
+  quantity: number | null;
+  price_per_unit: number | null;
+  /**
+   * Goods takings only: how much of this one the customer has covered. Null on
+   * cash entries and on payments, which are not something to be paid for.
+   */
+  paid_amount: number | null;
   timestamp: string;
 }
 
@@ -86,14 +125,16 @@ export interface CreateBalanceResponse {
   history_id: string;
   customer_id: string;
   new_balance: number;
+  totals: CustomerStats;
 }
 
 export interface DeleteBalanceResponse {
   success: boolean;
   new_balance: number;
+  totals: CustomerStats;
 }
 
-/** Something a customer took on their tab. `quantity` is the units still unpaid. */
+/** Something a customer took on their tab. `quantity` is the units TAKEN. */
 export type CustomerItemType = 'product' | 'material';
 
 export interface CustomerItem {
@@ -107,6 +148,12 @@ export interface CustomerItem {
   quantity: number;
   price_per_unit: number;
   total_amount: number;
+  /**
+   * How much of `total_amount` is covered — by this line's own Paid button or
+   * by cash that flowed down to it. A line is on the sheet while it is short.
+   */
+  paid_amount: number;
+  remaining: number;
   /** When the goods were taken. */
   timestamp: string;
 }
@@ -122,6 +169,7 @@ export interface SaveCustomerItemsResponse {
   success: boolean;
   items: CustomerItem[];
   new_balance: number;
+  totals: CustomerStats;
 }
 
 /** One line of a basket being handed to the customer. */
@@ -197,7 +245,13 @@ export interface ProductTransaction {
   customer_name: string | null;
   /** Went onto a tab at all — stays true once the customer has paid. */
   on_tab: boolean;
-  /** True while that tab sale is still owed; clears when the customer settles. */
+  /**
+   * How much of this sale the customer has covered. A tab sale fills up as the
+   * line it sits on is paid, so it can be part covered; a counter sale is its
+   * own full amount.
+   */
+  paid_amount: number;
+  /** True while any of that tab sale is still owed. */
   unpaid: boolean;
   note: string | null;
   /** When the goods moved. Survives an edit — history order depends on it. */
@@ -301,7 +355,13 @@ export interface MaterialTransaction {
   customer_name: string | null;
   /** Went onto a tab at all — stays true once the customer has paid. */
   on_tab: boolean;
-  /** True while that tab sale is still owed; clears when the customer settles. */
+  /**
+   * How much of this sale the customer has covered. A tab sale fills up as the
+   * line it sits on is paid, so it can be part covered; a counter sale is its
+   * own full amount.
+   */
+  paid_amount: number;
+  /** True while any of that tab sale is still owed. */
   unpaid: boolean;
   note: string | null;
   /** When the goods moved. Survives an edit — history order depends on it. */

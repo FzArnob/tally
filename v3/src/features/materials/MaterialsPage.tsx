@@ -45,14 +45,19 @@ export function MaterialsPage({ book }: { book: Book }) {
   const [pendingDeleteMaterial, setPendingDeleteMaterial] = useState<Material | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
+  // Returns the fresh list as well as storing it, so a caller can pick the row
+  // it was working on back out of it (see afterTxChange).
+  const load = useCallback(async (): Promise<Material[]> => {
     try {
       const data = await getMaterials(bookId);
-      setMaterials(data.materials || []);
+      const list = data.materials || [];
+      setMaterials(list);
       setStatus('ready');
+      return list;
     } catch (err) {
       console.error('Failed to load materials:', err);
       setStatus('error');
+      return [];
     }
   }, [bookId]);
 
@@ -109,9 +114,16 @@ export function MaterialsPage({ book }: { book: Book }) {
     setFormOpen(true);
   };
 
+  /**
+   * After a transaction changes: the list (stock), the open history, and the
+   * material the history is about — the editor guards quantities against its
+   * current_stock, which the change has just moved.
+   */
   const afterTxChange = async () => {
-    await load();
-    if (historyMaterial) await loadHistory(historyMaterial.id);
+    const list = await load();
+    if (!historyMaterial) return;
+    setHistoryMaterial(list.find((m) => m.id === historyMaterial.id) ?? historyMaterial);
+    await loadHistory(historyMaterial.id);
   };
 
   // Tapping a customer's name in the history opens their tab. Settling in there
@@ -120,8 +132,9 @@ export function MaterialsPage({ book }: { book: Book }) {
     void afterTxChange();
   });
 
+  // The history stays open underneath, so closing the editor puts the reader
+  // back where they were; afterTxChange() re-pulls it once the edit lands.
   const editFromHistory = (tx: MaterialTransaction) => {
-    setHistoryOpen(false);
     setActionMaterial(historyMaterial);
     setActionEditTx(tx);
     setActionOpen(true);

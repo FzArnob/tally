@@ -118,7 +118,16 @@ CREATE INDEX idx_sessions_user ON sessions(user_id);
 
 -- ---------------------------------------------------------------------------
 -- Customers — names are NOT unique (a nickname disambiguates).
--- total_balance / transaction_count / last_transaction_time are DENORMALISED.
+-- total_balance / transaction_count / last_transaction_time are DENORMALISED,
+-- and so are the figures the tab sheet shows:
+--   cash_balance    cash still outstanding (+ paid ahead, - still borrowed)
+--   items_due       goods taken and not paid for
+--   total_unpaid    every debt ever run up, whatever has since been paid
+--   total_paid_back every payment ever made, cash and goods together
+-- The first two are what STANDS today and always sum to total_balance
+-- (cash_balance - items_due); the last two are lifetime running totals and do
+-- not. All of them are rewritten by recomputeCustomer(), which decides what
+-- each payment settled by walking the ledger first in, first out.
 -- ---------------------------------------------------------------------------
 CREATE TABLE customers (
     id                    CHAR(36)      NOT NULL PRIMARY KEY,
@@ -129,6 +138,10 @@ CREATE TABLE customers (
     phone                 VARCHAR(30)   NOT NULL DEFAULT '',
     address               VARCHAR(255)  NOT NULL DEFAULT '',
     total_balance         DECIMAL(14,2) NOT NULL DEFAULT 0.00,  -- + advance paid, - owed
+    cash_balance          DECIMAL(14,2) NOT NULL DEFAULT 0.00,  -- + paid ahead, - borrowed
+    items_due             DECIMAL(14,2) NOT NULL DEFAULT 0.00,  -- always >= 0
+    total_unpaid          DECIMAL(14,2) NOT NULL DEFAULT 0.00,  -- lifetime, always >= 0
+    total_paid_back       DECIMAL(14,2) NOT NULL DEFAULT 0.00,  -- lifetime, always >= 0
     transaction_count     INT           NOT NULL DEFAULT 0,
     last_transaction_time DATETIME      NULL,
     timestamp             DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -144,31 +157,55 @@ CREATE INDEX idx_customers_book_name     ON customers(book_id, name);
 CREATE INDEX idx_customers_book_last_txn ON customers(book_id, last_transaction_time DESC);
 
 -- ---------------------------------------------------------------------------
--- Customer balance history — one paid/unpaid entry.
+-- Customer balance history — one paid/unpaid entry. This is the whole money
+-- ledger: nothing a customer owes or pays exists outside it.
 -- signed_amount / balance_after are precomputed snapshots for the history view.
 -- `timestamp` is when the money moved; editing an entry keeps it, so the running
 -- balance_after chain (walked in seq order) stays meaningful.
+--
+-- `source` says what kind of entry it is, and therefore how it may be edited:
+--   'cash'  plain money — borrowed (unpaid) or handed back (paid). A repayment
+--           is UNTARGETED: the waterfall in recomputeCustomer() puts it against
+--           the borrowed cash first and spreads whatever is left over the open
+--           item lines, oldest first, part-paying the one it runs out on.
+--   'item'  goods. An 'unpaid' one is a taking (written beside a sale row and a
+--           customer_items line); a 'paid' one is a payment TARGETED at that
+--           line (the Paid button). Editing a taking re-quantifies the goods, so
+--           the API rewrites the sale — and therefore stock — along with it.
+-- The item snapshot columns (customer_item_id, item_name, quantity_type,
+-- quantity, price_per_unit) are NULL on cash entries; together they let the
+-- entry render and be edited without touching the goods tables. customer_item_id carries no FK on
+-- purpose: the line is deleted the moment it is fully settled, and the id must
+-- survive that so the entry still knows which line it settled (same reasoning
+-- as product_transactions.customer_item_id).
 -- ---------------------------------------------------------------------------
 CREATE TABLE customer_balance_history (
-    id            CHAR(36)              NOT NULL PRIMARY KEY,
-    seq           BIGINT                NOT NULL AUTO_INCREMENT,
-    customer_id   CHAR(36)              NOT NULL,
-    book_id       CHAR(36)              NOT NULL,
-    amount        DECIMAL(14,2)         NOT NULL,            -- always positive
-    type          ENUM('paid','unpaid') NOT NULL,
-    signed_amount DECIMAL(14,2)         NOT NULL,            -- +amount paid / -amount unpaid
-    balance_after DECIMAL(14,2)         NOT NULL DEFAULT 0,  -- running balance after this entry
-    reason        VARCHAR(255)          NULL,
-    expression    VARCHAR(255)          NULL,
-    timestamp     DATETIME              NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_at    TIMESTAMP             DEFAULT CURRENT_TIMESTAMP,
-    updated_at    TIMESTAMP             DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id               CHAR(36)              NOT NULL PRIMARY KEY,
+    seq              BIGINT                NOT NULL AUTO_INCREMENT,
+    customer_id      CHAR(36)              NOT NULL,
+    book_id          CHAR(36)              NOT NULL,
+    amount           DECIMAL(14,2)         NOT NULL,            -- always positive
+    type             ENUM('paid','unpaid') NOT NULL,
+    source           ENUM('cash','item')   NOT NULL DEFAULT 'cash',
+    signed_amount    DECIMAL(14,2)         NOT NULL,            -- +amount paid / -amount unpaid
+    balance_after    DECIMAL(14,2)         NOT NULL DEFAULT 0,  -- running balance after this entry
+    reason           VARCHAR(255)          NULL,
+    customer_item_id CHAR(36)              NULL,                -- item entries: the line taken/settled
+    item_name        VARCHAR(100)          NULL,                -- item entries: snapshot
+    quantity_type    VARCHAR(50)           NULL,                -- item entries: snapshot
+    quantity         DECIMAL(14,3)         NULL,                -- item entries: units this entry moved
+    price_per_unit   DECIMAL(14,2)         NULL,                -- item entries: agreed at the time
+    timestamp        DATETIME              NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at       TIMESTAMP             DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP             DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_cbh_seq (seq),
     CONSTRAINT fk_cbh_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
     CONSTRAINT fk_cbh_book     FOREIGN KEY (book_id)     REFERENCES books(id)     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_cbh_customer_seq ON customer_balance_history(customer_id, seq DESC);
+-- recomputeCustomer() sums the cash half and the paid half per customer.
+CREATE INDEX idx_cbh_customer_source ON customer_balance_history(customer_id, source);
 
 -- ---------------------------------------------------------------------------
 -- Products — derived stock is DENORMALISED onto the row (current_stock, totals,
@@ -243,7 +280,7 @@ CREATE TABLE product_transactions (
     total_amount        DECIMAL(14,2)        NOT NULL,   -- quantity * price_per_unit
     stock_after         DECIMAL(14,3)        NULL,       -- running stock (NULL for manufacture)
     customer_id         CHAR(36)             NULL,       -- set = sold on this customer's tab
-    customer_item_id    CHAR(36)             NULL,       -- the outstanding line; gone once settled
+    customer_item_id    CHAR(36)             NULL,       -- the tab line these goods went on
     customer_history_id CHAR(36)             NULL,       -- the debt entry this sale booked
     note                VARCHAR(255)         NULL,
     timestamp           DATETIME             NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -256,6 +293,9 @@ CREATE TABLE product_transactions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_pt_product ON product_transactions(product_id, seq DESC);
+-- Reverse lookup from the customer's ledger: which sale a debt entry booked, so
+-- editing that entry can move the goods too (see tabSaleForEntry()).
+CREATE INDEX idx_pt_customer_history ON product_transactions(customer_history_id);
 
 -- ---------------------------------------------------------------------------
 -- Categories (personal books) — income/expense buckets. transaction_count is
@@ -358,7 +398,7 @@ CREATE TABLE material_transactions (
     total_amount        DECIMAL(14,2)               NOT NULL,   -- entered total price (0 for 'used')
     stock_after         DECIMAL(14,3)               NOT NULL DEFAULT 0,
     customer_id         CHAR(36)                    NULL,       -- set = sold on this customer's tab
-    customer_item_id    CHAR(36)                    NULL,       -- the outstanding line; gone once settled
+    customer_item_id    CHAR(36)                    NULL,       -- the tab line these goods went on
     customer_history_id CHAR(36)                    NULL,       -- the debt entry this sale booked
     note                VARCHAR(255)                NULL,
     timestamp           DATETIME                    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -371,6 +411,8 @@ CREATE TABLE material_transactions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_mt_material ON material_transactions(material_id, seq DESC);
+-- Same reverse lookup as product_transactions.
+CREATE INDEX idx_mt_customer_history ON material_transactions(customer_history_id);
 
 -- ---------------------------------------------------------------------------
 -- Product ↔ material links (manufacture products) — the many-to-many relation
@@ -402,10 +444,18 @@ CREATE TABLE product_materials (
 CREATE INDEX idx_pm_material ON product_materials(material_id);
 
 -- ---------------------------------------------------------------------------
--- Customer items — what a customer has taken on their tab and NOT yet paid for.
--- `quantity` is the number of units still UNPAID, not the number taken: settling
--- a unit lowers it, and the row is deleted when it reaches zero. The goods have
--- already left the shop either way, so settling never touches stock.
+-- Customer items — the goods a customer has taken on their tab.
+--
+-- `quantity` is what was TAKEN and never changes on payment; `paid_amount` is
+-- how much money has since been put against the line, so a line is cleared when
+-- paid_amount >= total_amount and partly paid anywhere in between. Rows are NOT
+-- deleted when they are paid off — they are deleted only when the sale behind
+-- them is. The goods left the shop when the line was written, so paying for
+-- them never touches stock.
+--
+-- paid_amount is DENORMALISED and never written directly: recomputeCustomer()
+-- replays the whole ledger and re-derives every line's share (see the payment
+-- waterfall described there). Nothing else may set it.
 --
 -- Taking an item writes three things in one transaction (see the
 -- POST /customers/{id}/items handler):
@@ -413,9 +463,10 @@ CREATE INDEX idx_pm_material ON product_materials(material_id);
 --      (so stock and sale totals stay correct — this IS the sale),
 --   2. this row (or a bump to a matching one),
 --   3. an 'unpaid' customer_balance_history entry for quantity * price_per_unit.
--- Settling writes a 'paid' history entry and lowers `quantity` only. The money
--- ledger therefore stays customer_balance_history alone; this table only tracks
--- which goods are still outstanding.
+-- Paying writes a 'paid' history entry — targeted at one line (the Paid button)
+-- or untargeted cash, which the waterfall spreads. The money ledger therefore
+-- stays customer_balance_history alone; this table only tracks which goods are
+-- outstanding and how far each has been covered.
 --
 -- product_id / material_id: exactly one is set, matching item_type. Both are
 -- nullable so deleting a product/material leaves the debt intact — item_name and
@@ -431,9 +482,10 @@ CREATE TABLE customer_items (
     material_id    CHAR(36)      NULL,
     item_name      VARCHAR(100)  NOT NULL,                 -- snapshot
     quantity_type  VARCHAR(50)   NOT NULL DEFAULT 'piece', -- snapshot
-    quantity       DECIMAL(14,3) NOT NULL,                 -- units still unpaid
+    quantity       DECIMAL(14,3) NOT NULL,                 -- units taken
     price_per_unit DECIMAL(14,2) NOT NULL,                 -- agreed at the time
     total_amount   DECIMAL(14,2) NOT NULL,                 -- quantity * price_per_unit
+    paid_amount    DECIMAL(14,2) NOT NULL DEFAULT 0.00,    -- covered so far; 0 .. total_amount
     timestamp      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at     TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

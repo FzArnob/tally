@@ -10,6 +10,16 @@ declare(strict_types=1);
 // local zone on display (see v3/src/lib/format.ts parseServerTime()).
 date_default_timezone_set('UTC');
 
+// Every response here is JSON. A PHP notice printed into the body makes the
+// whole thing unparseable, so the client sees "null" rather than the one field
+// that was actually wrong — a warning takes the page down instead of the row.
+// Warnings therefore go to the PHP error log (XAMPP: php/logs/php_error_log)
+// and never into the response. Failures still surface: they raise, and the
+// handlers answer with a JSON error and a 4xx/5xx status.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
+
 const DB_HOST = '127.0.0.1';
 const DB_NAME = 'tally_v3';
 const DB_USER = 'root';

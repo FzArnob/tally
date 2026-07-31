@@ -41,14 +41,19 @@ export function ProductsSection({ bookId }: { bookId: string }) {
   const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async () => {
+  // Returns the fresh list as well as storing it, so a caller can pick the row
+  // it was working on back out of it (see afterTxChange).
+  const load = useCallback(async (): Promise<Product[]> => {
     try {
       const data = await getProducts(bookId);
-      setProducts(data.products || []);
+      const list = data.products || [];
+      setProducts(list);
       setStatus('ready');
+      return list;
     } catch (err) {
       console.error('Failed to load products:', err);
       setStatus('error');
+      return [];
     }
   }, [bookId]);
 
@@ -96,10 +101,16 @@ export function ProductsSection({ bookId }: { bookId: string }) {
     setFormOpen(true);
   };
 
-  // After a transaction changes, refresh the grid (stock) and the open history.
+  /**
+   * After a transaction changes: the grid (stock), the open history, and the
+   * product the history is about — the editor guards quantities against its
+   * current_stock, which the change has just moved.
+   */
   const afterTxChange = async () => {
-    await load();
-    if (historyProduct) await loadHistory(historyProduct.id);
+    const list = await load();
+    if (!historyProduct) return;
+    setHistoryProduct(list.find((p) => p.id === historyProduct.id) ?? historyProduct);
+    await loadHistory(historyProduct.id);
   };
 
   // Tapping a customer's name in the history opens their tab. Settling in there
@@ -108,8 +119,9 @@ export function ProductsSection({ bookId }: { bookId: string }) {
     void afterTxChange();
   });
 
+  // The history stays open underneath, so closing the editor puts the reader
+  // back where they were; afterTxChange() re-pulls it once the edit lands.
   const editFromHistory = (tx: ProductTransaction) => {
-    setHistoryOpen(false);
     setActionProduct(historyProduct);
     setActionEditTx(tx);
     setActionOpen(true);

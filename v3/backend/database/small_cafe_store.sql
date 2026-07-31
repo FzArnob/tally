@@ -177,58 +177,58 @@ INSERT INTO product_transactions (id, product_id, book_id, type, quantity, price
 SET @c1 := UUID();
 INSERT INTO customers (id, book_id, name, nickname, phone, address) VALUES
   (@c1, @book, 'Ayesha Rahman', 'Ayesha', '+8801711000001', 'Road 11, Gulshan 1, Dhaka');
-INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp) VALUES
-  (UUID(), @c1, @book, 3200.00, 'unpaid', -3200.00, -3200.00, 'Dinner tab',        NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)),
-  (UUID(), @c1, @book, 5000.00, 'paid',    5000.00,  1800.00, 'Reservation advance',NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY));
+INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, source, timestamp) VALUES
+  (UUID(), @c1, @book, 3200.00, 'unpaid', -3200.00, -3200.00, 'Dinner tab',        'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 30 DAY)),
+  (UUID(), @c1, @book, 5000.00, 'paid',    5000.00,  1800.00, 'Reservation advance','cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY));
 
 SET @c2 := UUID();
 INSERT INTO customers (id, book_id, name, nickname, phone, address) VALUES
   (@c2, @book, 'Tanvir Ahmed', 'Tanvir', '+8801711000002', 'Road 27, Banani, Dhaka');
-INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp) VALUES
-  (UUID(), @c2, @book, 8500.00, 'unpaid', -8500.00, -8500.00, 'Private event catering', NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 DAY)),
-  (UUID(), @c2, @book, 5000.00, 'paid',    5000.00, -3500.00, 'Partial settlement',     NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 DAY));
+INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, source, timestamp) VALUES
+  (UUID(), @c2, @book, 8500.00, 'unpaid', -8500.00, -8500.00, 'Private event catering', 'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 DAY)),
+  (UUID(), @c2, @book, 5000.00, 'paid',    5000.00, -3500.00, 'Partial settlement',     'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 DAY));
 
 SET @c3 := UUID();
 INSERT INTO customers (id, book_id, name, nickname, phone, address) VALUES
   (@c3, @book, 'Zara Chowdhury', 'Zara', '+8801711000003', 'Road 50, Gulshan 2, Dhaka');
-INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp) VALUES
-  (UUID(), @c3, @book, 12000.00, 'paid',  12000.00, 12000.00, 'Membership advance', NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 28 DAY)),
-  (UUID(), @c3, @book, 4600.00,  'unpaid', -4600.00,  7400.00, 'Weekend brunch',    NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 14 DAY)),
-  (UUID(), @c3, @book, 2800.00,  'unpaid', -2800.00,  4600.00, 'Coffee tab',        NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 4 DAY));
+INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, source, timestamp) VALUES
+  (UUID(), @c3, @book, 12000.00, 'paid',  12000.00, 12000.00, 'Membership advance', 'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 28 DAY)),
+  (UUID(), @c3, @book, 4600.00,  'unpaid', -4600.00,  7400.00, 'Weekend brunch',    'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 14 DAY)),
+  (UUID(), @c3, @book, 2800.00,  'unpaid', -2800.00,  4600.00, 'Coffee tab',        'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 4 DAY));
 
 SET @c4 := UUID();
 INSERT INTO customers (id, book_id, name, nickname, phone, address) VALUES
   (@c4, @book, 'Rafiq Islam', '', '+8801711000004', 'Road 7, Dhanmondi, Dhaka');
-INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp) VALUES
-  (UUID(), @c4, @book, 1500.00, 'unpaid', -1500.00, -1500.00, 'Lunch tab', NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 20 DAY)),
-  (UUID(), @c4, @book, 2200.00, 'unpaid', -2200.00, -3700.00, 'Dessert & coffee', NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 6 DAY));
+INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, source, timestamp) VALUES
+  (UUID(), @c4, @book, 1500.00, 'unpaid', -1500.00, -1500.00, 'Lunch tab', 'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 20 DAY)),
+  (UUID(), @c4, @book, 2200.00, 'unpaid', -2200.00, -3700.00, 'Dessert & coffee', 'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 6 DAY));
 
 SET @c5 := UUID();
 INSERT INTO customers (id, book_id, name, nickname, phone, address) VALUES
   (@c5, @book, 'Nadia Karim', 'Nadia', '+8801711000005', 'Road 12, Baridhara, Dhaka');
-INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp) VALUES
-  (UUID(), @c5, @book, 3000.00, 'paid',   3000.00, 3000.00, 'Advance', NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 DAY)),
-  (UUID(), @c5, @book, 3000.00, 'unpaid', -3000.00,    0.00, 'Birthday high tea', NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 2 DAY));
+INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, source, timestamp) VALUES
+  (UUID(), @c5, @book, 3000.00, 'paid',   3000.00, 3000.00, 'Advance', 'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 15 DAY)),
+  (UUID(), @c5, @book, 3000.00, 'unpaid', -3000.00,    0.00, 'Birthday high tea', 'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 2 DAY));
 
 SET @c6 := UUID();
 INSERT INTO customers (id, book_id, name, nickname, phone, address) VALUES
   (@c6, @book, 'Imran Hossain', 'Imran', '+8801711000006', 'Road 15, Uttara, Dhaka');
-INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp) VALUES
-  (UUID(), @c6, @book, 6400.00, 'unpaid', -6400.00, -6400.00, 'Corporate meeting', NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 8 DAY));
+INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, source, timestamp) VALUES
+  (UUID(), @c6, @book, 6400.00, 'unpaid', -6400.00, -6400.00, 'Corporate meeting', 'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 8 DAY));
 
 SET @c7 := UUID();
 INSERT INTO customers (id, book_id, name, nickname, phone, address) VALUES
   (@c7, @book, 'Sadia Khan', 'Sadia', '+8801711000007', 'Road 3, Gulshan 1, Dhaka');
-INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp) VALUES
-  (UUID(), @c7, @book, 8000.00, 'paid',   8000.00, 8000.00, 'Membership advance', NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 26 DAY)),
-  (UUID(), @c7, @book, 2100.00, 'unpaid', -2100.00, 5900.00, 'Afternoon tab',     NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 DAY));
+INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, source, timestamp) VALUES
+  (UUID(), @c7, @book, 8000.00, 'paid',   8000.00, 8000.00, 'Membership advance', 'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 26 DAY)),
+  (UUID(), @c7, @book, 2100.00, 'unpaid', -2100.00, 5900.00, 'Afternoon tab',     'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 5 DAY));
 
 SET @c8 := UUID();
 INSERT INTO customers (id, book_id, name, nickname, phone, address) VALUES
   (@c8, @book, 'Farhan Kabir', '', '+8801711000008', 'Road 9, Bashundhara, Dhaka');
-INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, expression, timestamp) VALUES
-  (UUID(), @c8, @book, 990.00, 'unpaid', -990.00, -990.00, 'Espresso & biscuit', NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 13 DAY)),
-  (UUID(), @c8, @book, 990.00, 'paid',    990.00,    0.00, 'Due cleared',        NULL, DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY));
+INSERT INTO customer_balance_history (id, customer_id, book_id, amount, type, signed_amount, balance_after, reason, source, timestamp) VALUES
+  (UUID(), @c8, @book, 990.00, 'unpaid', -990.00, -990.00, 'Espresso & biscuit', 'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 13 DAY)),
+  (UUID(), @c8, @book, 990.00, 'paid',    990.00,    0.00, 'Due cleared',        'cash', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 DAY));
 
 -- ===========================================================================
 -- Recompute denormalised fields (mirrors index.php recompute* helpers).
@@ -268,9 +268,15 @@ UPDATE products p SET
   last_transaction_time = (SELECT t.timestamp    FROM product_transactions t WHERE t.product_id = p.id AND t.type='sale' ORDER BY t.seq DESC LIMIT 1)
 WHERE p.book_id = @book AND p.product_type = 'manufacture';
 
--- Customers.
+-- Customers. Mirrors recomputeCustomer(): what still stands (cash / goods) and
+-- the lifetime totals either side of it. Every seeded entry here is plain cash
+-- with no goods on any tab, so the cash side is simply the whole balance.
 UPDATE customers c SET
   total_balance         = (SELECT COALESCE(SUM(h.signed_amount), 0) FROM customer_balance_history h WHERE h.customer_id = c.id),
+  cash_balance          = (SELECT COALESCE(SUM(h.signed_amount), 0) FROM customer_balance_history h WHERE h.customer_id = c.id AND h.source = 'cash'),
+  items_due             = (SELECT COALESCE(SUM(i.total_amount - i.paid_amount), 0) FROM customer_items i WHERE i.customer_id = c.id),
+  total_unpaid          = (SELECT COALESCE(SUM(h.amount), 0)        FROM customer_balance_history h WHERE h.customer_id = c.id AND h.type = 'unpaid'),
+  total_paid_back       = (SELECT COALESCE(SUM(h.amount), 0)        FROM customer_balance_history h WHERE h.customer_id = c.id AND h.type = 'paid'),
   transaction_count     = (SELECT COUNT(*)       FROM customer_balance_history h WHERE h.customer_id = c.id),
   last_transaction_time = (SELECT h.timestamp    FROM customer_balance_history h WHERE h.customer_id = c.id ORDER BY h.seq DESC LIMIT 1)
 WHERE c.book_id = @book;

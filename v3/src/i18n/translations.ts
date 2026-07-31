@@ -232,7 +232,6 @@ export interface Translation {
   editCashEntry: string;
   editItemEntry: string;
   editPayment: string;
-  quantityPaid: string;
   of: string;
   deleteTakingConfirm: string;
   deletePaymentConfirm: string;
@@ -546,7 +545,6 @@ const en: Translation = {
   editCashEntry: 'Edit cash entry',
   editItemEntry: 'Edit item taken',
   editPayment: 'Edit payment',
-  quantityPaid: 'Quantity paid',
   // "৳360 paid — of ৳540" on a part-paid tab line.
   of: 'of',
   deleteTakingConfirm: 'This also removes the sale behind it and returns the goods to stock.',
@@ -849,7 +847,6 @@ const bn: Translation = {
   editCashEntry: 'নগদ এন্ট্রি সম্পাদনা',
   editItemEntry: 'নেওয়া পণ্য সম্পাদনা',
   editPayment: 'পরিশোধ সম্পাদনা',
-  quantityPaid: 'পরিশোধিত পরিমাণ',
   of: 'এর মধ্যে',
   deleteTakingConfirm: 'এটি এর পেছনের বিক্রয়টিও মুছে দেবে এবং পণ্য স্টকে ফেরত যাবে।',
   deletePaymentConfirm: 'এটি পণ্যগুলো আবার বাকি হিসেবে তালিকায় ফিরিয়ে দেবে।',

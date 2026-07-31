@@ -45,13 +45,15 @@ function statsOf(c: Customer): CustomerStats {
 }
 
 /**
- * Units of a line still unpaid. Payment is tracked in money (cash can cover
- * part of a unit), so the count is derived rather than stored — rounded to the
- * same 3 decimals the API keeps quantities at.
+ * Whole units of a line not yet paid off. Payment is tracked in money — cash
+ * can eat into a unit without clearing it — so a unit counts as outstanding
+ * until the last paisa of it is covered. Rounding up is what keeps this a
+ * count of goods rather than a fraction: three taken with two-and-a-bit paid
+ * for still leaves one on the tab.
  */
-function unitsLeft(item: CustomerItem): number {
+function unitsOwed(item: CustomerItem): number {
   if (item.price_per_unit <= 0) return item.quantity;
-  return Math.min(item.quantity, Math.round((item.remaining / item.price_per_unit) * 1000) / 1000);
+  return Math.min(item.quantity, Math.ceil(item.remaining / item.price_per_unit - 0.0000001));
 }
 
 /**
@@ -139,12 +141,17 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
     }
   };
 
-  const settle = async (item: CustomerItem, quantity: number) => {
+  /**
+   * `units` is a whole count, or undefined to clear the line outright. The
+   * server turns it into money — paying for the last unit of a line cash has
+   * already part-covered costs only the remainder.
+   */
+  const settle = async (item: CustomerItem, units?: number) => {
     if (busyId) return;
     setBusyId(item.id);
     setError(null);
     try {
-      applyResult(await settleCustomerItem(item.id, quantity));
+      applyResult(await settleCustomerItem(item.id, units));
       setSettling(null);
     } catch (err) {
       fail(err, t.failedSettleItem);
@@ -154,13 +161,12 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
   };
 
   /**
-   * Always confirms — a stray tap must never book a payment. A single unit only
-   * needs a yes/no; anything more asks how many, prefilled with whatever the
-   * line still owes (which is less than it holds once cash has reached it).
+   * Always confirms — a stray tap must never book a payment. One unit left only
+   * needs a yes/no; more than that asks how many, offering the whole line.
    */
   const onPaid = (item: CustomerItem) => {
     setSettling(item);
-    setSettleQty(String(unitsLeft(item)));
+    setSettleQty(String(unitsOwed(item)));
   };
 
   const addFromPicker = async (drafts: CustomerItemDraft[]) => {
@@ -179,13 +185,16 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
   // Cash paid ahead reads as an advance rather than a debt of "-x".
   const cashAhead = stats.cash_balance > 0;
 
-  // Live readout for the settle dialog: what the typed quantity comes to. A
-  // single unit skips the field — there is nothing to choose, only to confirm.
-  const settleLeft = settling ? unitsLeft(settling) : 0;
-  const singleUnit = !!settling && settleLeft <= 1;
-  const settleNum = parseFloat(settleQty) || 0;
-  const settleValid = !!settling && settleNum > 0 && settleNum <= settling.quantity;
-  const settleAmount = settling ? settleNum * settling.price_per_unit : 0;
+  // Live readout for the settle dialog. One unit left skips the field — there
+  // is nothing to choose, only to confirm. The money mirrors the server's rule:
+  // whole units at the agreed price, never more than the line still owes.
+  const settleLeft = settling ? unitsOwed(settling) : 0;
+  const singleUnit = settleLeft <= 1;
+  const settleNum = Math.floor(parseFloat(settleQty) || 0);
+  const settleValid = !!settling && settleNum > 0 && settleNum <= settleLeft;
+  const settleAmount = settling
+    ? Math.min(settleNum * settling.price_per_unit, settling.remaining)
+    : 0;
 
   return (
     <>
@@ -294,6 +303,10 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
             // covered, red for what is left, so the split reads at a glance.
             const part = item.total_amount > 0 ? item.paid_amount / item.total_amount : 0;
             const partly = item.paid_amount > 0;
+            // Units still on the tab, not units taken: pay for two of three and
+            // the row says one. Whole units paid for are shown beside them.
+            const owed = unitsOwed(item);
+            const cleared = item.quantity - owed;
             return (
               <div key={item.id} className={styles.itemRow}>
                 <div className={styles.line}>
@@ -313,7 +326,7 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
                   </span>
                   <div className={styles.itemRight}>
                     <span className={styles.itemQty}>
-                      {localizeDigits(`${formatNumber(item.quantity)} ${item.quantity_type}`)}
+                      {localizeDigits(`${formatNumber(owed)} ${item.quantity_type}`)}
                     </span>
                     <button
                       className={styles.paidBtn}
@@ -331,6 +344,13 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
                   <div className={styles.line}>
                     <span className={styles.itemPaid}>
                       {t.paidBack}: {formatCurrency(item.paid_amount)}
+                      {/* Whole units already settled, so "2 of 3 paid for"
+                          reads off the row without any arithmetic. */}
+                      {cleared > 0
+                        ? ` · ${localizeDigits(
+                            `${formatNumber(cleared)}/${formatNumber(item.quantity)} ${item.quantity_type}`,
+                          )}`
+                        : ''}
                     </span>
                     <span className={styles.itemPrice}>
                       {t.of} {formatCurrency(item.total_amount)}
@@ -370,32 +390,36 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
         <p className={styles.settleName}>{settling?.item_name}</p>
 
         {singleUnit ? (
+          // Nothing to choose: this clears the line for exactly what it owes.
           <p className={styles.settleMessage}>
-            {t.markPaidConfirm} <b>{formatCurrency(settleAmount)}</b>
+            {t.markPaidConfirm} <b>{formatCurrency(settling?.remaining ?? 0)}</b>
           </p>
         ) : (
           <div className="field">
             <label htmlFor="settleQty">{t.quantity}</label>
+            {/* Whole units only — a payment for part of one is money, not goods,
+                and belongs on the Cash paid button. */}
             <input
               id="settleQty"
               className="input"
               type="number"
-              inputMode="decimal"
-              min="0"
-              max={settling?.quantity}
-              step="any"
+              inputMode="numeric"
+              min="1"
+              max={settleLeft}
+              step="1"
               value={settleQty}
               onChange={(e) => setSettleQty(e.target.value)}
               autoFocus
             />
-            {/* What is left to pay for, in units and in money — less than the
-                whole line once cash has already covered part of it. */}
+            {/* What is left to pay for, in units and in money. The money can be
+                less than units × price once cash has eaten into the last one. */}
             <span className={styles.settleHint}>
               {t.outstandingLabel}{' '}
               {settling
                 ? localizeDigits(`${formatNumber(settleLeft)} ${settling.quantity_type}`)
                 : ''}{' '}
               · {formatCurrency(settling?.remaining ?? 0)}
+              {settleValid && settleNum < settleLeft ? ` → ${formatCurrency(settleAmount)}` : ''}
             </span>
           </div>
         )}
@@ -410,8 +434,10 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
           </button>
           <button
             className="btn btn-primary btn-block"
-            onClick={() => settling && void settle(settling, settleNum)}
-            disabled={!!busyId || !settleValid}
+            // One unit left clears the line outright, so no count is sent and
+            // the server charges exactly what is owed.
+            onClick={() => settling && void settle(settling, singleUnit ? undefined : settleNum)}
+            disabled={!!busyId || (!singleUnit && !settleValid)}
           >
             {t.paid}
           </button>

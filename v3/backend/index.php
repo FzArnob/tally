@@ -762,6 +762,27 @@ function itemLabel(string $name, float $quantity): string
 }
 
 /**
+ * How to describe a payment made against an item: [quantity, label].
+ *
+ * A payment is MONEY. It only earns a quantity when that money clears whole
+ * units — pay for two of them and the entry reads "Rice × 2". Anything else is
+ * a remainder (the tail of a line cash has already eaten into, say) and carries
+ * no quantity at all. Deriving a fraction of a unit instead would give both a
+ * meaningless label and, once multiplied back by the price, the wrong amount.
+ */
+function paymentUnits(float $amount, float $price, string $name): array
+{
+    if ($price > 0) {
+        $units = $amount / $price;
+        if (abs($units - round($units)) < 0.0000001) {
+            $whole = round($units);
+            return [$whole, itemLabel($name, (float) $whole)];
+        }
+    }
+    return [null, mb_substr($name, 0, 255)];
+}
+
+/**
  * The tab line behind a sale about to be edited or deleted, or null when the
  * sale never went on a tab.
  *
@@ -1547,17 +1568,17 @@ function updateTakingEntry(PDO $pdo, array $entry, array $body): array
 }
 
 /**
- * Correct a payment for goods — how many units the customer actually paid for.
- * The price is the one agreed when the goods were taken and is not editable
- * here; only the count is. Nothing but the entry is touched: the replay works
- * out what that money now covers, and hands any excess to the customer's other
- * debts (or back as an advance).
+ * Correct a payment for goods. A payment is money, so that is what is edited —
+ * the quantity is re-derived from it and only survives if the new amount still
+ * clears whole units (see paymentUnits). Nothing but the entry is touched: the
+ * replay works out what that money now covers, and hands any excess to the
+ * customer's other debts (or back as an advance).
  */
 function updateSettlementEntry(PDO $pdo, array $entry, array $body): array
 {
-    $qty    = v_amount($body['quantity'] ?? null, 'Quantity');
-    $price  = (float) $entry['price_per_unit'];
-    $amount = round($qty * $price, 2);
+    $amount = v_amount($body['amount'] ?? null, 'Amount');
+    $amount = round($amount, 2);
+    [$qty, $label] = paymentUnits($amount, (float) $entry['price_per_unit'], (string) $entry['item_name']);
 
     $pdo->beginTransaction();
     try {
@@ -1565,7 +1586,7 @@ function updateSettlementEntry(PDO $pdo, array $entry, array $body): array
             'UPDATE customer_balance_history
              SET amount = ?, signed_amount = ?, quantity = ?, reason = ?
              WHERE id = ?'
-        )->execute([$amount, $amount, $qty, itemLabel((string) $entry['item_name'], $qty), $entry['id']]);
+        )->execute([$amount, $amount, $qty, $label, $entry['id']]);
         $totals = recomputeCustomer($pdo, $entry['customer_id']);
         $pdo->commit();
     } catch (Throwable $e) {
@@ -1851,8 +1872,9 @@ on('POST', '/customers/{id}/items', function ($a) {
  * aimed at that line. The line then fills up rather than shrinking, and drops
  * off the sheet once it is covered.
  *
- * Paying more than the line still owes is not an error: the surplus behaves
- * like cash and flows on to whatever else is outstanding.
+ * `units` is a WHOLE number of units to pay for; leaving it out pays off
+ * whatever the line still owes. Paying for the last unit of a line that cash
+ * has already part-covered costs only the remainder, never the full price.
  */
 on('POST', '/customer-items/{id}/settle', function ($a) {
     $pdo  = db();
@@ -1867,17 +1889,25 @@ on('POST', '/customer-items/{id}/settle', function ($a) {
     }
 
     $body  = read_json_body();
-    $taken = (float) $item['quantity'];
-    // Default to a single unit — the list's Paid button offers the whole line.
-    $qty   = isset($body['quantity']) && is_numeric($body['quantity']) ? (float) $body['quantity'] : 1.0;
-    if ($qty <= 0) {
-        json_error('Quantity must be greater than 0.', 422, 'validation');
+    $price = (float) $item['price_per_unit'];
+    $owed  = round((float) $item['total_amount'] - (float) $item['paid_amount'], 2);
+    if ($owed <= 0.005) {
+        json_error('This item is already paid for.', 422, 'validation');
     }
-    // Never book more units than the customer took; paying for fewer is the
-    // whole point of a part payment.
-    $qty    = min(round($qty, 3), $taken);
-    $price  = (float) $item['price_per_unit'];
-    $amount = round($qty * $price, 2);
+
+    if (isset($body['units'])) {
+        $units = (float) $body['units'];
+        if (!is_numeric($body['units']) || $units <= 0 || abs($units - round($units)) > 0.0000001) {
+            json_error('Units must be a whole number greater than 0.', 422, 'validation');
+        }
+        // Never more than the line still owes — that is what makes the last
+        // unit of a part-covered line cost only what is left on it.
+        $amount = min(round($units * $price, 2), $owed);
+    } else {
+        $amount = $owed;
+    }
+
+    [$qty, $label] = paymentUnits($amount, $price, $item['item_name']);
 
     $pdo->beginTransaction();
     try {
@@ -1889,8 +1919,7 @@ on('POST', '/customer-items/{id}/settle', function ($a) {
                  customer_item_id, item_name, quantity_type, quantity, price_per_unit, timestamp)
              VALUES (?, ?, ?, ?, \'paid\', \'item\', ?, 0, ?, ?, ?, ?, ?, ?, ?)'
         )->execute([
-            uuid4(), $item['customer_id'], $item['book_id'], $amount, $amount,
-            itemLabel($item['item_name'], $qty),
+            uuid4(), $item['customer_id'], $item['book_id'], $amount, $amount, $label,
             $item['id'], $item['item_name'], $item['quantity_type'], $qty, $price,
             date('Y-m-d H:i:s'),
         ]);

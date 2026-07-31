@@ -205,9 +205,8 @@ export function updateCustomerBalance(params: {
 }
 
 /**
- * Edit an item entry by quantity. A taking also re-prices and rewrites the sale
- * behind it (stock included); a payment only moves units on and off the tab, so
- * it takes no price.
+ * Correct a goods TAKING: it is the money half of a sale, so it is edited as
+ * goods, and the server rewrites the sale (and the stock) to match.
  */
 export function updateCustomerItemEntry(params: {
   historyId: string;
@@ -221,6 +220,21 @@ export function updateCustomerItemEntry(params: {
       quantity,
       ...(pricePerUnit === undefined ? {} : { price_per_unit: pricePerUnit }),
     }),
+  );
+}
+
+/**
+ * Correct a payment made against an item. Payments are money — the units they
+ * cleared are re-derived from the amount, and only recorded when whole.
+ */
+export function updateCustomerItemPayment(params: {
+  historyId: string;
+  amount: number;
+}): Promise<CreateBalanceResponse> {
+  const { historyId, amount } = params;
+  return request<CreateBalanceResponse>(
+    `balance-history/${historyId}`,
+    jsonInit('PUT', { amount }),
   );
 }
 
@@ -247,14 +261,18 @@ export function addCustomerItems(
   );
 }
 
-/** Pay off `quantity` units (default 1) of an outstanding item. */
+/**
+ * Pay for `units` WHOLE units of an outstanding item; omit it to clear whatever
+ * the line still owes. The last unit of a part-covered line costs only the
+ * remainder, so the server works the money out — never the client.
+ */
 export function settleCustomerItem(
   itemId: string,
-  quantity = 1,
+  units?: number,
 ): Promise<SaveCustomerItemsResponse> {
   return request<SaveCustomerItemsResponse>(
     `customer-items/${itemId}/settle`,
-    jsonInit('POST', { quantity }),
+    jsonInit('POST', units === undefined ? {} : { units }),
   );
 }
 

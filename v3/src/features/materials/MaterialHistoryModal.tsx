@@ -55,7 +55,11 @@ export function MaterialHistoryModal({
           // One bar per calendar day, carrying that day's cash / on-tab split.
           groupByDay(transactions).map((day) => (
             <Fragment key={day.key}>
-              <HistoryDayBar date={day.date} totalCash={day.totalCash} totalDue={day.totalDue} />
+              <HistoryDayBar
+                date={day.date}
+                left={{ label: t.saleCash, amount: day.totalCash, tone: 'positive' }}
+                right={{ label: t.saleDue, amount: day.totalDue, tone: 'negative' }}
+              />
               {day.entries.map((tx) => {
                 const isStock = tx.type === 'stock';
                 const isUsed = tx.type === 'used';

@@ -804,6 +804,112 @@
   white-space: nowrap;
 }
 
+/* Price entry: one input whose meaning (total vs per-unit) the toggle sets,
+   with the derived figure shown beneath. Same control as the product and
+   material action modals — editing a taking is editing that sale, so it should
+   not feel like a different job. */
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.5rem;
+  gap: 0.5rem;
+}
+
+.priceHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.priceHeaderLabel {
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+.priceToggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  background: var(--input-background);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.priceToggleBtn {
+  border: none;
+  background: transparent;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.priceToggleActive {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--shadow-sm);
+}
+
+.priceInput {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-background);
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.priceInput input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0.65rem 0;
+  font-size: var(--fs-base);
+  color: var(--foreground);
+  font-family: inherit;
+}
+
+.priceInput input:focus {
+  outline: none;
+}
+
+.priceInput:focus-within {
+  border-color: var(--ring);
+  background: var(--muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+}
+
+.priceCurrency {
+  flex-shrink: 0;
+  font-size: var(--fs-base);
+  color: var(--muted-foreground);
+}
+
+.priceReadout {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0 0.1rem;
+  font-size: var(--fs-sm);
+  color: var(--muted-foreground);
+}
+
+.priceReadoutValue {
+  font-weight: var(--font-weight-medium);
+  color: var(--foreground);
+}
+
 /* Which item an entry editor is about, beside the sheet's title. */
 .entryItemName {
   font-size: var(--fs-sm);

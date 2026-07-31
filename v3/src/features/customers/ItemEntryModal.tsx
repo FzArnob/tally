@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
 import { useI18n } from '../../i18n/LanguageContext';
-import { updateCustomerItemEntry } from '../../lib/api';
+import { updateCustomerItemEntry, updateCustomerItemPayment } from '../../lib/api';
 import { ApiError, type BalanceHistoryEntry } from '../../types';
 import styles from './customers.module.css';
+
+/** Round a money value to 2 decimals, returned as a clean input string. */
+const money = (n: number) => String(Math.round(n * 100) / 100);
 
 interface ItemEntryModalProps {
   open: boolean;
@@ -14,18 +17,27 @@ interface ItemEntryModalProps {
 }
 
 /**
- * Correct an item entry. Goods are edited as goods, by quantity — never as a
- * bare amount, because the entry is only the money half of a movement that also
- * has a sale and an outstanding line behind it. The server moves all three.
+ * Correct an item entry — and which form it shows follows what the entry is.
  *
- * A taking may also be re-priced. A payment may not: its price is whatever was
- * agreed when the goods went onto the tab, so only the quantity paid for is in
- * question.
+ * A TAKING is the money half of a sale, so it is edited as goods: quantity and
+ * price, through the same control the product and material action modals use,
+ * because it is the same job. The server rewrites the sale, the stock and the
+ * tab line to match.
+ *
+ * A PAYMENT is money. It is edited as an amount, never as a quantity: cash can
+ * cover part of a unit, and asking for a count there would force a fraction of
+ * one. The units it clears are worked out from the amount, and only recorded
+ * when they come out whole.
  */
 export function ItemEntryModal({ open, entry, onClose, onSaved }: ItemEntryModalProps) {
   const { t, formatCurrency, formatNumber, localizeDigits } = useI18n();
   const [quantity, setQuantity] = useState('');
+  // One price field, as in the product and material action modals: the toggle
+  // decides whether the figure means the whole line or a single unit, and the
+  // other one is derived beneath it.
+  const [priceMode, setPriceMode] = useState<'total' | 'unit'>('total');
   const [price, setPrice] = useState('');
+  const [amount, setAmount] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const taking = entry?.type === 'unpaid';
@@ -39,35 +51,65 @@ export function ItemEntryModal({ open, entry, onClose, onSaved }: ItemEntryModal
     if (seededFor.current === entry.id) return;
     seededFor.current = entry.id;
     setQuantity(entry.quantity !== null ? String(entry.quantity) : '');
-    setPrice(entry.price_per_unit !== null ? String(entry.price_per_unit) : '');
+    // Seeded on the total, which is what the entry itself is.
+    setPriceMode('total');
+    setPrice(money(entry.amount));
+    setAmount(String(entry.amount));
     setError(null);
   }, [open, entry]);
 
   if (!entry) return null;
 
-  const qtyNum = parseFloat(quantity);
-  const priceNum = taking ? parseFloat(price) : (entry.price_per_unit ?? 0);
-  const total = (isNaN(qtyNum) ? 0 : qtyNum) * (isNaN(priceNum) ? 0 : priceNum);
+  const qtyNum = parseFloat(quantity) || 0;
+  const priceNum = parseFloat(price) || 0;
+  const amountNum = parseFloat(amount);
   const unit = entry.quantity_type ?? '';
 
+  // Derive the total and the per-unit price from whichever the toggle is on.
+  const totalNum = priceMode === 'total' ? priceNum : priceNum * qtyNum;
+  const unitNum = priceMode === 'unit' ? priceNum : qtyNum > 0 ? priceNum / qtyNum : 0;
+
+  // Flip the toggle, converting the value so it still means the same money.
+  const switchMode = (m: 'total' | 'unit') => {
+    if (m === priceMode) return;
+    if (qtyNum > 0 && price.trim() !== '') {
+      setPrice(m === 'unit' ? money(unitNum) : money(totalNum));
+    }
+    setPriceMode(m);
+  };
+  // How many whole units this payment clears, when it clears whole ones at all.
+  const paidUnits =
+    !taking && entry.price_per_unit ? (amountNum || 0) / entry.price_per_unit : 0;
+  const wholeUnits = Number.isInteger(Math.round(paidUnits * 1e6) / 1e6) ? Math.round(paidUnits) : 0;
+
   const submit = async () => {
-    if (isNaN(qtyNum) || qtyNum <= 0) {
+    if (taking && qtyNum <= 0) {
       setError(t.enterValidQuantity);
       return;
     }
-    if (taking && (isNaN(priceNum) || priceNum < 0)) {
+    if (taking && (price.trim() === '' || priceNum < 0)) {
+      setError(t.enterValidPrice);
+      return;
+    }
+    if (!taking && (isNaN(amountNum) || amountNum <= 0)) {
       setError(t.enterValidAmount);
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      await updateCustomerItemEntry({
-        historyId: entry.id,
-        quantity: qtyNum,
-        // Only a taking carries a price; leaving it out settles at the agreed one.
-        ...(taking ? { pricePerUnit: priceNum } : {}),
-      });
+      if (taking) {
+        await updateCustomerItemEntry({
+          historyId: entry.id,
+          quantity: qtyNum,
+          // The API stores the per-unit price, whichever way it was typed.
+          pricePerUnit: Math.round(unitNum * 100) / 100,
+        });
+      } else {
+        // A payment is money. The units it covers are worked out from it, and
+        // only recorded when they come out whole.
+        await updateCustomerItemPayment({ historyId: entry.id, amount: amountNum });
+      }
       seededFor.current = null;
       onSaved();
       onClose();
@@ -112,56 +154,99 @@ export function ItemEntryModal({ open, entry, onClose, onSaved }: ItemEntryModal
         </>
       }
     >
-      <div className="field">
-        <label htmlFor="itemEntryQty">
-          {taking ? t.quantity : t.quantityPaid}
-          {unit ? ` (${unit})` : ''}
-        </label>
-        <input
-          id="itemEntryQty"
-          className="input"
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step="any"
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-          autoFocus
-        />
-      </div>
-
       {taking ? (
+        <>
+          <div className="field">
+            <label htmlFor="itemEntryQty">
+              {t.quantity}
+              {unit ? ` (${unit})` : ''}
+            </label>
+            <input
+              id="itemEntryQty"
+              className="input"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="any"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div className={styles.priceBlock}>
+            <div className={styles.priceHeader}>
+              <span className={styles.priceHeaderLabel}>{t.price}</span>
+              <div className={styles.priceToggle} role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={priceMode === 'total'}
+                  className={`${styles.priceToggleBtn} ${priceMode === 'total' ? styles.priceToggleActive : ''}`}
+                  onClick={() => switchMode('total')}
+                >
+                  {t.totalPrice}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={priceMode === 'unit'}
+                  className={`${styles.priceToggleBtn} ${priceMode === 'unit' ? styles.priceToggleActive : ''}`}
+                  onClick={() => switchMode('unit')}
+                >
+                  {t.pricePerUnit}
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.priceInput}>
+              <span className={styles.priceCurrency}>৳</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="any"
+                placeholder="0.00"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                aria-label={priceMode === 'total' ? t.totalPrice : t.pricePerUnit}
+              />
+            </div>
+
+            <div className={styles.priceReadout}>
+              <span>{priceMode === 'total' ? t.pricePerUnit : t.totalPrice}</span>
+              <span className={styles.priceReadoutValue}>
+                {priceMode === 'total'
+                  ? `${formatCurrency(unitNum)}${unit ? ` / ${unit}` : ''}`
+                  : formatCurrency(totalNum)}
+              </span>
+            </div>
+          </div>
+        </>
+      ) : (
+        // A payment is an amount of money. Asking for a quantity here would
+        // force a fraction of a unit whenever cash had covered part of one.
         <div className="field">
-          <label htmlFor="itemEntryPrice">{t.sellingPrice}</label>
+          <label htmlFor="itemEntryAmount">{t.amount}</label>
           <input
-            id="itemEntryPrice"
+            id="itemEntryAmount"
             className="input"
             type="number"
             inputMode="decimal"
             min="0"
             step="any"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            autoFocus
           />
+          <span className={styles.settleHint}>
+            {formatCurrency(entry.price_per_unit ?? 0)}
+            {unit ? ` / ${unit}` : ''}
+            {wholeUnits > 0
+              ? ` · ${localizeDigits(`${formatNumber(wholeUnits)} ${unit}`)}`
+              : ''}
+          </span>
         </div>
-      ) : (
-        <p className={styles.settleHint}>
-          {formatCurrency(entry.price_per_unit ?? 0)}
-          {unit ? ` / ${unit}` : ''}
-        </p>
-      )}
-
-      <div className={styles.itemsTotal}>
-        <span>{t.total}</span>
-        <span className={`${styles.itemsTotalValue} ${taking ? 'text-negative' : 'text-positive'}`}>
-          {formatCurrency(total)}
-        </span>
-      </div>
-
-      {qtyNum > 0 && unit && (
-        <p className={styles.settleHint}>
-          {localizeDigits(`${formatNumber(qtyNum)} ${unit}`)} × {formatCurrency(priceNum || 0)}
-        </p>
       )}
     </Modal>
   );

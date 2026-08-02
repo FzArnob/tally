@@ -189,6 +189,20 @@ export interface Translation {
   balanceLabel: string;
   advancePaid: string;
   totalUnpaid: string;
+
+  // How far a customer may run, and what is said when one goes past it (v3)
+  creditLimitsTitle: string;
+  creditLimitsAction: string;
+  creditLimitLabel: string;
+  creditDaysLabel: string;
+  creditNoLimitHint: string;
+  creditWarningTitle: string;
+  creditOverLimitReason: string;
+  creditOverdueReason: string;
+  creditDaysUnit: string;
+  continueAction: string;
+  failedSaveCreditLimits: string;
+
   noCustomers: string;
   noMatches: string;
   paid: string;
@@ -222,8 +236,7 @@ export interface Translation {
   // Cash on a customer's tab, and editing what the ledger already holds (v3)
   borrowedCash: string;
   cashPaidBack: string;
-  recordBorrowedCash: string;
-  recordCashPaid: string;
+  enterAmountTitle: string;
   unpaidCash: string;
   cashAdvance: string;
   paidBack: string;
@@ -501,6 +514,20 @@ const en: Translation = {
   balanceLabel: 'Balance:',
   advancePaid: 'Advance Paid:',
   totalUnpaid: 'Total Unpaid:',
+
+  creditLimitsTitle: 'Credit limits',
+  creditLimitsAction: 'Set credit limits',
+  creditLimitLabel: 'Amount limit',
+  creditDaysLabel: 'Time limit (days)',
+  creditNoLimitHint: 'Leave a field empty for no limit on it.',
+  creditWarningTitle: 'Over the credit limit',
+  // {owed}, {limit}, {days} and {allowed} are filled in by fill() in lib/credit.
+  creditOverLimitReason: 'Owes {owed}, over the {limit} limit.',
+  creditOverdueReason: 'Has owed {owed} for {days}, past the {allowed} allowed.',
+  creditDaysUnit: 'days',
+  continueAction: 'Continue',
+  failedSaveCreditLimits: 'Failed to save the limits. Please try again.',
+
   noCustomers: 'No customers yet',
   noMatches: 'No matches',
   paid: 'Paid',
@@ -532,10 +559,11 @@ const en: Translation = {
   failedSettleItem: 'Failed to settle item. Please try again.',
 
   // The two cash buttons on the tab sheet: money lent out, money handed back.
-  borrowedCash: 'Borrowed cash',
+  borrowedCash: 'Credit',
   cashPaidBack: 'Cash paid',
-  recordBorrowedCash: 'Record borrowed cash',
-  recordCashPaid: 'Record cash paid back',
+  // The cash form asks for one thing, and a tag beside the title says which of
+  // the two it is being asked for.
+  enterAmountTitle: 'Enter Amount',
   unpaidCash: 'Unpaid cash',
   cashAdvance: 'Cash advance',
   paidBack: 'Paid back',
@@ -806,6 +834,19 @@ const bn: Translation = {
   balanceLabel: 'ব্যালেন্স:',
   advancePaid: 'অগ্রিম পরিশোধিত:',
   totalUnpaid: 'মোট বকেয়া:',
+
+  creditLimitsTitle: 'বাকির সীমা',
+  creditLimitsAction: 'বাকির সীমা নির্ধারণ',
+  creditLimitLabel: 'টাকার সীমা',
+  creditDaysLabel: 'সময়সীমা (দিন)',
+  creditNoLimitHint: 'সীমা না চাইলে ঘরটি খালি রাখুন।',
+  creditWarningTitle: 'বাকির সীমা ছাড়িয়ে গেছে',
+  creditOverLimitReason: '{owed} বাকি, সীমা {limit} ছাড়িয়ে গেছে।',
+  creditOverdueReason: '{days} ধরে {owed} বাকি, অনুমোদিত {allowed} পেরিয়ে গেছে।',
+  creditDaysUnit: 'দিন',
+  continueAction: 'চালিয়ে যান',
+  failedSaveCreditLimits: 'সীমা সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।',
+
   noCustomers: 'এখনো কোন গ্রাহক নেই',
   noMatches: 'কোন মিল নেই',
   paid: 'পরিশোধিত',
@@ -835,10 +876,9 @@ const bn: Translation = {
   failedAddItems: 'পণ্য যোগ করা যায়নি। আবার চেষ্টা করুন।',
   failedSettleItem: 'পণ্যের দাম পরিশোধ করা যায়নি। আবার চেষ্টা করুন।',
 
-  borrowedCash: 'ধার নেওয়া নগদ',
+  borrowedCash: 'বাকি',
   cashPaidBack: 'ফেরত নগদ',
-  recordBorrowedCash: 'ধার নেওয়া নগদ যোগ করুন',
-  recordCashPaid: 'ফেরত দেওয়া নগদ যোগ করুন',
+  enterAmountTitle: 'পরিমাণ লিখুন',
   unpaidCash: 'বাকি নগদ',
   cashAdvance: 'অগ্রিম নগদ',
   paidBack: 'পরিশোধিত',

@@ -85,12 +85,6 @@ export function CashEntryModal({
     }
   };
 
-  const title = editEntry
-    ? t.editCashEntry
-    : borrowed
-      ? t.recordBorrowedCash
-      : t.recordCashPaid;
-
   return (
     <Modal
       open={open}
@@ -98,10 +92,19 @@ export function CashEntryModal({
       labelledBy="cashEntryTitle"
       header={
         <ModalHeader
-          title={title}
+          // The form asks for one number, and the tag beside the title says
+          // which of the two directions it is being asked for. That leaves
+          // nothing for a toggle to do: the direction was settled by the button
+          // that opened this, and cannot be changed from in here.
+          title={editEntry ? t.editCashEntry : t.enterAmountTitle}
           titleId="cashEntryTitle"
           onClose={onClose}
           closeLabel={t.close}
+          extra={
+            <span className={`type-tag ${borrowed ? 'type-expense' : 'type-income'}`}>
+              {borrowed ? t.borrowedCash : t.cashPaidBack}
+            </span>
+          }
         />
       }
       footer={
@@ -118,30 +121,6 @@ export function CashEntryModal({
       }
     >
       <div className="form-stack">
-        {/* Locked: the direction was settled by the button that opened this. It
-            is shown anyway because it is the only thing that says which way the
-            money went — an edit's title and button both read plainly "update". */}
-        <div className="type-toggle">
-          <button
-            type="button"
-            className={`type-btn type-expense ${borrowed ? 'type-btn-active' : ''}`}
-            aria-pressed={borrowed}
-            disabled
-          >
-            <span className="material-symbols-outlined icon-md">south_west</span>
-            {t.borrowedCash}
-          </button>
-          <button
-            type="button"
-            className={`type-btn type-income ${!borrowed ? 'type-btn-active' : ''}`}
-            aria-pressed={!borrowed}
-            disabled
-          >
-            <span className="material-symbols-outlined icon-md">north_east</span>
-            {t.cashPaidBack}
-          </button>
-        </div>
-
         <div className="field">
           <label htmlFor="cashAmount">{t.amount}</label>
           <input

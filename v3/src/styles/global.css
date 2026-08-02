@@ -220,6 +220,19 @@ input[type='number']::-webkit-inner-spin-button {
   filter: brightness(1.06);
 }
 
+/* Commits something the app warned about but does not refuse — going past a
+   credit limit, not deleting a record. Wears the warning colour so it answers
+   the mark that raised it, rather than the red that means damage.
+   Dark ink rather than white: the amber is light in both themes, and white on it
+   is unreadable. The button carries its own background, so the ink is fixed. */
+.btn-warning {
+  background: var(--orange-600);
+  color: #1a1a1a;
+}
+.btn-warning:hover {
+  background: var(--orange-700);
+}
+
 .btn-block {
   width: 100%;
 }

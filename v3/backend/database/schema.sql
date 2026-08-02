@@ -91,6 +91,14 @@ CREATE TABLE books (
     -- 'store' books use products + customer balances; 'personal' books use transactions.
     -- The UI renders a type-based icon (no per-book logo).
     type       ENUM('store','personal') NOT NULL DEFAULT 'store',
+    -- How far a customer of this book is allowed to run: the most they may owe,
+    -- and how long a debt may stand before it is called overdue. Book-wide, not
+    -- per customer — a shop keeps one rule, not one per name. NULL means that
+    -- half is not policed. Neither is enforced: exceeding one raises a warning
+    -- the user is free to overrule, because a shopkeeper who has decided to let
+    -- a regular go further should not be stopped by their own reminder.
+    credit_limit DECIMAL(14,2) NULL,
+    credit_days  INT           NULL,
     timestamp  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -147,6 +155,12 @@ CREATE TABLE customers (
     total_paid_back       DECIMAL(14,2) NOT NULL DEFAULT 0.00,  -- lifetime, always >= 0
     transaction_count     INT           NOT NULL DEFAULT 0,
     last_transaction_time DATETIME      NULL,
+    -- When the customer's CURRENT unbroken run of owing money began — the entry
+    -- that last took the balance negative and never came back. NULL whenever the
+    -- balance is square or ahead. Clearing the debt and running up a new one
+    -- starts the clock again, which is what "paid back in time" has to mean:
+    -- age is a property of the debt standing now, not of the account.
+    debt_since            DATETIME      NULL,
     timestamp             DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at            TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
     updated_at            TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -6,7 +6,9 @@ import { UserMenu } from '../../auth/UserMenu';
 import { Toolbar } from '../../components/Toolbar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { deleteCustomer, getCustomers } from '../../lib/api';
-import type { BalanceHistoryEntry, Customer, CustomerTotals } from '../../types';
+import { creditBreach, fill, type CreditBreach } from '../../lib/credit';
+import type { BalanceHistoryEntry, CreditLimits, Customer, CustomerTotals } from '../../types';
+import { CreditLimitsModal } from './CreditLimitsModal';
 import { CustomerFormModal } from './CustomerFormModal';
 import { CashEntryModal } from './CashEntryModal';
 import { ItemEntryModal } from './ItemEntryModal';
@@ -16,12 +18,15 @@ import styles from './customers.module.css';
 
 function CustomerRow({
   customer,
+  breach,
   onItems,
   onHistory,
   onEdit,
   onDelete,
 }: {
   customer: Customer;
+  /** Set when this customer is past the book's rule; drives the warning mark. */
+  breach: CreditBreach | null;
   onItems: () => void;
   onHistory: () => void;
   onEdit: () => void;
@@ -40,6 +45,19 @@ function CustomerRow({
       <div className={styles.lines}>
         <div className={styles.line}>
           <div className={styles.cNameLine}>
+            {breach && (
+              // Ahead of the name, so the reader meets it before they read who
+              // it is about. The title carries the reason for a pointer; the
+              // dialog on opening the tab is what states it properly.
+              <span
+                className={`material-symbols-outlined icon-md ${styles.cWarn}`}
+                role="img"
+                aria-label={t.creditWarningTitle}
+                title={t.creditWarningTitle}
+              >
+                warning
+              </span>
+            )}
             <span className={styles.cName} title={customer.name}>
               {customer.name}
             </span>
@@ -77,13 +95,17 @@ function CustomerRow({
 }
 
 export function CustomersPage() {
-  const { t, formatCurrency } = useI18n();
+  const { t, formatCurrency, formatNumber, localizeDigits } = useI18n();
   const navigate = useNavigate();
   const params = useParams();
   const bookId = params.bookId ?? '';
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [totals, setTotals] = useState<CustomerTotals>({ total_paid: 0, total_unpaid: 0 });
+  const [limits, setLimits] = useState<CreditLimits>({ credit_limit: null, credit_days: null });
+  const [limitsOpen, setLimitsOpen] = useState(false);
+  // A flagged customer whose tab was tapped, held while the warning is read.
+  const [warnCustomer, setWarnCustomer] = useState<Customer | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [query, setQuery] = useState('');
 
@@ -104,6 +126,7 @@ export function CustomersPage() {
       const data = await getCustomers(bookId);
       setCustomers(data.customers);
       setTotals(data.totals);
+      setLimits(data.limits);
       setStatus('ready');
     } catch (err) {
       console.error('Failed to load customers:', err);
@@ -125,6 +148,48 @@ export function CustomersPage() {
         c.phone.includes(q),
     );
   }, [customers, query]);
+
+  // Who is past the book's rule, worked out once for the whole list rather than
+  // per row, since every row measures against the same two numbers.
+  const breaches = useMemo(() => {
+    const map = new Map<string, CreditBreach>();
+    for (const c of customers) {
+      const breach = creditBreach(c, limits);
+      if (breach) map.set(c.id, breach);
+    }
+    return map;
+  }, [customers, limits]);
+
+  /**
+   * Why this customer is flagged, in words. Both halves are said when both are
+   * true: someone can be over the amount AND late with it, and whoever is
+   * deciding whether to serve them wants both facts, not the first one.
+   */
+  const breachReason = (customer: Customer): string => {
+    const breach = breaches.get(customer.id);
+    if (!breach) return '';
+    const owed = formatCurrency(breach.owed);
+    const parts: string[] = [];
+    if (breach.overLimit && limits.credit_limit != null) {
+      parts.push(fill(t.creditOverLimitReason, { owed, limit: formatCurrency(limits.credit_limit) }));
+    }
+    if (breach.overdue && limits.credit_days != null && breach.daysOwing != null) {
+      const days = localizeDigits(`${formatNumber(breach.daysOwing)} ${t.creditDaysUnit}`);
+      const allowed = localizeDigits(`${formatNumber(limits.credit_days)} ${t.creditDaysUnit}`);
+      parts.push(fill(t.creditOverdueReason, { owed, days, allowed }));
+    }
+    return parts.join(' ');
+  };
+
+  /**
+   * Opening a tab is where an entry gets made, so it is where a warning belongs.
+   * A flagged customer's sheet waits behind the dialog; anyone else's opens
+   * straight away, because a warning nobody needs is one nobody reads.
+   */
+  const openTab = (customer: Customer) => {
+    if (breaches.has(customer.id)) setWarnCustomer(customer);
+    else setItemsCustomer(customer);
+  };
 
   // Editing a history entry hands off to whichever editor fits what it is:
   // cash is an amount, goods are a quantity of something. The history stays
@@ -177,6 +242,16 @@ export function CustomersPage() {
             setFormCustomer(null);
             setFormOpen(true);
           }}
+          actions={
+            <button
+              className="icon-btn"
+              aria-label={t.creditLimitsAction}
+              title={t.creditLimitsAction}
+              onClick={() => setLimitsOpen(true)}
+            >
+              <span className="material-symbols-outlined icon-lg">credit_score</span>
+            </button>
+          }
         />
 
       {customers.length > 0 && (
@@ -206,7 +281,8 @@ export function CustomersPage() {
           <CustomerRow
             key={c.id}
             customer={c}
-            onItems={() => setItemsCustomer(c)}
+            breach={breaches.get(c.id) ?? null}
+            onItems={() => openTab(c)}
             onHistory={() => setHistoryCustomer(c)}
             onEdit={() => {
               setFormCustomer(c);
@@ -223,6 +299,30 @@ export function CustomersPage() {
         bookId={bookId}
         onClose={() => setFormOpen(false)}
         onSaved={load}
+      />
+
+      <CreditLimitsModal
+        open={limitsOpen}
+        bookId={bookId}
+        limits={limits}
+        onClose={() => setLimitsOpen(false)}
+        onSaved={setLimits}
+      />
+
+      {/* Stated before the tab opens, not after an entry is made: the point is
+          to inform the decision, and by then it has been taken. Overrulable —
+          letting a regular go further is the shopkeeper's call, not the app's. */}
+      <ConfirmDialog
+        open={!!warnCustomer}
+        title={t.creditWarningTitle}
+        message={warnCustomer ? `${warnCustomer.name} — ${breachReason(warnCustomer)}` : ''}
+        confirmLabel={t.continueAction}
+        tone="warning"
+        onConfirm={() => {
+          setItemsCustomer(warnCustomer);
+          setWarnCustomer(null);
+        }}
+        onCancel={() => setWarnCustomer(null)}
       />
 
       <CustomerItemsModal

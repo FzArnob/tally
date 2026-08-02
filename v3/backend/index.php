@@ -102,7 +102,10 @@ function authUser(): array
 /** Fetch the book only if it belongs to the caller; 404 otherwise. */
 function requireOwnedBook(PDO $pdo, string $bookId): array
 {
-    $stmt = $pdo->prepare('SELECT id, user_id, name, type FROM books WHERE id = ? AND user_id = ?');
+    $stmt = $pdo->prepare(
+        'SELECT id, user_id, name, type, credit_limit, credit_days
+         FROM books WHERE id = ? AND user_id = ?'
+    );
     $stmt->execute([$bookId, authUser()['id']]);
     $b = $stmt->fetch();
     if (!$b) {
@@ -315,6 +318,11 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
     $paidBack    = 0.0; // every payment ever made
     $totalUnpaid = 0.0; // every debt ever run up
     $lastTime    = null;
+    // When the run of owing that is still standing began. Set by the entry that
+    // takes the balance negative, cleared the moment it comes back to square, so
+    // what survives the replay is the age of the debt owed NOW — a customer who
+    // cleared last month and borrowed again yesterday is a day old, not a month.
+    $debtSince   = null;
     $update = $pdo->prepare('UPDATE customer_balance_history SET balance_after = ? WHERE id = ?');
 
     foreach ($entries as $e) {
@@ -389,6 +397,13 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
 
         $update->execute([$running, $e['id']]);
         $lastTime = $e['timestamp'];
+
+        // Rounding noise must not read as a debt, so square counts as square.
+        if ($running < -0.005) {
+            $debtSince = $debtSince ?? $e['timestamp'];
+        } else {
+            $debtSince = null;
+        }
     }
 
     // Nothing should be both owed and paid for; this only bites if a line grew
@@ -437,11 +452,11 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
         'UPDATE customers
          SET total_balance = ?, cash_balance = ?, items_due = ?,
              total_unpaid = ?, total_paid_back = ?,
-             transaction_count = ?, last_transaction_time = ?
+             transaction_count = ?, last_transaction_time = ?, debt_since = ?
          WHERE id = ?'
     )->execute([
         $running, $cashBalance, $itemsDue, $totalUnpaid, $paidBack,
-        count($entries), $lastTime, $customerId,
+        count($entries), $lastTime, $debtSince, $customerId,
     ]);
 
     return [
@@ -452,6 +467,7 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
         'total_paid_back'       => round($paidBack, 2),
         'transaction_count'     => count($entries),
         'last_transaction_time' => $lastTime,
+        'debt_since'            => $debtSince,
     ];
 }
 
@@ -613,6 +629,12 @@ function shapeBook(array $b): array
         'id'   => $b['id'],
         'name' => $b['name'],
         'type' => $b['type'],
+        // How far this book lets a customer run. Null on either half means that
+        // half is not policed; see the columns in schema.sql.
+        'credit_limit' => isset($b['credit_limit']) && $b['credit_limit'] !== null
+            ? (float) $b['credit_limit'] : null,
+        'credit_days'  => isset($b['credit_days']) && $b['credit_days'] !== null
+            ? (int) $b['credit_days'] : null,
     ];
 }
 
@@ -634,6 +656,8 @@ function shapeCustomer(array $c): array
         'total_paid_back'       => (float) $c['total_paid_back'],
         'transaction_count'     => (int) $c['transaction_count'],
         'last_transaction_time' => $c['last_transaction_time'],
+        // When the debt they owe now was first run up; null if they owe nothing.
+        'debt_since'            => $c['debt_since'] ?? null,
     ];
 }
 
@@ -1348,7 +1372,10 @@ on('POST', '/auth/logout', function () {
 
 // ---- Books ----
 on('GET', '/books', function () {
-    $stmt = db()->prepare('SELECT id, name, type FROM books WHERE user_id = ? ORDER BY seq ASC');
+    $stmt = db()->prepare(
+        'SELECT id, name, type, credit_limit, credit_days
+         FROM books WHERE user_id = ? ORDER BY seq ASC'
+    );
     $stmt->execute([authUser()['id']]);
     $books = array_map('shapeBook', $stmt->fetchAll());
     json_response(['books' => $books]);
@@ -1402,7 +1429,46 @@ on('PUT', '/books/{id}', function ($a) {
 
     $pdo->prepare('UPDATE books SET name = ?, type = ? WHERE id = ?')->execute([$name, $type, $id]);
 
-    $stmt = $pdo->prepare('SELECT id, name, type FROM books WHERE id = ?');
+    $stmt = $pdo->prepare('SELECT id, name, type, credit_limit, credit_days FROM books WHERE id = ?');
+    $stmt->execute([$id]);
+    json_response(['success' => true, 'book' => shapeBook($stmt->fetch())]);
+});
+
+/**
+ * The book's credit limits, set from the customer balances page rather than the
+ * book form: they are a rule about customers, and that is where customers are.
+ *
+ * Its own route so the page can save them without holding the book's name and
+ * type, which it never loads. Either half may be null, meaning "do not police
+ * this one" — that is a setting, not a missing field, so both keys must be sent
+ * and null is a valid value for each.
+ */
+on('PUT', '/books/{id}/credit-limits', function ($a) {
+    $pdo = db();
+    $id  = $a['id'];
+    requireOwnedBook($pdo, $id);
+
+    $body  = read_json_body();
+    $limit = $body['credit_limit'] ?? null;
+    $days  = $body['credit_days'] ?? null;
+
+    if ($limit !== null) {
+        if (!is_numeric($limit) || (float) $limit <= 0) {
+            json_error('Credit limit must be a positive amount.', 422, 'validation');
+        }
+        $limit = round((float) $limit, 2);
+    }
+    if ($days !== null) {
+        if (!is_numeric($days) || (int) $days <= 0) {
+            json_error('Credit period must be a whole number of days.', 422, 'validation');
+        }
+        $days = (int) $days;
+    }
+
+    $pdo->prepare('UPDATE books SET credit_limit = ?, credit_days = ? WHERE id = ?')
+        ->execute([$limit, $days, $id]);
+
+    $stmt = $pdo->prepare('SELECT id, name, type, credit_limit, credit_days FROM books WHERE id = ?');
     $stmt->execute([$id]);
     json_response(['success' => true, 'book' => shapeBook($stmt->fetch())]);
 });
@@ -1418,8 +1484,8 @@ on('DELETE', '/books/{id}', function ($a) {
 
 // ---- Customers ----
 on('GET', '/books/{id}/customers', function ($a) {
-    $pdo = db();
-    requireOwnedBook($pdo, $a['id']);
+    $pdo  = db();
+    $book = requireOwnedBook($pdo, $a['id']);
     $stmt = $pdo->prepare(
         'SELECT * FROM customers WHERE book_id = ? ORDER BY name ASC, nickname ASC'
     );
@@ -1431,9 +1497,16 @@ on('GET', '/books/{id}/customers', function ($a) {
         if ($c['total_balance'] >= 0) $paid += $c['total_balance'];
         else $unpaid += abs($c['total_balance']);
     }
+    $shaped = shapeBook($book);
     json_response([
         'customers' => $customers,
         'totals'    => ['total_paid' => round($paid, 2), 'total_unpaid' => round($unpaid, 2)],
+        // The rule the page measures each of them against, sent with the list so
+        // it needs no second request to know who is over it.
+        'limits'    => [
+            'credit_limit' => $shaped['credit_limit'],
+            'credit_days'  => $shaped['credit_days'],
+        ],
     ]);
 });
 

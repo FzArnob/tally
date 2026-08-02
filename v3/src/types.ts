@@ -20,7 +20,21 @@ export interface MeResponse {
 
 export type BookType = 'store' | 'personal';
 
-export interface Book {
+/**
+ * How far a book lets a customer run before it complains: the most they may owe,
+ * and how long a debt may stand. Book-wide, because a shop keeps one rule rather
+ * than one per name. Null on either half means that half is not policed.
+ *
+ * Neither is enforced. Going past one raises a warning the user can overrule — a
+ * shopkeeper who has decided to let a regular go further should not be stopped
+ * by their own reminder.
+ */
+export interface CreditLimits {
+  credit_limit: number | null;
+  credit_days: number | null;
+}
+
+export interface Book extends CreditLimits {
   id: string;
   name: string;
   type: BookType;
@@ -53,6 +67,13 @@ export interface Customer {
   total_paid_back: number;
   transaction_count: number;
   last_transaction_time: string | null;
+  /**
+   * When the debt standing right now was first run up — the entry that last took
+   * the balance negative and never came back. Null whenever they owe nothing.
+   * Clearing a debt and running up a new one restarts it, so this is the age of
+   * what is owed today, not of the account.
+   */
+  debt_since: string | null;
 }
 
 /**
@@ -76,6 +97,8 @@ export interface CustomerTotals {
 export interface CustomersResponse {
   customers: Customer[];
   totals: CustomerTotals;
+  /** The book's rule, sent with the list so it can flag who is past it. */
+  limits: CreditLimits;
 }
 
 export type BalanceType = 'paid' | 'unpaid';

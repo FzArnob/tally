@@ -8,6 +8,8 @@ interface ToolbarProps {
   searchPlaceholder: string;
   addLabel: string;
   onAdd: () => void;
+  /** Buttons for the bar itself, sitting between the search field and Add. */
+  actions?: ReactNode;
   /** Extra content that sticks together with the toolbar (e.g. a totals card). */
   children?: ReactNode;
 }
@@ -22,6 +24,7 @@ export function Toolbar({
   searchPlaceholder,
   addLabel,
   onAdd,
+  actions,
   children,
 }: ToolbarProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -55,6 +58,7 @@ export function Toolbar({
             aria-label={searchPlaceholder}
           />
         </div>
+        {actions}
         <button className="btn btn-primary" onClick={onAdd}>
           <span className="material-symbols-outlined icon-md">add</span>
           {addLabel}

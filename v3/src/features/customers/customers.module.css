@@ -108,6 +108,16 @@
   min-width: 0;
 }
 
+/* Marks a customer who has gone past the book's credit rule. Sits ahead of the
+   name so it is met before the reader knows who it is about, and never shrinks
+   away when a long name takes the room. Amber rather than red: this is a thing
+   to notice on the way past, not a failure — the same money is already shown in
+   red at the other end of the row. */
+.cWarn {
+  flex-shrink: 0;
+  color: var(--orange-600);
+}
+
 .cName {
   font-weight: var(--font-weight-medium);
   overflow: hidden;

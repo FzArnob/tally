@@ -13,6 +13,7 @@ import {
   type CategoriesResponse,
   type SaveCategoryResponse,
   type CreateBalanceResponse,
+  type CreditLimits,
   type Customer,
   type CustomerHistoryResponse,
   type CustomerItemDraft,
@@ -132,6 +133,24 @@ export function deleteBook(id: string): Promise<{ success: boolean }> {
 
 export function getBookDetails(bookId: string): Promise<Book> {
   return request<Book>(`books/${bookId}`);
+}
+
+/**
+ * The book's credit limits, saved from the customer balances page. Null on
+ * either half clears that half, so both are always sent — an omitted key would
+ * be indistinguishable from "no limit", and both are meaningful here.
+ */
+export function saveCreditLimits(
+  bookId: string,
+  limits: CreditLimits,
+): Promise<SaveBookResponse> {
+  return request<SaveBookResponse>(
+    `books/${bookId}/credit-limits`,
+    jsonInit('PUT', {
+      credit_limit: limits.credit_limit,
+      credit_days: limits.credit_days,
+    }),
+  );
 }
 
 // ---- Customers ----

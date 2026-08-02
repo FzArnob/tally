@@ -108,9 +108,7 @@ export function CashEntryModal({
         <>
           {error && <div className={`${styles.formError} ${styles.itemsError}`}>{error}</div>}
           <button
-            // The button carries the direction's colour, so borrowing money can
-            // never be mistaken for taking it in.
-            className={`btn btn-block btn-margin ${borrowed ? styles.cashOutBtn : styles.cashInBtn}`}
+            className="btn btn-primary btn-block btn-margin"
             onClick={submit}
             disabled={saving}
           >
@@ -119,32 +117,58 @@ export function CashEntryModal({
         </>
       }
     >
-      <div className="field">
-        <label htmlFor="cashAmount">{t.amount}</label>
-        <input
-          id="cashAmount"
-          className="input"
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step="any"
-          placeholder="0.00"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          autoFocus
-        />
-      </div>
+      <div className="form-stack">
+        {/* Locked: the direction was settled by the button that opened this. It
+            is shown anyway because it is the only thing that says which way the
+            money went — an edit's title and button both read plainly "update". */}
+        <div className="type-toggle">
+          <button
+            type="button"
+            className={`type-btn type-expense ${borrowed ? 'type-btn-active' : ''}`}
+            aria-pressed={borrowed}
+            disabled
+          >
+            <span className="material-symbols-outlined icon-md">south_west</span>
+            {t.borrowedCash}
+          </button>
+          <button
+            type="button"
+            className={`type-btn type-income ${!borrowed ? 'type-btn-active' : ''}`}
+            aria-pressed={!borrowed}
+            disabled
+          >
+            <span className="material-symbols-outlined icon-md">north_east</span>
+            {t.cashPaidBack}
+          </button>
+        </div>
 
-      <div className="field">
-        <label htmlFor="cashNote">{t.note}</label>
-        <input
-          id="cashNote"
-          className="input"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder={t.notePlaceholder}
-          maxLength={255}
-        />
+        <div className="field">
+          <label htmlFor="cashAmount">{t.amount}</label>
+          <input
+            id="cashAmount"
+            className="input"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="any"
+            placeholder="0.00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="cashNote">{t.note}</label>
+          <input
+            id="cashNote"
+            className="input"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t.notePlaceholder}
+            maxLength={255}
+          />
+        </div>
       </div>
     </Modal>
   );

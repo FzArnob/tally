@@ -31,6 +31,20 @@
   border-top: 1px solid var(--border);
 }
 
+/* Card variant. On a page the entries are separate cards laid on open
+   background, and a full-bleed strip cuts across that column instead of
+   belonging to it. Here the bar keeps the list's width and borrows the summary
+   card's surface, border and corner, so the page reads as one stack: summary,
+   then a day, then that day's entries. The list's own gap spaces it, and the
+   side padding matches an entry card's so the text lines up down the column. */
+.dayBarCard {
+  margin: 0;
+  padding: 0.5rem 0.85rem 0.55rem;
+  background: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+
 .dayDate {
   font-size: var(--fs-sm);
   font-weight: var(--font-weight-semibold);

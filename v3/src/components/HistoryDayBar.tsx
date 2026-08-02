@@ -15,6 +15,12 @@ interface HistoryDayBarProps {
   left: DayFigure;
   /** Omit for a list that only runs one way — see below. */
   right?: DayFigure;
+  /**
+   * `bleed` (the default) spans the full width of its list, as a modal body's
+   * edge-to-edge separator. `card` keeps the list's own width and corners, for a
+   * page whose entries are free-standing cards — see below.
+   */
+  variant?: 'bleed' | 'card';
 }
 
 /**
@@ -32,8 +38,12 @@ interface HistoryDayBarProps {
  * Sticks to the top of whatever scrolls it. Inside a modal that is the body, and
  * the defaults are right. A page has bars of its own above it, so it sets
  * --day-bar-top to clear them and --day-bar-pad to its own side padding.
+ *
+ * A page whose entries are cards on open background — rather than rows filling a
+ * modal — passes variant="card", and the bar takes the same width, corner and
+ * border as those cards instead of cutting a strip across them.
  */
-export function HistoryDayBar({ date, left, right }: HistoryDayBarProps) {
+export function HistoryDayBar({ date, left, right, variant = 'bleed' }: HistoryDayBarProps) {
   const { formatCurrency, formatDayLabel, localizeDigits } = useI18n();
 
   const figures = right ? [left, right] : [left];
@@ -42,7 +52,7 @@ export function HistoryDayBar({ date, left, right }: HistoryDayBarProps) {
   const shares = [leftShare, total > 0 ? 100 - leftShare : 0];
 
   return (
-    <div className={styles.dayBar}>
+    <div className={`${styles.dayBar} ${variant === 'card' ? styles.dayBarCard : ''}`}>
       <span className={styles.dayDate}>{localizeDigits(formatDayLabel(date))}</span>
       <span className={styles.dayStats}>
         {figures.map((figure, i) => (

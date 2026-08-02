@@ -111,6 +111,14 @@ button {
   color: var(--muted-foreground);
 }
 
+/* A form's fields down a modal body. The body itself sets no gap — some of them
+   are lists, not forms — so a form that is just stacked fields says so here. */
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .input,
 .textarea,
 .select {
@@ -218,6 +226,99 @@ input[type='number']::-webkit-inner-spin-button {
 .btn-margin {
   margin: 1.25rem;
   width: calc(100% - 2.5rem);
+}
+
+/* =========================================================
+   Type toggle
+   =========================================================
+   A row asking which KIND of entry this is — income or expense, a stock-in or a
+   sale or stock used, cash borrowed or cash paid back. Every form asks the same
+   question, so the shape lives here and each screen names only the colour.
+
+   The chosen one is outlined and tinted in that colour rather than filled solid.
+   A solid fill reads as a button that was just pressed and is done; these are a
+   standing statement of what is being recorded, and have to keep saying it while
+   the rest of the form is filled in. Tinting also leaves the solid fill to mean
+   one thing on the screen: the button that commits.
+
+   Colour comes from --type-accent, which the .type-* classes below set. */
+.type-toggle {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.type-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.65rem 0.5rem;
+  border: 1.5px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--input-background);
+  color: var(--muted-foreground);
+  font-size: var(--fs-base);
+  font-weight: var(--font-weight-medium);
+  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
+}
+
+/* A locked row — an edit, where what the entry is was settled when it was made.
+   The choices not taken fade back; the one that was stays at full strength,
+   because saying which it is is the only reason the row is still there. */
+.type-btn:disabled {
+  opacity: 0.5;
+}
+.type-btn-active:disabled {
+  opacity: 1;
+}
+
+/* Worn by the chosen one — or, where the row is two live actions rather than a
+   choice already made, by both. */
+.type-btn-active {
+  border-color: var(--type-accent);
+  background: color-mix(in srgb, var(--type-accent) 12%, var(--input-background));
+  color: var(--type-accent-fg, var(--type-accent));
+}
+
+/* The statement without the choice: for a subject that can only ever be booked
+   one way, so there is nothing to toggle between. Reads as the toggle's chosen
+   option shrunk to a label, which is what it is. Takes the same --type-accent. */
+.type-tag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--type-accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--type-accent) 12%, transparent);
+  color: var(--type-accent-fg, var(--type-accent));
+  font-size: var(--fs-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+}
+
+/* The colours an entry can be booked in. Green is money coming in, red money
+   going out, orange stock bought and sitting there, plain a move that is only
+   goods and no money at all. */
+.type-income {
+  --type-accent: var(--green-600);
+  --type-accent-fg: var(--green-700);
+}
+.type-expense {
+  --type-accent: var(--red-600);
+  --type-accent-fg: var(--red-700);
+}
+.type-stock {
+  --type-accent: var(--orange-600);
+  --type-accent-fg: var(--orange-700);
+}
+.type-plain {
+  --type-accent: var(--muted-foreground);
+  --type-accent-fg: var(--foreground);
 }
 
 /* Round icon button (header / close) */

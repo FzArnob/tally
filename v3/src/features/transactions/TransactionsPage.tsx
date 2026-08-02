@@ -201,6 +201,7 @@ export function TransactionsPage({ book }: { book: Book }) {
           {groupCashflowByDay(filtered).map((day) => (
             <Fragment key={day.key}>
               <HistoryDayBar
+                variant="card"
                 date={day.date}
                 left={{ label: t.income, amount: day.totalIncome, tone: 'positive' }}
                 right={{ label: t.expense, amount: day.totalExpense, tone: 'negative' }}

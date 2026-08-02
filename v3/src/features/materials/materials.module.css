@@ -244,45 +244,8 @@
   line-height: 1.4;
 }
 
-.tabSwitch {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  background: var(--input-background);
-  padding: 0.3rem;
-  border-radius: var(--radius);
-}
-
-.tabBtn {
-  flex: 1;
-  padding: 0.6rem;
-  border-radius: calc(var(--radius) - 0.2rem);
-  border: none;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-weight: var(--font-weight-medium);
-  font-size: var(--fs-sm);
-  transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease,
-    box-shadow var(--dur-fast) ease;
-}
-
-.tabBtn.activeStock {
-  background: var(--orange-600);
-  color: #fff;
-  box-shadow: var(--shadow-sm);
-}
-
-.tabBtn.activeSale {
-  background: var(--green-600);
-  color: #fff;
-  box-shadow: var(--shadow-sm);
-}
-
-.tabBtn.activeUsed {
-  background: var(--muted-foreground);
-  color: #fff;
-  box-shadow: var(--shadow-sm);
-}
+/* The stock-in/sale/used switch is the shared .type-toggle in global.css, the
+   same control the transaction and cash forms ask their own version of. */
 
 /* Price entry: one input whose meaning (total vs per-unit) the toggle sets,
    with the derived figure shown beneath. */
@@ -444,27 +407,9 @@
   font-size: var(--fs-heading-sm);
 }
 
-.saveStock {
-  background: var(--orange-600) !important;
-  color: #fff !important;
-}
-.saveStock:hover {
-  background: var(--orange-700) !important;
-}
-.saveSale {
-  background: var(--green-600) !important;
-  color: #fff !important;
-}
-.saveSale:hover {
-  background: var(--green-700) !important;
-}
-.saveUsed {
-  background: var(--muted-foreground) !important;
-  color: #fff !important;
-}
-.saveUsed:hover {
-  background: var(--foreground) !important;
-}
+/* The save button is the plain primary one, as on every other entry form. The
+   colour of the move is carried by the type toggle at the top of the form, which
+   stays visible (locked) even in an edit. */
 
 /* ---- History list ---- */
 .historyList {

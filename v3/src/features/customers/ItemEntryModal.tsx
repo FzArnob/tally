@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, ModalHeader } from '../../components/Modal';
+import { useQuantityPrice } from '../../hooks/useQuantityPrice';
 import { useI18n } from '../../i18n/LanguageContext';
 import { updateCustomerItemEntry, updateCustomerItemPayment } from '../../lib/api';
 import { ApiError, type BalanceHistoryEntry } from '../../types';
 import styles from './customers.module.css';
-
-/** Round a money value to 2 decimals, returned as a clean input string. */
-const money = (n: number) => String(Math.round(n * 100) / 100);
 
 interface ItemEntryModalProps {
   open: boolean;
@@ -31,12 +29,21 @@ interface ItemEntryModalProps {
  */
 export function ItemEntryModal({ open, entry, onClose, onSaved }: ItemEntryModalProps) {
   const { t, formatCurrency, formatNumber, localizeDigits } = useI18n();
-  const [quantity, setQuantity] = useState('');
-  // One price field, as in the product and material action modals: the toggle
-  // decides whether the figure means the whole line or a single unit, and the
-  // other one is derived beneath it.
-  const [priceMode, setPriceMode] = useState<'total' | 'unit'>('total');
-  const [price, setPrice] = useState('');
+  // One quantity and one price field, as in the product and material action
+  // modals: the same control doing the same job.
+  const {
+    qty: quantity,
+    price,
+    priceMode,
+    qtyNum,
+    priceNum,
+    unitNum,
+    totalNum,
+    setQty: setQuantity,
+    setPrice,
+    switchMode,
+    seed,
+  } = useQuantityPrice();
   const [amount, setAmount] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,33 +57,17 @@ export function ItemEntryModal({ open, entry, onClose, onSaved }: ItemEntryModal
     if (!open || !entry) return;
     if (seededFor.current === entry.id) return;
     seededFor.current = entry.id;
-    setQuantity(entry.quantity !== null ? String(entry.quantity) : '');
     // Seeded on the total, which is what the entry itself is.
-    setPriceMode('total');
-    setPrice(money(entry.amount));
+    seed(entry.quantity !== null ? String(entry.quantity) : '', entry.amount);
     setAmount(String(entry.amount));
     setError(null);
-  }, [open, entry]);
+  }, [open, entry, seed]);
 
   if (!entry) return null;
 
-  const qtyNum = parseFloat(quantity) || 0;
-  const priceNum = parseFloat(price) || 0;
   const amountNum = parseFloat(amount);
   const unit = entry.quantity_type ?? '';
 
-  // Derive the total and the per-unit price from whichever the toggle is on.
-  const totalNum = priceMode === 'total' ? priceNum : priceNum * qtyNum;
-  const unitNum = priceMode === 'unit' ? priceNum : qtyNum > 0 ? priceNum / qtyNum : 0;
-
-  // Flip the toggle, converting the value so it still means the same money.
-  const switchMode = (m: 'total' | 'unit') => {
-    if (m === priceMode) return;
-    if (qtyNum > 0 && price.trim() !== '') {
-      setPrice(m === 'unit' ? money(unitNum) : money(totalNum));
-    }
-    setPriceMode(m);
-  };
   // How many whole units this payment clears, when it clears whole ones at all.
   const paidUnits =
     !taking && entry.price_per_unit ? (amountNum || 0) / entry.price_per_unit : 0;

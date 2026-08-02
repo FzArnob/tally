@@ -4,15 +4,17 @@
 }
 
 /* ---- Summary card (Income / Expense / Balance) ---- */
+/* Shares the list's side inset and corner so it heads the same column the day
+   bars and entry cards run down, rather than floating at its own width. */
 .summary {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem 0.75rem;
-  margin: 1rem 1.25rem 0;
-  padding: 0.8rem 1rem;
+  margin: 1rem 0.9rem 0;
+  padding: 0.8rem 0.85rem;
   background: var(--secondary);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 0.75rem;
 }
 
 .sumItem {
@@ -43,11 +45,13 @@
 
 /* ---- List ---- */
 /* The day separators inside pin below the header and the toolbar, both of which
-   are sticky above this list, and bleed sideways to the list's own padding so
-   they span its full width. */
+   are sticky above this list. They run as cards (see HistoryDayBar) so they sit
+   in the column with the entries rather than cutting across it. */
 .list {
-  --day-bar-top: calc(var(--header-h, 4.5rem) + var(--toolbar-h, 4rem) - 1px);
-  --day-bar-pad: 0.9rem;
+  /* Rests a little clear of the toolbar rather than flush against it: it is a
+     card now, and a card butted into the bar above reads as a seam. Entries
+     crossing the gap are already fading into the toolbar's gradient. */
+  --day-bar-top: calc(var(--header-h, 4.5rem) + var(--toolbar-h, 4rem) + 0.35rem);
   --day-bar-z: 31; /* clears the toolbar's trailing fade (z-index 30) */
   display: flex;
   flex-direction: column;
@@ -155,45 +159,9 @@
 }
 
 /* ---- Form modal ---- */
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.typeToggle {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.typeBtn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.65rem;
-  border: 1.5px solid var(--border);
-  border-radius: 0.7rem;
-  background: var(--input-background);
-  color: var(--muted-foreground);
-  font-size: var(--fs-base);
-  font-weight: var(--font-weight-medium);
-  transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease,
-    color var(--dur-fast) ease;
-}
-
-.typeIncomeActive {
-  border-color: var(--green-600);
-  background: color-mix(in srgb, var(--green-600) 12%, var(--input-background));
-  color: var(--green-700);
-}
-
-.typeExpenseActive {
-  border-color: var(--red-600);
-  background: color-mix(in srgb, var(--red-600) 12%, var(--input-background));
-  color: var(--red-700);
-}
+/* Its layout is the shared .form-stack, and its income/expense toggle the shared
+   .type-toggle — both in global.css, because every other entry form in the app
+   is now stacked the same way and asks its own version of the same question. */
 
 .categoryEmpty {
   display: inline-flex;

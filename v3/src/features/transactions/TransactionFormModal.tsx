@@ -130,13 +130,13 @@ export function TransactionFormModal({
         </>
       }
     >
-      <div className={styles.form}>
+      <div className="form-stack">
         <div className="field">
           <label>{t.typeLabel}</label>
-          <div className={styles.typeToggle}>
+          <div className="type-toggle">
             <button
               type="button"
-              className={`${styles.typeBtn} ${type === 'income' ? styles.typeIncomeActive : ''}`}
+              className={`type-btn type-income ${type === 'income' ? 'type-btn-active' : ''}`}
               onClick={() => pickType('income')}
               aria-pressed={type === 'income'}
             >
@@ -145,7 +145,7 @@ export function TransactionFormModal({
             </button>
             <button
               type="button"
-              className={`${styles.typeBtn} ${type === 'expense' ? styles.typeExpenseActive : ''}`}
+              className={`type-btn type-expense ${type === 'expense' ? 'type-btn-active' : ''}`}
               onClick={() => pickType('expense')}
               aria-pressed={type === 'expense'}
             >

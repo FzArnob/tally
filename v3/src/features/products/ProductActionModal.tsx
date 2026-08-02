@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../../components/Modal';
+import { useQuantityPrice } from '../../hooks/useQuantityPrice';
 import { useI18n } from '../../i18n/LanguageContext';
 import { saveProductTransaction } from '../../lib/api';
 import { ApiError, type Product, type ProductTransaction, type TransactionType } from '../../types';
@@ -13,9 +14,6 @@ interface ProductActionModalProps {
   onSaved: () => void;
 }
 
-/** Round a money value to 2 decimals, returned as a clean input string. */
-const money = (n: number) => String(Math.round(n * 100) / 100);
-
 export function ProductActionModal({
   open,
   product,
@@ -25,11 +23,22 @@ export function ProductActionModal({
 }: ProductActionModalProps) {
   const { t, formatCurrency, formatNumber } = useI18n();
   const [tab, setTab] = useState<TransactionType>('stock');
-  const [qty, setQty] = useState('');
-  // A single price field; the toggle decides whether it means the whole batch's
-  // total or the per-unit price. The other figure is derived for the readout.
-  const [priceMode, setPriceMode] = useState<'total' | 'unit'>('total');
-  const [price, setPrice] = useState('');
+  // Quantity and a single price field, whose toggle decides whether the figure
+  // means the whole batch or one unit of it. See the hook for the rest.
+  const {
+    qty,
+    price,
+    priceMode,
+    qtyNum,
+    priceNum,
+    totalNum,
+    unitNum,
+    setQty,
+    setPrice,
+    switchMode,
+    applyUnitPrice,
+    seed,
+  } = useQuantityPrice();
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -48,30 +57,20 @@ export function ProductActionModal({
     seededFor.current = subject;
     if (editTx) {
       setTab(editTx.type);
-      setQty(String(editTx.quantity));
-      setPriceMode('total');
-      setPrice(money(editTx.total_amount));
+      seed(String(editTx.quantity), editTx.total_amount);
       setNote(editTx.note ?? '');
     } else {
       setTab(product.product_type === 'manufacture' ? 'sale' : 'stock');
-      setQty('');
-      setPriceMode('total');
-      setPrice('');
+      seed('', null);
       setNote('');
     }
-  }, [open, editTx, product]);
+  }, [open, editTx, product, seed]);
 
   if (!product) return null;
 
   const isStock = tab === 'stock';
-  const qtyNum = parseFloat(qty) || 0;
-  const priceNum = parseFloat(price) || 0;
   const hasImage = product.image_url && product.image_url !== 'null';
   const unit = product.quantity_type || 'piece';
-
-  // Derive the total and per-unit from whichever basis the toggle is on.
-  const totalNum = priceMode === 'total' ? priceNum : priceNum * qtyNum;
-  const unitNum = priceMode === 'unit' ? priceNum : qtyNum > 0 ? priceNum / qtyNum : 0;
 
   // Contextual recent reference: last buy for a stock-in, last sale for a sale.
   const refPrice = isStock ? product.last_purchase_price : product.last_sale_price;
@@ -86,23 +85,11 @@ export function ProductActionModal({
   // Tapping the recent reference drops it straight into the price field, with the
   // toggle moved to per-unit so the figure means what it says.
   const useRefPrice = () => {
-    if (refPrice == null) return;
-    setPriceMode('unit');
-    setPrice(money(refPrice));
-  };
-
-  // Flip the toggle, converting the current value so it stays equivalent.
-  const switchMode = (m: 'total' | 'unit') => {
-    if (m === priceMode) return;
-    if (qtyNum > 0 && price.trim() !== '') {
-      setPrice(m === 'unit' ? money(unitNum) : money(totalNum));
-    }
-    setPriceMode(m);
+    if (refPrice != null) applyUnitPrice(refPrice);
   };
 
   const submit = async () => {
-    const q = parseFloat(qty);
-    if (!q || q <= 0) {
+    if (qtyNum <= 0) {
       alert(t.enterValidQuantity);
       return;
     }
@@ -111,7 +98,7 @@ export function ProductActionModal({
       return;
     }
     // A ready-made sale cannot exceed the stock in hand (manufacture stock is unknown).
-    if (tab === 'sale' && !isManufacture && q - available > 1e-9) {
+    if (tab === 'sale' && !isManufacture && qtyNum - available > 1e-9) {
       alert(`${t.notEnoughStock} ${formatNumber(available)} ${unit}`);
       return;
     }
@@ -121,7 +108,7 @@ export function ProductActionModal({
       await saveProductTransaction({
         productId: product.id,
         type: tab,
-        quantity: q,
+        quantity: qtyNum,
         // The API stores the per-unit price and derives the total from it.
         pricePerUnit: Math.round(unitNum * 100) / 100,
         note: note.trim() || null,
@@ -169,7 +156,13 @@ export function ProductActionModal({
               </div>
               <span className={styles.actionStock}>
                 {isManufacture ? (
-                  t.typeManufacture
+                  <>
+                    {/* Nothing is stocked in for a manufacture product, so the
+                        form offers no choice and shows no toggle. The tag is
+                        where it says what this entry will be. */}
+                    {t.typeManufacture}
+                    <span className="type-tag type-income">{t.sale}</span>
+                  </>
                 ) : (
                   <>
                     {t.stock}: {formatNumber(product.current_stock || 0)} {unit}
@@ -185,7 +178,7 @@ export function ProductActionModal({
       }
       footer={
         <button
-          className={`btn btn-block btn-margin ${isStock ? styles.saveStock : styles.saveSale}`}
+          className="btn btn-primary btn-block btn-margin"
           onClick={submit}
           disabled={saving}
         >
@@ -194,17 +187,26 @@ export function ProductActionModal({
       }
     >
       <div className={styles.body} style={{ gap: '1rem' }}>
-        {!editTx && !isManufacture && (
-          <div className={styles.tabSwitch}>
+        {/* An edit cannot change what the entry is, but it still shows the row,
+            locked: it is where this form says whether it is a stock-in or a sale.
+            A manufacture product is sale-only and has nothing to say. */}
+        {!isManufacture && (
+          <div className="type-toggle">
             <button
-              className={`${styles.tabBtn} ${isStock ? styles.activeStock : ''}`}
+              type="button"
+              className={`type-btn type-stock ${isStock ? 'type-btn-active' : ''}`}
               onClick={() => setTab('stock')}
+              aria-pressed={isStock}
+              disabled={!!editTx}
             >
               {t.stockIn}
             </button>
             <button
-              className={`${styles.tabBtn} ${!isStock ? styles.activeSale : ''}`}
+              type="button"
+              className={`type-btn type-income ${!isStock ? 'type-btn-active' : ''}`}
               onClick={() => setTab('sale')}
+              aria-pressed={!isStock}
+              disabled={!!editTx}
             >
               {t.sale}
             </button>

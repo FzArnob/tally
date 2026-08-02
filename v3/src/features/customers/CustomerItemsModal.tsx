@@ -239,13 +239,23 @@ export function CustomerItemsModal({ customer, onClose, onChanged }: CustomerIte
           </>
         }
       >
-        {/* Cash first: the two directions money moves without any goods. */}
-        <div className={styles.cashActions}>
-          <button className={styles.cashOutBtn} onClick={() => setCashType('unpaid')}>
+        {/* Cash first: the two directions money moves without any goods. Both
+            wear the active look, since neither is a choice already made — they
+            are two live actions, each in the colour it books. */}
+        <div className={`type-toggle ${styles.cashActions}`}>
+          <button
+            type="button"
+            className="type-btn type-btn-active type-expense"
+            onClick={() => setCashType('unpaid')}
+          >
             <span className="material-symbols-outlined icon-md">south_west</span>
             {t.borrowedCash}
           </button>
-          <button className={styles.cashInBtn} onClick={() => setCashType('paid')}>
+          <button
+            type="button"
+            className="type-btn type-btn-active type-income"
+            onClick={() => setCashType('paid')}
+          >
             <span className="material-symbols-outlined icon-md">north_east</span>
             {t.cashPaidBack}
           </button>

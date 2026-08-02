@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../../components/Modal';
+import { useQuantityPrice } from '../../hooks/useQuantityPrice';
 import { useI18n } from '../../i18n/LanguageContext';
 import { saveMaterialTransaction } from '../../lib/api';
 import {
@@ -21,9 +22,6 @@ interface MaterialActionModalProps {
 /** Which move types reduce stock (guarded against the stock in hand). */
 const OUTFLOWS: MaterialTransactionType[] = ['sale', 'used'];
 
-/** Round a money value to 2 decimals, returned as a clean input string. */
-const money = (n: number) => String(Math.round(n * 100) / 100);
-
 export function MaterialActionModal({
   open,
   material,
@@ -33,11 +31,22 @@ export function MaterialActionModal({
 }: MaterialActionModalProps) {
   const { t, formatCurrency, formatNumber } = useI18n();
   const [tab, setTab] = useState<MaterialTransactionType>('stock');
-  const [qty, setQty] = useState('');
-  // A single price field; the toggle decides whether it means the whole batch's
-  // total or the per-unit price. The other figure is derived for the readout.
-  const [priceMode, setPriceMode] = useState<'total' | 'unit'>('total');
-  const [price, setPrice] = useState('');
+  // Quantity and a single price field, whose toggle decides whether the figure
+  // means the whole batch or one unit of it. See the hook for the rest.
+  const {
+    qty,
+    price,
+    priceMode,
+    qtyNum,
+    priceNum,
+    totalNum,
+    unitNum,
+    setQty,
+    setPrice,
+    switchMode,
+    applyUnitPrice,
+    seed,
+  } = useQuantityPrice();
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -53,25 +62,21 @@ export function MaterialActionModal({
     seededFor.current = subject;
     if (editTx) {
       setTab(editTx.type);
-      setQty(String(editTx.quantity));
-      setPriceMode('total');
-      setPrice(editTx.type === 'used' ? '' : money(editTx.total_amount));
+      // A 'used' move consumes stock without money changing hands, so it has no
+      // price to seed.
+      seed(String(editTx.quantity), editTx.type === 'used' ? null : editTx.total_amount);
       setNote(editTx.note ?? '');
     } else {
       setTab('stock');
-      setQty('');
-      setPriceMode('total');
-      setPrice('');
+      seed('', null);
       setNote('');
     }
-  }, [open, editTx, material]);
+  }, [open, editTx, material, seed]);
 
   if (!material) return null;
 
   const isUsed = tab === 'used';
   const isStock = tab === 'stock';
-  const qtyNum = parseFloat(qty) || 0;
-  const priceNum = parseFloat(price) || 0;
   const hasImage = material.image_url && material.image_url !== 'null';
   const unit = material.quantity_type || 'piece';
 
@@ -79,38 +84,20 @@ export function MaterialActionModal({
   const refPrice = isStock ? material.last_purchase_price : material.last_sale_price;
   const refLabel = isStock ? t.lastPurchase : t.lastSale;
 
-  // Derive the total and per-unit from whichever basis the toggle is on.
-  const totalNum = priceMode === 'total' ? priceNum : priceNum * qtyNum;
-  const unitNum = priceMode === 'unit' ? priceNum : qtyNum > 0 ? priceNum / qtyNum : 0;
-
   // Stock available for a sale/used move. When editing, reverse the edited
   // entry's effect so it validates against the true baseline (mirrors the API).
   const available =
     (material.current_stock || 0) +
     (editTx ? (OUTFLOWS.includes(editTx.type) ? editTx.quantity : -editTx.quantity) : 0);
 
-  const saveClass = isStock ? styles.saveStock : isUsed ? styles.saveUsed : styles.saveSale;
-
   // Tapping the recent reference drops it straight into the price field, with the
   // toggle moved to per-unit so the figure means what it says.
   const useRefPrice = () => {
-    if (refPrice == null) return;
-    setPriceMode('unit');
-    setPrice(money(refPrice));
-  };
-
-  // Flip the toggle, converting the current value so it stays equivalent.
-  const switchMode = (m: 'total' | 'unit') => {
-    if (m === priceMode) return;
-    if (qtyNum > 0 && price.trim() !== '') {
-      setPrice(m === 'unit' ? money(unitNum) : money(totalNum));
-    }
-    setPriceMode(m);
+    if (refPrice != null) applyUnitPrice(refPrice);
   };
 
   const submit = async () => {
-    const q = parseFloat(qty);
-    if (!q || q <= 0) {
+    if (qtyNum <= 0) {
       alert(t.enterValidQuantity);
       return;
     }
@@ -118,7 +105,7 @@ export function MaterialActionModal({
       alert(t.enterValidTotalPrice);
       return;
     }
-    if (OUTFLOWS.includes(tab) && q - available > 1e-9) {
+    if (OUTFLOWS.includes(tab) && qtyNum - available > 1e-9) {
       alert(`${t.notEnoughStock} ${formatNumber(available)} ${unit}`);
       return;
     }
@@ -127,7 +114,7 @@ export function MaterialActionModal({
       await saveMaterialTransaction({
         materialId: material.id,
         type: tab,
-        quantity: q,
+        quantity: qtyNum,
         // The server always stores the total and derives per-unit from it.
         totalAmount: isUsed ? 0 : Math.round(totalNum * 100) / 100,
         note: note.trim() || null,
@@ -182,34 +169,45 @@ export function MaterialActionModal({
         </div>
       }
       footer={
-        <button className={`btn btn-block btn-margin ${saveClass}`} onClick={submit} disabled={saving}>
+        <button className="btn btn-primary btn-block btn-margin" onClick={submit} disabled={saving}>
           {editTx ? t.update : t.save}
         </button>
       }
     >
       <div className={styles.body} style={{ gap: '1rem' }}>
-        {!editTx && (
-          <div className={styles.tabSwitch}>
-            <button
-              className={`${styles.tabBtn} ${isStock ? styles.activeStock : ''}`}
-              onClick={() => setTab('stock')}
-            >
-              {t.stockIn}
-            </button>
-            <button
-              className={`${styles.tabBtn} ${tab === 'sale' ? styles.activeSale : ''}`}
-              onClick={() => setTab('sale')}
-            >
-              {t.sale}
-            </button>
-            <button
-              className={`${styles.tabBtn} ${isUsed ? styles.activeUsed : ''}`}
-              onClick={() => setTab('used')}
-            >
-              {t.stockUsed}
-            </button>
-          </div>
-        )}
+        {/* An edit cannot change which move this is, but the row stays, locked:
+            it is where the form says which of the three it is. */}
+        <div className="type-toggle">
+          <button
+            type="button"
+            className={`type-btn type-stock ${isStock ? 'type-btn-active' : ''}`}
+            onClick={() => setTab('stock')}
+            aria-pressed={isStock}
+            disabled={!!editTx}
+          >
+            {t.stockIn}
+          </button>
+          <button
+            type="button"
+            className={`type-btn type-income ${tab === 'sale' ? 'type-btn-active' : ''}`}
+            onClick={() => setTab('sale')}
+            aria-pressed={tab === 'sale'}
+            disabled={!!editTx}
+          >
+            {t.sale}
+          </button>
+          {/* Stock used is goods leaving with no money behind them, so it is
+              the one choice here that books in no colour. */}
+          <button
+            type="button"
+            className={`type-btn type-plain ${isUsed ? 'type-btn-active' : ''}`}
+            onClick={() => setTab('used')}
+            aria-pressed={isUsed}
+            disabled={!!editTx}
+          >
+            {t.stockUsed}
+          </button>
+        </div>
 
         <div className="field">
           <label htmlFor="mQty">{isUsed ? t.quantityUsed : t.quantity}</label>

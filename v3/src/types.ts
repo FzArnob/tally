@@ -6,6 +6,17 @@ export interface User {
   email: string;
   name: string;
   picture: string | null;
+  // Display preferences, stored on the account so they follow the user between
+  // devices. Kept as plain strings here to avoid types.ts depending on the
+  // theme/i18n modules; both contexts narrow them on adoption.
+  theme: 'system' | 'light' | 'dark';
+  language: 'en' | 'bn';
+}
+
+/** Partial update of the signed-in user's preferences. */
+export interface UserSettings {
+  theme?: User['theme'];
+  language?: User['language'];
 }
 
 export interface AuthResponse {

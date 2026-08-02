@@ -620,6 +620,11 @@ function shapeUser(array $u): array
         'email'   => $u['email'],
         'name'    => $u['name'],
         'picture' => ($u['picture'] ?? '') !== '' ? $u['picture'] : null,
+        // Display preferences, carried on the user so a sign-in on any device
+        // restores them. Older rows predate the columns; fall back to the
+        // defaults the app used when the choice lived only in a cookie.
+        'theme'    => $u['theme']    ?? 'system',
+        'language' => $u['language'] ?? 'en',
     ];
 }
 
@@ -1360,6 +1365,43 @@ on('POST', '/auth/google', function () {
 
 on('GET', '/auth/me', function () {
     json_response(['user' => shapeUser(authUser())]);
+});
+
+/**
+ * The signed-in user's display preferences. Both fields are optional; only what
+ * is sent is changed, so the theme toggle and the language menu can each save
+ * on their own without knowing about the other.
+ */
+on('PUT', '/auth/settings', function () {
+    $user = authUser();
+    $body = read_json_body();
+
+    $sets = [];
+    $args = [];
+    if (array_key_exists('theme', $body)) {
+        if (!in_array($body['theme'], ['system', 'light', 'dark'], true)) {
+            json_error('Theme must be "system", "light" or "dark".', 422, 'validation');
+        }
+        $sets[] = 'theme = ?';
+        $args[] = $body['theme'];
+    }
+    if (array_key_exists('language', $body)) {
+        if (!in_array($body['language'], ['en', 'bn'], true)) {
+            json_error('Language must be "en" or "bn".', 422, 'validation');
+        }
+        $sets[] = 'language = ?';
+        $args[] = $body['language'];
+    }
+    if (!$sets) {
+        json_error('Nothing to update.', 422, 'validation');
+    }
+
+    $args[] = $user['id'];
+    db()->prepare('UPDATE users SET ' . implode(', ', $sets) . ' WHERE id = ?')->execute($args);
+
+    $stmt = db()->prepare('SELECT * FROM users WHERE id = ?');
+    $stmt->execute([$user['id']]);
+    json_response(['success' => true, 'user' => shapeUser($stmt->fetch())]);
 });
 
 on('POST', '/auth/logout', function () {

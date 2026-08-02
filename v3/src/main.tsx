@@ -6,6 +6,7 @@ import { ThemeProvider, applyTheme, readStoredTheme } from './theme/ThemeContext
 import { BooksProvider } from './books/BooksContext';
 import { AuthProvider } from './auth/AuthContext';
 import { AuthGate } from './auth/AuthGate';
+import { SettingsSync } from './settings/SettingsSync';
 import { App } from './App';
 import './styles/global.css';
 
@@ -18,6 +19,8 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <LanguageProvider>
         <AuthProvider>
+          {/* Signed-in users keep their theme/language on the account. */}
+          <SettingsSync />
           <AuthGate>
             <BooksProvider>
               <BrowserRouter>

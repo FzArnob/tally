@@ -65,6 +65,11 @@ DROP TABLE IF EXISTS users;
 -- google_id is the token's `sub` claim (stable per account); email/name/picture
 -- are refreshed from the ID token on every login.
 -- `timestamp` is the sign-up moment.
+--
+-- theme/language are the account's display preferences, so a signed-in user
+-- finds the app as they left it on any device. The client still keeps a cookie
+-- copy (it is what paints the first frame, and it is all a signed-out visitor
+-- has); on login the row below wins.
 -- ---------------------------------------------------------------------------
 CREATE TABLE users (
     id         CHAR(36)     NOT NULL PRIMARY KEY,
@@ -73,6 +78,8 @@ CREATE TABLE users (
     email      VARCHAR(255) NOT NULL DEFAULT '',
     name       VARCHAR(255) NOT NULL DEFAULT '',
     picture    VARCHAR(512) NOT NULL DEFAULT '',
+    theme      ENUM('system','light','dark') NOT NULL DEFAULT 'system',
+    language   ENUM('en','bn')               NOT NULL DEFAULT 'en',
     timestamp  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

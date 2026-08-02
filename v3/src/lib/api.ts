@@ -5,6 +5,7 @@ import {
   ApiError,
   type AuthResponse,
   type MeResponse,
+  type UserSettings,
   type Book,
   type BookType,
   type BooksResponse,
@@ -102,6 +103,11 @@ export function googleLogin(idToken: string): Promise<AuthResponse> {
 /** Validate the stored token and fetch the current user. */
 export function getMe(): Promise<MeResponse> {
   return request<MeResponse>('auth/me');
+}
+
+/** Persist the signed-in user's display preferences (only the fields given). */
+export function saveUserSettings(settings: UserSettings): Promise<MeResponse & { success: boolean }> {
+  return request<MeResponse & { success: boolean }>('auth/settings', jsonInit('PUT', settings));
 }
 
 /** Revoke the current session server-side. */

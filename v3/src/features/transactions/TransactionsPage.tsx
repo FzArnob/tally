@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useI18n } from '../../i18n/LanguageContext';
 import { Header, CategoriesButton } from '../../components/Header';
 import { BookSwitcher } from '../../books/BookSwitcher';
 import { UserMenu } from '../../auth/UserMenu';
+import { HistoryDayBar } from '../../components/HistoryDayBar';
 import { Toolbar } from '../../components/Toolbar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { groupCashflowByDay } from '../../lib/history';
 import { deletePersonalTransaction, getCategories, getTransactions } from '../../lib/api';
 import type { Book, Category, PersonalTransaction, TransactionTotals } from '../../types';
 import { TransactionFormModal } from './TransactionFormModal';
@@ -20,7 +22,7 @@ function TransactionRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const { t, formatSignedCurrency, formatTimeShort, localizeDigits } = useI18n();
+  const { t, formatSignedCurrency, formatTimeOfDay, localizeDigits } = useI18n();
   const income = tx.type === 'income';
 
   return (
@@ -47,10 +49,11 @@ function TransactionRow({
         )}
 
         <div className={styles.line}>
+          {/* Clock only: the day bar above already carries the date. */}
           <span className={styles.meta}>
             {income ? t.income : t.expense}
             {' · '}
-            {localizeDigits(formatTimeShort(tx.timestamp))}
+            {localizeDigits(formatTimeOfDay(tx.timestamp))}
           </span>
           <div className={styles.actions}>
             <button className="ghost-btn" aria-label={t.editTransaction} onClick={onEdit}>
@@ -193,16 +196,27 @@ export function TransactionsPage({ book }: { book: Book }) {
               )}
             </div>
           )}
-          {filtered.map((tx) => (
-            <TransactionRow
-              key={tx.id}
-              tx={tx}
-              onEdit={() => {
-                setFormTx(tx);
-                setFormOpen(true);
-              }}
-              onDelete={() => setPendingDelete(tx)}
-            />
+          {/* One bar per calendar day, carrying what came in that day against
+              what went out. The card above totals the whole book. */}
+          {groupCashflowByDay(filtered).map((day) => (
+            <Fragment key={day.key}>
+              <HistoryDayBar
+                date={day.date}
+                left={{ label: t.income, amount: day.totalIncome, tone: 'positive' }}
+                right={{ label: t.expense, amount: day.totalExpense, tone: 'negative' }}
+              />
+              {day.entries.map((tx) => (
+                <TransactionRow
+                  key={tx.id}
+                  tx={tx}
+                  onEdit={() => {
+                    setFormTx(tx);
+                    setFormOpen(true);
+                  }}
+                  onDelete={() => setPendingDelete(tx)}
+                />
+              ))}
+            </Fragment>
           ))}
         </div>
 

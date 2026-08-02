@@ -50,6 +50,7 @@ DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS product_materials;
 DROP TABLE IF EXISTS material_transactions;
 DROP TABLE IF EXISTS product_transactions;
+DROP TABLE IF EXISTS customer_payment_allocations;
 DROP TABLE IF EXISTS customer_items;
 DROP TABLE IF EXISTS customer_balance_history;
 DROP TABLE IF EXISTS materials;
@@ -126,8 +127,10 @@ CREATE INDEX idx_sessions_user ON sessions(user_id);
 --   total_paid_back every payment ever made, cash and goods together
 -- The first two are what STANDS today and always sum to total_balance
 -- (cash_balance - items_due); the last two are lifetime running totals and do
--- not. All of them are rewritten by recomputeCustomer(), which decides what
--- each payment settled by walking the ledger first in, first out.
+-- not. All of them are rewritten by recomputeCustomer(), which walks the ledger
+-- and settles each payment against what it is already on record as having paid
+-- (customer_payment_allocations), then the line it was aimed at, then borrowed
+-- cash oldest first, then goods oldest first.
 -- ---------------------------------------------------------------------------
 CREATE TABLE customers (
     id                    CHAR(36)      NOT NULL PRIMARY KEY,
@@ -497,6 +500,57 @@ CREATE TABLE customer_items (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_ci_customer_seq ON customer_items(customer_id, seq DESC);
+
+-- ---------------------------------------------------------------------------
+-- Customer payment allocations — which debt each payment actually settled.
+--
+-- The ledger alone cannot answer that. recomputeCustomer() replays it from the
+-- start, so without a record the waterfall re-decides EVERY payment on every
+-- replay — and deleting one entry lets a later payment reach back and cover a
+-- debt it never covered at the time. Deleting a settlement would then move the
+-- debt to a different pile rather than reopening the goods it paid for, which
+-- is not an undo.
+--
+-- So each payment's share is written down as it is made. A replay honours what
+-- is on record first and only decides the remainder, which makes deleting an
+-- entry an exact reversal: the rows for that payment go with it (FK cascade)
+-- and every other payment stays where it was.
+--
+-- The rows are DERIVED — recomputeCustomer() rewrites a customer's whole set on
+-- every replay — so they are a record, never a second source of truth. Dropping
+-- the table's contents costs only the history of who-paid-what, and the next
+-- replay refills it from the waterfall.
+--
+-- debt_id is polymorphic on debt_kind and carries no FK:
+--   'cash'  a customer_balance_history row (type='unpaid', source='cash')
+--   'item'  a customer_items line (however many takings were merged onto it)
+-- A row whose debt has since been deleted is simply not re-inserted.
+-- ---------------------------------------------------------------------------
+CREATE TABLE customer_payment_allocations (
+    id          CHAR(36)            NOT NULL PRIMARY KEY,
+    seq         BIGINT              NOT NULL AUTO_INCREMENT,  -- replay order
+    customer_id CHAR(36)            NOT NULL,
+    book_id     CHAR(36)            NOT NULL,
+    payment_id  CHAR(36)            NOT NULL,   -- customer_balance_history, type='paid'
+    debt_kind   ENUM('cash','item') NOT NULL,
+    debt_id     CHAR(36)            NOT NULL,   -- see above; no FK on purpose
+    amount      DECIMAL(14,2)       NOT NULL,   -- always positive
+    created_at  TIMESTAMP           DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP           DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_cpa_seq (seq),
+    -- One payment covers a given debt once; the replay sums before it writes.
+    UNIQUE KEY uq_cpa_pair (payment_id, debt_kind, debt_id),
+    CONSTRAINT fk_cpa_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+    CONSTRAINT fk_cpa_book     FOREIGN KEY (book_id)     REFERENCES books(id)     ON DELETE CASCADE,
+    -- Deleting a payment entry drops what it paid for, which is what reopens the
+    -- debt it had covered. This is the undo.
+    CONSTRAINT fk_cpa_payment  FOREIGN KEY (payment_id)
+        REFERENCES customer_balance_history(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The replay reads a customer's whole set in seq order.
+CREATE INDEX idx_cpa_customer_seq ON customer_payment_allocations(customer_id, seq);
+CREATE INDEX idx_cpa_debt         ON customer_payment_allocations(debt_kind, debt_id);
 
 -- ---------------------------------------------------------------------------
 -- Operation costs (store books) — a named recurring cost (reason) with a

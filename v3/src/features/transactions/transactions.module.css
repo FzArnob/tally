@@ -42,7 +42,13 @@
 }
 
 /* ---- List ---- */
+/* The day separators inside pin below the header and the toolbar, both of which
+   are sticky above this list, and bleed sideways to the list's own padding so
+   they span its full width. */
 .list {
+  --day-bar-top: calc(var(--header-h, 4.5rem) + var(--toolbar-h, 4rem) - 1px);
+  --day-bar-pad: 0.9rem;
+  --day-bar-z: 31; /* clears the toolbar's trailing fade (z-index 30) */
   display: flex;
   flex-direction: column;
   gap: 0.9rem;

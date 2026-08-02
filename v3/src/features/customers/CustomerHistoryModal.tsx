@@ -24,7 +24,7 @@ export function CustomerHistoryModal({
   onEdit,
   onChanged,
 }: CustomerHistoryModalProps) {
-  const { t, formatCurrency, formatSignedCurrency, formatNumber, formatTimeFull, localizeDigits } =
+  const { t, formatCurrency, formatSignedCurrency, formatNumber, formatTimeOfDay, localizeDigits } =
     useI18n();
   const [current, setCurrent] = useState<Customer | null>(null);
   const [entries, setEntries] = useState<BalanceHistoryEntry[]>([]);
@@ -176,8 +176,9 @@ export function CustomerHistoryModal({
                   )}
 
                   <div className={styles.line}>
+                    {/* Clock only: the day bar above already carries the date. */}
                     <span className={styles.entryTime}>
-                      {localizeDigits(formatTimeFull(entry.timestamp))}
+                      {localizeDigits(formatTimeOfDay(entry.timestamp))}
                     </span>
                     <div className={styles.entryActions}>
                       <button className="ghost-btn" aria-label={t.edit} onClick={() => onEdit(entry)}>

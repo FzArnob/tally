@@ -7,18 +7,25 @@
    here: Chrome ignores a sticky element's margin when pinning, but the spec
    keeps the margin box inside the sticky rect, so a top margin risks
    reintroducing the same strip elsewhere. The negative side margins span the
-   body's side padding, which is published as --modal-body-pad. */
+   body's side padding, which is published as --modal-body-pad.
+
+   On a PAGE there is no modal body: the app header and toolbar are sticky above
+   the list, so the list sets --day-bar-top to their combined height and
+   --day-bar-pad to its own side padding. It also has to raise --day-bar-z past
+   the toolbar's, because the toolbar trails a fade-out below itself that would
+   otherwise wash over the pinned bar — the bar comes to rest under the toolbar
+   and never overlaps it, so nothing is hidden by outranking it. */
 .dayBar {
   position: sticky;
-  top: 0;
-  z-index: 2;
+  top: var(--day-bar-top, 0);
+  z-index: var(--day-bar-z, 2);
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.35rem 0.75rem;
-  margin: 0 calc(-1 * var(--modal-body-pad, 1.25rem));
-  padding: 0.5rem var(--modal-body-pad, 1.25rem) 0.55rem;
+  margin: 0 calc(-1 * var(--day-bar-pad, var(--modal-body-pad, 1.25rem)));
+  padding: 0.5rem var(--day-bar-pad, var(--modal-body-pad, 1.25rem)) 0.55rem;
   background: var(--muted);
   border-bottom: 1px solid var(--border);
   border-top: 1px solid var(--border);

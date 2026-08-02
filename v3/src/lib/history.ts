@@ -88,6 +88,73 @@ export function groupByDay<T extends HistoryEntry>(entries: T[]): HistoryDay<T>[
   return days;
 }
 
+/** The slice of a one-directional entry the day grouping needs. */
+export interface AmountEntry {
+  /** Always positive — these lists only run one way. */
+  amount: number;
+  timestamp: string;
+}
+
+export interface AmountDay<T> extends DayGroup<T> {
+  /** Everything booked that day. */
+  total: number;
+}
+
+/**
+ * A list that only moves one way, by day — an operation cost's spends, say.
+ * There is nothing to set the day's figure against, so the day carries the one
+ * total and the bar above it shows no shares.
+ */
+export function groupAmountByDay<T extends AmountEntry>(entries: T[]): AmountDay<T>[] {
+  const days = groupDays<AmountDay<T>, T>(entries, (key, date) => ({
+    key,
+    date,
+    entries: [],
+    total: 0,
+  }));
+
+  for (const day of days) {
+    for (const entry of day.entries) day.total += entry.amount;
+  }
+  return days;
+}
+
+/** The slice of a personal transaction the day grouping needs. */
+export interface CashflowEntry {
+  type: 'income' | 'expense';
+  /** Always positive; the type says which way it went. */
+  amount: number;
+  timestamp: string;
+}
+
+export interface CashflowDay<T> extends DayGroup<T> {
+  totalIncome: number;
+  totalExpense: number;
+}
+
+/**
+ * A personal book's transactions, by day: what came in against what went out.
+ * The day's own movements — not a running balance, which the summary card at
+ * the top of the page already carries for the whole book.
+ */
+export function groupCashflowByDay<T extends CashflowEntry>(entries: T[]): CashflowDay<T>[] {
+  const days = groupDays<CashflowDay<T>, T>(entries, (key, date) => ({
+    key,
+    date,
+    entries: [],
+    totalIncome: 0,
+    totalExpense: 0,
+  }));
+
+  for (const day of days) {
+    for (const entry of day.entries) {
+      if (entry.type === 'income') day.totalIncome += entry.amount;
+      else day.totalExpense += entry.amount;
+    }
+  }
+  return days;
+}
+
 /** The slice of a customer's ledger entry the day grouping needs. */
 export interface BalanceEntry {
   type: 'paid' | 'unpaid';

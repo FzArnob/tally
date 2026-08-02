@@ -180,34 +180,45 @@ function verifyGoogleIdToken(string $jwt): array
 
 /**
  * Replay a customer's whole ledger and write back everything derived from it:
- * each entry's running balance, how far every tab line has been paid off, and
- * the figures the tab sheet reads straight off the customer row.
+ * each entry's running balance, how far every tab line has been paid off, the
+ * figures the tab sheet reads straight off the customer row, and the record of
+ * which debt each payment settled.
  *
- * FIRST IN, FIRST OUT. Debts are settled in the order they were run up — the
- * oldest one outstanding is always paid first, whether it is cash borrowed or
- * goods taken. Money and goods share ONE queue; nothing jumps it.
+ * A customer runs up two kinds of debt and they are settled in this order:
  *
- *   cash borrowed   -> joins the queue as a debt.
- *   goods taken     -> joins the queue as a debt, held on its customer_items
- *                      line (the row the tab sheet lists and fills up).
- *   money paid      -> pays the queue down from the front. Whatever is left when
- *                      the queue is clear stays in hand as credit.
- *   credit in hand  -> pays each NEW debt the moment it is booked, so paying
- *                      ahead covers whatever the customer takes next.
+ *   1. what the payment is ON RECORD as having paid (see below),
+ *   2. the ONE LINE it was aimed at, if it was — the Paid button on the tab is
+ *      an instruction, not loose change,
+ *   3. BORROWED CASH, oldest first — money handed back answers money lent,
+ *   4. GOODS on the tab, oldest first, part-paying the line it runs out on.
  *
- * The one deliberate exception: a payment made against a specific line (the
- * Paid button on the tab) goes to THAT line first. It is an instruction, not
- * loose change. Anything above what the line owes rejoins the queue.
+ * Anything still in hand after that is an advance, and settles each NEW debt the
+ * moment it is booked, so paying ahead covers whatever the customer takes next.
  *
- * That exception aside, this is what stops a later debt from helping itself to
- * money an older one had first claim on — the customer's balance is the same
- * either way, but which debts still stand is not.
+ * WHY PAYMENTS ARE WRITTEN DOWN. Steps 2-4 decide where fresh money goes, but
+ * they must not decide it twice. This function replays from the beginning, so
+ * re-running the waterfall over the whole ledger would let a payment reach back
+ * in time: delete a settlement and the debt it covered reopens BEHIND payments
+ * that were made later, which would then slide onto it and leave a different
+ * debt standing in its place. The customer's balance would be right and the tab
+ * sheet wrong — a deleted sandwich payment coming back as borrowed cash.
  *
- * Because this is a pure function of the ledger, correcting or deleting any
- * entry needs no unwinding: rewrite the entry and replay.
+ * So each payment's share is recorded in customer_payment_allocations as it is
+ * decided, and a replay honours what is on record before it decides anything.
+ * Deleting an entry then reverses exactly itself: its own records go with it
+ * (FK cascade), every other payment holds its place, and the debt it had
+ * covered is the one that reopens.
+ *
+ * The records are rewritten from this replay every time, so they never drift
+ * from the ledger — and a debt that has since been deleted is dropped rather
+ * than kept alive.
  */
 function recomputeCustomer(PDO $pdo, string $customerId): array
 {
+    $bookStmt = $pdo->prepare('SELECT book_id FROM customers WHERE id = ?');
+    $bookStmt->execute([$customerId]);
+    $bookId = (string) $bookStmt->fetchColumn();
+
     $rows = $pdo->prepare(
         'SELECT id, seq, type, source, amount, signed_amount, customer_item_id, timestamp
          FROM customer_balance_history WHERE customer_id = ? ORDER BY seq ASC'
@@ -222,30 +233,80 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
     $lineRows->execute([$customerId]);
     $lines = [];
     foreach ($lineRows->fetchAll() as $l) {
-        $lines[$l['id']] = ['owed' => (float) $l['total_amount'], 'paid' => 0.0, 'queued' => false];
+        $lines[$l['id']] = ['owed' => (float) $l['total_amount'], 'paid' => 0.0];
     }
 
-    // Debts in the order they were run up. A cash debt carries its own balance;
-    // a goods debt points at the line that carries it.
-    $queue  = [];
-    $credit = 0.0; // money in hand that has not met a debt yet
+    // Borrowed cash, filled in as the replay reaches each entry. A debt cannot
+    // be paid before it is run up, so an empty slot here means "not yet".
+    $cash = [];
 
-    /** Pay debts from the front of the queue. Returns what is left over. */
-    $payQueue = function (float $money) use (&$queue, &$lines): float {
-        foreach ($queue as $i => $debt) {
-            if ($money <= 0.0000001) {
-                break;
+    // What every payment is already on record as having settled, oldest first.
+    // Indexed both ways: a payment claims its own records when the replay
+    // reaches it, and a debt claims records against it when it is booked (the
+    // paid-ahead case, where the payment came first).
+    $allocStmt = $pdo->prepare(
+        'SELECT payment_id, debt_kind, debt_id, amount
+         FROM customer_payment_allocations WHERE customer_id = ? ORDER BY seq ASC'
+    );
+    $allocStmt->execute([$customerId]);
+    $records   = [];
+    $byPayment = [];
+    $byDebt    = [];
+    foreach ($allocStmt->fetchAll() as $a) {
+        $ref = $a['debt_kind'] . ':' . $a['debt_id'];
+        $i   = count($records);
+        $records[$i] = ['payment' => $a['payment_id'], 'ref' => $ref, 'amount' => (float) $a['amount']];
+        $byPayment[$a['payment_id']][] = $i;
+        $byDebt[$ref][] = $i;
+    }
+    $used = []; // records already applied, so neither index applies one twice
+
+    $queue   = []; // debt refs in the order they were run up
+    $booked  = []; // debts the replay has reached; refs not in here cannot be paid
+    $credit  = []; // payment id => money in hand that has met no debt yet
+    $applied = []; // "payment|kind:debt" => amount — the record being rebuilt
+
+    /** What a debt still needs; 0 for one that is gone or not yet run up. */
+    $owed = function (string $ref) use (&$lines, &$cash, &$booked): float {
+        if (empty($booked[$ref])) {
+            return 0.0;
+        }
+        [$kind, $id] = explode(':', $ref, 2);
+        return $kind === 'item'
+            ? ($lines[$id]['owed'] ?? 0.0)
+            : ($cash[$id]['owed']  ?? 0.0);
+    };
+
+    /** Put money on one debt, note it down, and return how much it took. */
+    $settle = function (string $paymentId, string $ref, float $money) use (&$lines, &$cash, &$applied, $owed): float {
+        $take = min($money, $owed($ref));
+        if ($take <= 0.0000001) {
+            return 0.0;
+        }
+        [$kind, $id] = explode(':', $ref, 2);
+        if ($kind === 'item') {
+            $lines[$id]['owed'] -= $take;
+            $lines[$id]['paid'] += $take;
+        } else {
+            $cash[$id]['owed'] -= $take;
+        }
+        $key = $paymentId . '|' . $ref;
+        $applied[$key] = ($applied[$key] ?? 0.0) + $take;
+        return $take;
+    };
+
+    /** Pour loose money over the open debts — borrowed cash first, then goods,
+     *  each oldest first. Returns what is left. */
+    $pour = function (string $paymentId, float $money) use (&$queue, $settle): float {
+        foreach (['cash', 'item'] as $kind) {
+            foreach ($queue as $ref) {
+                if ($money <= 0.0000001) {
+                    return 0.0;
+                }
+                if (strncmp($ref, $kind . ':', strlen($kind) + 1) === 0) {
+                    $money -= $settle($paymentId, $ref, $money);
+                }
             }
-            if ($debt['kind'] === 'item') {
-                $id   = $debt['line'];
-                $take = min($money, $lines[$id]['owed']);
-                $lines[$id]['paid'] += $take;
-                $lines[$id]['owed'] -= $take;
-            } else {
-                $take = min($money, $queue[$i]['owed']);
-                $queue[$i]['owed'] -= $take;
-            }
-            $money -= $take;
         }
         return $money;
     };
@@ -263,34 +324,67 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
 
         if ($e['type'] === 'unpaid') {
             $totalUnpaid += $amount;
+
+            // Which debt this taking runs up. A line is booked once, at its
+            // first taking: later goods merged onto it are the same debt.
+            $ref = null;
             if ($e['source'] === 'cash') {
-                // Credit in hand settles it on the spot; the rest joins the queue.
-                $take    = min($credit, $amount);
-                $credit -= $take;
-                $queue[] = ['kind' => 'cash', 'owed' => $amount - $take];
+                $ref = 'cash:' . $e['id'];
+                $cash[$e['id']] = ['owed' => $amount];
+                $booked[$ref] = true;
+                $queue[] = $ref;
             } elseif ($lineId !== null && isset($lines[$lineId])) {
-                // A line joins the queue once, at its first taking. Later goods
-                // merged onto it are the same debt, and take credit here too.
-                if (!$lines[$lineId]['queued']) {
-                    $lines[$lineId]['queued'] = true;
-                    $queue[] = ['kind' => 'item', 'line' => $lineId];
+                $ref = 'item:' . $lineId;
+                if (empty($booked[$ref])) {
+                    $booked[$ref] = true;
+                    $queue[] = $ref;
                 }
-                $take = min($credit, $lines[$lineId]['owed']);
-                $lines[$lineId]['paid'] += $take;
-                $lines[$lineId]['owed'] -= $take;
-                $credit -= $take;
+            }
+
+            // Money paid ahead settles the new debt on the spot. A payment
+            // already on record against this very debt goes first, so what was
+            // decided the first time round still holds.
+            if ($ref !== null) {
+                foreach ($byDebt[$ref] ?? [] as $i) {
+                    $pid = $records[$i]['payment'];
+                    if (isset($used[$i]) || ($credit[$pid] ?? 0.0) <= 0.0000001) {
+                        continue;
+                    }
+                    $used[$i] = true;
+                    $credit[$pid] -= $settle($pid, $ref, min($records[$i]['amount'], $credit[$pid]));
+                }
+                foreach (array_keys($credit) as $pid) {
+                    if ($owed($ref) <= 0.0000001) {
+                        break;
+                    }
+                    $credit[$pid] -= $settle($pid, $ref, $credit[$pid]);
+                }
             }
         } else {
             $paidBack += $amount;
             $left = $amount;
-            if ($e['source'] === 'item' && $lineId !== null && isset($lines[$lineId])) {
-                // Aimed at one line — an instruction, so it goes there first.
-                $take = min($left, max($lines[$lineId]['owed'], 0.0));
-                $lines[$lineId]['paid'] += $take;
-                $lines[$lineId]['owed'] -= $take;
-                $left -= $take;
+
+            // 1. What this payment is on record as having paid. Skipped for a
+            //    debt the replay has not reached yet — that is the paid-ahead
+            //    case, and it is claimed when the debt is booked instead.
+            foreach ($byPayment[$e['id']] ?? [] as $i) {
+                if (isset($used[$i]) || empty($booked[$records[$i]['ref']])) {
+                    continue;
+                }
+                $used[$i] = true;
+                $left -= $settle($e['id'], $records[$i]['ref'], min($records[$i]['amount'], $left));
             }
-            $credit += $payQueue($left);
+
+            // 2. Aimed at one line — an instruction, so it goes there first.
+            if ($e['source'] === 'item' && $lineId !== null) {
+                $left -= $settle($e['id'], 'item:' . $lineId, $left);
+            }
+
+            // 3. The rest runs down the open debts; anything over stays in hand.
+            $left = $pour($e['id'], $left);
+            if ($left > 0.0000001) {
+                $credit[$e['id']] = ($credit[$e['id']] ?? 0.0) + $left;
+            }
         }
 
         $update->execute([$running, $e['id']]);
@@ -299,7 +393,9 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
 
     // Nothing should be both owed and paid for; this only bites if a line grew
     // after it was cleared, which an edit can do.
-    $credit = $payQueue($credit);
+    foreach (array_keys($credit) as $pid) {
+        $credit[$pid] = $pour($pid, $credit[$pid]);
+    }
 
     $itemsDue = 0.0;
     $setPaid  = $pdo->prepare('UPDATE customer_items SET paid_amount = ? WHERE id = ?');
@@ -310,12 +406,32 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
 
     // What is left of the cash side: credit in hand, less cash still borrowed.
     $cashOwed = 0.0;
-    foreach ($queue as $debt) {
-        if ($debt['kind'] === 'cash') {
-            $cashOwed += $debt['owed'];
+    foreach ($cash as $debt) {
+        $cashOwed += $debt['owed'];
+    }
+    $cashBalance = array_sum($credit) - $cashOwed;
+
+    // Write the record back. Rebuilt wholesale so a debt that has since been
+    // deleted drops out instead of lingering, and so the seq order the next
+    // replay reads matches the order this one settled things in.
+    $pdo->prepare('DELETE FROM customer_payment_allocations WHERE customer_id = ?')->execute([$customerId]);
+    if ($applied) {
+        $insertAlloc = $pdo->prepare(
+            'INSERT INTO customer_payment_allocations
+                (id, customer_id, book_id, payment_id, debt_kind, debt_id, amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
+        );
+        foreach ($applied as $key => $paid) {
+            if ($paid <= 0.005) {
+                continue;
+            }
+            [$paymentId, $ref]  = explode('|', $key, 2);
+            [$debtKind, $debtId] = explode(':', $ref, 2);
+            $insertAlloc->execute([
+                uuid4(), $customerId, $bookId, $paymentId, $debtKind, $debtId, round($paid, 2),
+            ]);
         }
     }
-    $cashBalance = $credit - $cashOwed;
 
     $pdo->prepare(
         'UPDATE customers

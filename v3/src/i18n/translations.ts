@@ -278,6 +278,9 @@ export interface Translation {
   // Products (v3)
   inStock: string;
   outOfStock: string;
+  /** What the stock in hand cost, valued FIFO by the API (see schema.sql). */
+  stockValue: string;
+  totalStockValue: string;
   lastPurchase: string;
   lastSale: string;
   useThisPrice: string;
@@ -605,6 +608,8 @@ const en: Translation = {
 
   inStock: 'In stock',
   outOfStock: 'Out of stock',
+  stockValue: 'Stock value (at cost)',
+  totalStockValue: 'Total stock value',
   lastPurchase: 'Last buy',
   lastSale: 'Last sale',
   useThisPrice: 'Tap to use as unit price',
@@ -918,6 +923,8 @@ const bn: Translation = {
 
   inStock: 'স্টকে আছে',
   outOfStock: 'স্টক শেষ',
+  stockValue: 'স্টকের মূল্য (ক্রয়মূল্যে)',
+  totalStockValue: 'মোট স্টকের মূল্য',
   lastPurchase: 'সর্বশেষ ক্রয়',
   lastSale: 'সর্বশেষ বিক্রয়',
   useThisPrice: 'একক মূল্য হিসেবে ব্যবহার করতে চাপ দিন',

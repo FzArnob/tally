@@ -233,7 +233,8 @@ CREATE INDEX idx_cbh_customer_source ON customer_balance_history(customer_id, so
 
 -- ---------------------------------------------------------------------------
 -- Products — derived stock is DENORMALISED onto the row (current_stock, totals,
--- last prices, last_transaction_time) so listing needs no JOIN/aggregation.
+-- last prices, stock_value, last_transaction_time) so listing needs no
+-- JOIN/aggregation.
 -- image_url is MEDIUMTEXT to hold base64 data URLs.
 -- ---------------------------------------------------------------------------
 CREATE TABLE products (
@@ -247,7 +248,8 @@ CREATE TABLE products (
     -- 'manufacture' products are produced from linked raw materials (product_materials)
     -- and are SALE-ONLY: there is no stock-in. Because a single sale's material
     -- consumption is unknown until analytics lands, current_stock/total_stock_in/
-    -- last_purchase_price stay NULL for them; only sale-derived columns are filled.
+    -- last_purchase_price/stock_value stay NULL for them; only sale-derived
+    -- columns are filled.
     product_type          ENUM('ready_made','manufacture') NOT NULL DEFAULT 'ready_made',
     image_url             MEDIUMTEXT    NULL,
     current_stock         DECIMAL(14,3) NULL,          -- NULL for manufacture (analytics later)
@@ -255,6 +257,14 @@ CREATE TABLE products (
     total_stock_out       DECIMAL(14,3) NOT NULL DEFAULT 0,
     last_purchase_price   DECIMAL(14,2) NULL,
     last_sale_price       DECIMAL(14,2) NULL,
+    -- What the stock in hand cost, valued FIFO. Successive stock-ins arrive at
+    -- different prices, so the stock cannot be priced by any single one of them:
+    -- the oldest units are the ones that have left, so what is still on the shelf
+    -- is what came in last, and current_stock is filled from the newest stock-in
+    -- backwards. Empty (or overdrawn, which is a miscount rather than a debt) is
+    -- worth 0. NULL for manufacture, which holds no stock of its own.
+    -- Rewritten by recomputeProduct() — never written directly.
+    stock_value           DECIMAL(14,2) NULL,          -- NULL for manufacture (analytics later)
     transaction_count     INT           NOT NULL DEFAULT 0,
     last_transaction_time DATETIME      NULL,
     timestamp             DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -375,7 +385,7 @@ CREATE INDEX idx_ptx_category ON personal_transactions(category_id);
 -- Materials (store books) — raw stock tracked independently of products (not
 -- linked to any product yet). Modelled on `products` (ready-made): a stock-in
 -- carries one buying price, a sale one selling price. Derived stock/totals/last
--- prices are DENORMALISED onto the row (see recomputeMaterial()).
+-- prices/stock_value are DENORMALISED onto the row (see recomputeMaterial()).
 -- image_url is MEDIUMTEXT to hold base64 data URLs.
 -- ---------------------------------------------------------------------------
 CREATE TABLE materials (
@@ -390,6 +400,11 @@ CREATE TABLE materials (
     total_stock_out       DECIMAL(14,3) NOT NULL DEFAULT 0,
     last_purchase_price   DECIMAL(14,2) NULL,
     last_sale_price       DECIMAL(14,2) NULL,
+    -- What the stock in hand cost, valued FIFO — see the products column of the
+    -- same name for why a single price cannot answer it. A material always holds
+    -- its own stock, so this is 0 rather than NULL when there is none.
+    -- Rewritten by recomputeMaterial() — never written directly.
+    stock_value           DECIMAL(14,2) NOT NULL DEFAULT 0,
     transaction_count     INT           NOT NULL DEFAULT 0,
     last_transaction_time DATETIME      NULL,
     timestamp             DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,

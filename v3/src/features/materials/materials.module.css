@@ -132,12 +132,21 @@
   gap: 0.15rem;
 }
 
+/* Right-hand block of the name line: the count, and beneath it what that count
+   is worth. Right-aligned so both figures end on the card's edge. */
 .stockWrap {
   flex-shrink: 0;
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+
+.stockFigure {
+  display: flex;
   align-items: baseline;
   gap: 0.25rem;
-  white-space: nowrap;
 }
 
 .stockValue {
@@ -150,6 +159,14 @@
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
   text-transform: capitalize;
+}
+
+/* What the stock cost — a reading of the count above it, so it stays quieter
+   than the figure it prices. */
+.stockAmount {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  line-height: 1;
 }
 
 .rowActions {

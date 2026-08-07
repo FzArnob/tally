@@ -88,9 +88,10 @@ INSERT INTO materials (id, book_id, name, quantity_type, image_url) VALUES
 
 -- ===========================================================================
 -- PRODUCTS — all 'ready_made': bought in and resold unchanged, so each carries
--- its own stock and buying/selling prices once trading starts. current_stock
--- and total_stock_in are written as 0 rather than left NULL, which is where
--- recomputeProduct() puts a ready-made item with no movements yet.
+-- its own stock and buying/selling prices once trading starts. current_stock,
+-- total_stock_in and stock_value are written as 0 rather than left NULL, which
+-- is where recomputeProduct() puts a ready-made item with no movements yet.
+-- (The materials above need no such column list: theirs are NOT NULL DEFAULT 0.)
 -- ===========================================================================
 SET @p_camel     := UUID();
 SET @p_star      := UUID();
@@ -114,30 +115,30 @@ SET @p_biscuit   := UUID();
 SET @p_ltsunlive := UUID();
 SET @p_ltstar    := UUID();
 
-INSERT INTO products (id, book_id, name, quantity_type, product_type, image_url, current_stock, total_stock_in) VALUES
+INSERT INTO products (id, book_id, name, quantity_type, product_type, image_url, current_stock, total_stock_in, stock_value) VALUES
   -- Cigarettes, counted by the packet.
-  (@p_camel,     @book, 'Camel Cigarette',                    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Camel', 0, 0),
-  (@p_star,      @book, 'Star Cigarette',                     'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Star', 0, 0),
-  (@p_glred,     @book, 'Gold Leaf Red Cigarette',            'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Gold+Leaf%0ARed', 0, 0),
-  (@p_royal,     @book, 'Royal Next Cigarette',               'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Royal%0ANext', 0, 0),
-  (@p_hollywood, @book, 'Hollywood Cigarette',                'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Hollywood', 0, 0),
-  (@p_luckies,   @book, 'Luckies Cigarette',                  'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Luckies', 0, 0),
-  (@p_derby,     @book, 'Derby Cigarette',                    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Derby', 0, 0),
-  (@p_lscool,    @book, 'Lucky Strike Cool Crunch Cigarette', 'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Lucky+Strike%0ACool+Crunch', 0, 0),
-  (@p_lsorig,    @book, 'Lucky Strike Original Cigarette',    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Lucky+Strike%0AOriginal', 0, 0),
-  (@p_navy,      @book, 'Navy Cigarette',                     'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Navy', 0, 0),
-  (@p_blackdia,  @book, 'Black Diamond Cigarette',            'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Black%0ADiamond', 0, 0),
-  (@p_deshgold,  @book, 'Desh Gold Cigarette',                'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Desh%0AGold', 0, 0),
-  (@p_kings,     @book, 'Kings Cigarette',                    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Kings', 0, 0),
-  (@p_glwhite,   @book, 'Gold Leaf White Cigarette',          'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Gold+Leaf%0AWhite', 0, 0),
-  (@p_bhwhite,   @book, 'Benson & Hedges White Cigarette',    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=B%26H%0AWhite', 0, 0),
-  (@p_bhred,     @book, 'Benson & Hedges Red Cigarette',      'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=B%26H%0ARed', 0, 0),
-  (@p_marladv,   @book, 'Marlboro Advance Cigarette',         'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Marlboro%0AAdvance', 0, 0),
-  (@p_marlgold,  @book, 'Marlboro Gold Cigarette',            'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Marlboro%0AGold', 0, 0),
+  (@p_camel,     @book, 'Camel Cigarette',                    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Camel', 0, 0, 0),
+  (@p_star,      @book, 'Star Cigarette',                     'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Star', 0, 0, 0),
+  (@p_glred,     @book, 'Gold Leaf Red Cigarette',            'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Gold+Leaf%0ARed', 0, 0, 0),
+  (@p_royal,     @book, 'Royal Next Cigarette',               'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Royal%0ANext', 0, 0, 0),
+  (@p_hollywood, @book, 'Hollywood Cigarette',                'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Hollywood', 0, 0, 0),
+  (@p_luckies,   @book, 'Luckies Cigarette',                  'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Luckies', 0, 0, 0),
+  (@p_derby,     @book, 'Derby Cigarette',                    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Derby', 0, 0, 0),
+  (@p_lscool,    @book, 'Lucky Strike Cool Crunch Cigarette', 'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Lucky+Strike%0ACool+Crunch', 0, 0, 0),
+  (@p_lsorig,    @book, 'Lucky Strike Original Cigarette',    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Lucky+Strike%0AOriginal', 0, 0, 0),
+  (@p_navy,      @book, 'Navy Cigarette',                     'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Navy', 0, 0, 0),
+  (@p_blackdia,  @book, 'Black Diamond Cigarette',            'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Black%0ADiamond', 0, 0, 0),
+  (@p_deshgold,  @book, 'Desh Gold Cigarette',                'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Desh%0AGold', 0, 0, 0),
+  (@p_kings,     @book, 'Kings Cigarette',                    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Kings', 0, 0, 0),
+  (@p_glwhite,   @book, 'Gold Leaf White Cigarette',          'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Gold+Leaf%0AWhite', 0, 0, 0),
+  (@p_bhwhite,   @book, 'Benson & Hedges White Cigarette',    'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=B%26H%0AWhite', 0, 0, 0),
+  (@p_bhred,     @book, 'Benson & Hedges Red Cigarette',      'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=B%26H%0ARed', 0, 0, 0),
+  (@p_marladv,   @book, 'Marlboro Advance Cigarette',         'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Marlboro%0AAdvance', 0, 0, 0),
+  (@p_marlgold,  @book, 'Marlboro Gold Cigarette',            'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Marlboro%0AGold', 0, 0, 0),
   -- Everything else the shop resells over the counter.
-  (@p_biscuit,   @book, 'Biscuit',                            'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Biscuit', 0, 0),
-  (@p_ltsunlive, @book, 'Sunlive Gas Lighter',                'piece',  'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Sunlive%0ALighter', 0, 0),
-  (@p_ltstar,    @book, 'Star Gas Lighter',                   'piece',  'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Star%0ALighter', 0, 0);
+  (@p_biscuit,   @book, 'Biscuit',                            'packet', 'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Biscuit', 0, 0, 0),
+  (@p_ltsunlive, @book, 'Sunlive Gas Lighter',                'piece',  'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Sunlive%0ALighter', 0, 0, 0),
+  (@p_ltstar,    @book, 'Star Gas Lighter',                   'piece',  'ready_made', 'https://placehold.co/320x320/1e293b/f8fafc/png?text=Star%0ALighter', 0, 0, 0);
 
 -- ===========================================================================
 -- OPERATION COSTS — the shop's one standing outgoing. Named only: the amount

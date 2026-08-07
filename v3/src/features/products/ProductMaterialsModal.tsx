@@ -20,6 +20,9 @@ interface ProductMaterialsModalProps {
 export function ProductMaterialsModal({ open, product, onClose }: ProductMaterialsModalProps) {
   const { t, formatNumber, formatCurrency, localizeDigits } = useI18n();
   const [materials, setMaterials] = useState<ProductMaterial[]>([]);
+  // The linked stock added up, as the API sends it — the nearest thing a
+  // manufacture product has to a stock value of its own, since it holds none.
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const productId = product?.id ?? null;
@@ -32,7 +35,9 @@ export function ProductMaterialsModal({ open, product, onClose }: ProductMateria
     (async () => {
       try {
         const data = await getProductMaterials(productId);
-        if (alive) setMaterials(data.materials);
+        if (!alive) return;
+        setMaterials(data.materials);
+        setTotal(data.total_stock_value);
       } catch (err) {
         console.error('Failed to load product materials:', err);
         if (alive) setMaterials([]);
@@ -83,18 +88,30 @@ export function ProductMaterialsModal({ open, product, onClose }: ProductMateria
                   )}
                 </div>
                 <div className={styles.materialCardStock}>
-                  <span
-                    className={`${styles.materialCardValue} ${inStock ? 'text-positive' : 'text-negative'}`}
-                  >
-                    {localizeDigits(formatNumber(m.current_stock || 0))}
+                  <span className={styles.materialCardFigure}>
+                    <span
+                      className={`${styles.materialCardValue} ${inStock ? 'text-positive' : 'text-negative'}`}
+                    >
+                      {localizeDigits(formatNumber(m.current_stock || 0))}
+                    </span>
+                    <span className={styles.materialCardUnit}>{m.quantity_type || 'piece'}</span>
                   </span>
-                  <span className={styles.materialCardUnit}>{m.quantity_type || 'piece'}</span>
+                  <span className={styles.materialCardAmount} title={t.stockValue}>
+                    {formatCurrency(m.stock_value)}
+                  </span>
                 </div>
               </div>
             );
           })
         )}
       </div>
+
+      {!loading && materials.length > 0 && (
+        <div className={`${styles.totalRow} ${styles.materialsTotal}`}>
+          <span>{t.totalStockValue}</span>
+          <span className={styles.totalValue}>{formatCurrency(total)}</span>
+        </div>
+      )}
     </Modal>
   );
 }

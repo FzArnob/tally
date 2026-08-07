@@ -150,6 +150,15 @@
   white-space: nowrap;
 }
 
+/* The stock strip plus, beneath it, what that stock is worth. A column of its
+   own so the two sit tighter together than the card's own gap allows. */
+.stockBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
 /* Stock strip and the manufacture button share a footprint so both card kinds
    line up in the grid. */
 .stockWrap,
@@ -180,6 +189,18 @@
   line-height: 1;
   color: var(--muted-foreground);
   text-transform: capitalize;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* What the stock cost. Indented to the strip's inner padding so it reads as a
+   footnote to the count above it. */
+.stockAmount {
+  padding-inline: 0.4rem;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  color: var(--muted-foreground);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1007,12 +1028,21 @@
   color: var(--muted-foreground);
 }
 
+/* The count, and beneath it what that count is worth — the same pairing the
+   material rows use, right-aligned against the card's edge. */
 .materialCardStock {
   flex-shrink: 0;
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+
+.materialCardFigure {
+  display: flex;
   align-items: baseline;
   gap: 0.25rem;
-  white-space: nowrap;
 }
 
 .materialCardValue {
@@ -1025,6 +1055,19 @@
   font-size: var(--fs-xs);
   color: var(--muted-foreground);
   text-transform: capitalize;
+}
+
+.materialCardAmount {
+  font-size: var(--fs-xs);
+  color: var(--muted-foreground);
+  line-height: 1;
+}
+
+/* What the linked stock comes to, closing the sheet's list. */
+.materialsTotal {
+  margin-top: 0.9rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 640px) {

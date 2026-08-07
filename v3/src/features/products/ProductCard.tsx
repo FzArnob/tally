@@ -22,7 +22,7 @@ export function ProductCard({
   onDelete,
   onMaterials,
 }: ProductCardProps) {
-  const { t, formatNumber, formatTimeShort, localizeDigits } = useI18n();
+  const { t, formatCurrency, formatNumber, formatTimeShort, localizeDigits } = useI18n();
   const isManufacture = product.product_type === 'manufacture';
   const stock = product.current_stock || 0;
   const inStock = stock > 0;
@@ -77,12 +77,17 @@ export function ProductCard({
           <span className={styles.viewStockLabel}>{t.viewStock}</span>
         </button>
       ) : (
-        <span className={styles.stockWrap}>
-          <span className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}>
-            {formatNumber(stock)}
+        <div className={styles.stockBlock}>
+          <span className={styles.stockWrap}>
+            <span className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}>
+              {formatNumber(stock)}
+            </span>
+            <span className={styles.stockUnit}>{unit}</span>
           </span>
-          <span className={styles.stockUnit}>{unit}</span>
-        </span>
+          <span className={styles.stockAmount} title={t.stockValue}>
+            {formatCurrency(product.stock_value ?? 0)}
+          </span>
+        </div>
       )}
 
       <div className={styles.rowActions} onClick={stop}>

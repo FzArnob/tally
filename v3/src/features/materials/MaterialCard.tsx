@@ -19,7 +19,7 @@ export function MaterialCard({
   onEdit,
   onDelete,
 }: MaterialCardProps) {
-  const { t, formatNumber, formatTimeShort, localizeDigits } = useI18n();
+  const { t, formatCurrency, formatNumber, formatTimeShort, localizeDigits } = useI18n();
   const stock = material.current_stock || 0;
   const inStock = stock > 0;
   const hasImage = material.image_url && material.image_url !== 'null';
@@ -53,10 +53,17 @@ export function MaterialCard({
             {material.name}
           </span>
           <span className={styles.stockWrap}>
-            <span className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}>
-              {formatNumber(stock)}
+            <span className={styles.stockFigure}>
+              <span
+                className={`${styles.stockValue} ${inStock ? 'text-positive' : 'text-negative'}`}
+              >
+                {formatNumber(stock)}
+              </span>
+              <span className={styles.stockUnit}>{unit}</span>
             </span>
-            <span className={styles.stockUnit}>{unit}</span>
+            <span className={styles.stockAmount} title={t.stockValue}>
+              {formatCurrency(material.stock_value)}
+            </span>
           </span>
         </div>
 

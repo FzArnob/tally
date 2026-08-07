@@ -472,13 +472,40 @@ function recomputeCustomer(PDO $pdo, string $customerId): array
 }
 
 /**
- * Recompute a product's denormalised stock/totals/last prices + per-row running
- * stock. Branches on product_type:
+ * What the stock in hand cost, valued FIFO.
+ *
+ * Goods come in at whatever they cost that week, so no single price values what
+ * is on the shelf. The oldest units are the ones that have already left, so what
+ * remains is what came in last: `$stock` units are filled from the newest
+ * stock-in backwards and each part is priced at what that lot was bought for.
+ *
+ * Stock that is empty — or overdrawn, which is a miscount rather than a debt —
+ * is worth nothing, so it comes back as 0.
+ *
+ * @param array $lots  Stock-ins in seq (chronological) order, each [qty, price].
+ */
+function fifoStockValue(array $lots, float $stock): float
+{
+    $left  = max($stock, 0.0);
+    $value = 0.0;
+    for ($i = count($lots) - 1; $i >= 0 && $left > 0; $i--) {
+        [$qty, $price] = $lots[$i];
+        $take   = min($qty, $left);
+        $value += $take * $price;
+        $left  -= $take;
+    }
+    return round($value, 2);
+}
+
+/**
+ * Recompute a product's denormalised stock/totals/last prices/stock value +
+ * per-row running stock. Branches on product_type:
  *  - ready_made: stock-in and sale entries drive stock/totals as usual.
  *  - manufacture: SALE-ONLY. Only sales are counted (total_stock_out, last_sale_price,
  *    transaction_count, last_transaction_time). current_stock/total_stock_in/
- *    last_purchase_price stay NULL and each row's stock_after is NULL, because a
- *    sale's material consumption is unknown until the analytics feature lands.
+ *    last_purchase_price/stock_value stay NULL and each row's stock_after is NULL,
+ *    because a sale's material consumption is unknown until the analytics feature
+ *    lands.
  */
 function recomputeProduct(PDO $pdo, string $productId): array
 {
@@ -511,7 +538,8 @@ function recomputeProduct(PDO $pdo, string $productId): array
         }
         $pdo->prepare(
             'UPDATE products SET current_stock = NULL, total_stock_in = NULL, total_stock_out = ?,
-                 last_purchase_price = NULL, last_sale_price = ?, transaction_count = ?, last_transaction_time = ?
+                 last_purchase_price = NULL, last_sale_price = ?, stock_value = NULL,
+                 transaction_count = ?, last_transaction_time = ?
              WHERE id = ?'
         )->execute([$out, $lastSale, $saleCount, $lastTime, $productId]);
 
@@ -521,12 +549,13 @@ function recomputeProduct(PDO $pdo, string $productId): array
         ];
     }
 
-    $stock = 0.0; $in = 0.0; $out = 0.0;
+    $stock = 0.0; $in = 0.0; $out = 0.0; $lots = [];
     $lastPurchase = null; $lastSale = null; $lastTime = null;
     foreach ($entries as $e) {
         $qty = (float) $e['quantity'];
         if ($e['type'] === 'stock') {
             $stock += $qty; $in += $qty; $lastPurchase = (float) $e['price_per_unit'];
+            $lots[] = [$qty, $lastPurchase];
         } else {
             $stock -= $qty; $out += $qty; $lastSale = (float) $e['price_per_unit'];
         }
@@ -536,9 +565,13 @@ function recomputeProduct(PDO $pdo, string $productId): array
 
     $pdo->prepare(
         'UPDATE products SET current_stock = ?, total_stock_in = ?, total_stock_out = ?,
-             last_purchase_price = ?, last_sale_price = ?, transaction_count = ?, last_transaction_time = ?
+             last_purchase_price = ?, last_sale_price = ?, stock_value = ?,
+             transaction_count = ?, last_transaction_time = ?
          WHERE id = ?'
-    )->execute([$stock, $in, $out, $lastPurchase, $lastSale, count($entries), $lastTime, $productId]);
+    )->execute([
+        $stock, $in, $out, $lastPurchase, $lastSale, fifoStockValue($lots, $stock),
+        count($entries), $lastTime, $productId,
+    ]);
 
     return [
         'current_stock' => round($stock, 3), 'total_stock_in' => round($in, 3),
@@ -546,7 +579,7 @@ function recomputeProduct(PDO $pdo, string $productId): array
     ];
 }
 
-/** Recompute a material's stock/totals/last prices + per-row running stock. */
+/** Recompute a material's stock/totals/last prices/stock value + per-row running stock. */
 function recomputeMaterial(PDO $pdo, string $materialId): array
 {
     $rows = $pdo->prepare(
@@ -556,13 +589,14 @@ function recomputeMaterial(PDO $pdo, string $materialId): array
     $rows->execute([$materialId]);
     $entries = $rows->fetchAll();
 
-    $stock = 0.0; $in = 0.0; $out = 0.0;
+    $stock = 0.0; $in = 0.0; $out = 0.0; $lots = [];
     $lastPurchase = null; $lastSale = null; $lastTime = null;
     $update = $pdo->prepare('UPDATE material_transactions SET stock_after = ? WHERE id = ?');
     foreach ($entries as $e) {
         $qty = (float) $e['quantity'];
         if ($e['type'] === 'stock') {
             $stock += $qty; $in += $qty; $lastPurchase = (float) $e['price_per_unit'];
+            $lots[] = [$qty, $lastPurchase];
         } elseif ($e['type'] === 'sale') {
             $stock -= $qty; $out += $qty; $lastSale = (float) $e['price_per_unit'];
         } else { // 'used' — stock consumed with no price
@@ -574,9 +608,13 @@ function recomputeMaterial(PDO $pdo, string $materialId): array
 
     $pdo->prepare(
         'UPDATE materials SET current_stock = ?, total_stock_in = ?, total_stock_out = ?,
-             last_purchase_price = ?, last_sale_price = ?, transaction_count = ?, last_transaction_time = ?
+             last_purchase_price = ?, last_sale_price = ?, stock_value = ?,
+             transaction_count = ?, last_transaction_time = ?
          WHERE id = ?'
-    )->execute([$stock, $in, $out, $lastPurchase, $lastSale, count($entries), $lastTime, $materialId]);
+    )->execute([
+        $stock, $in, $out, $lastPurchase, $lastSale, fifoStockValue($lots, $stock),
+        count($entries), $lastTime, $materialId,
+    ]);
 
     return [
         'current_stock' => round($stock, 3), 'total_stock_in' => round($in, 3),
@@ -699,6 +737,7 @@ function shapeProduct(array $p, array $materials = []): array
         'total_stock_out'       => (float) $p['total_stock_out'],
         'last_purchase_price'   => $p['last_purchase_price'] !== null ? (float) $p['last_purchase_price'] : null,
         'last_sale_price'       => $p['last_sale_price'] !== null ? (float) $p['last_sale_price'] : null,
+        'stock_value'           => $p['stock_value'] !== null ? (float) $p['stock_value'] : null,
         'transaction_count'     => (int) $p['transaction_count'],
         'last_transaction_time' => $p['last_transaction_time'],
     ];
@@ -1088,6 +1127,7 @@ function shapeMaterial(array $m): array
         'total_stock_out'       => (float) $m['total_stock_out'],
         'last_purchase_price'   => $m['last_purchase_price'] !== null ? (float) $m['last_purchase_price'] : null,
         'last_sale_price'       => $m['last_sale_price'] !== null ? (float) $m['last_sale_price'] : null,
+        'stock_value'           => (float) $m['stock_value'],
         'transaction_count'     => (int) $m['transaction_count'],
         'last_transaction_time' => $m['last_transaction_time'],
     ];
@@ -1264,7 +1304,7 @@ function findPersonalTx(PDO $pdo, string $id): array
 function loadProductMaterials(PDO $pdo, string $productId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT m.id, m.name, m.quantity_type, m.current_stock, m.last_purchase_price
+        'SELECT m.id, m.name, m.quantity_type, m.current_stock, m.last_purchase_price, m.stock_value
          FROM product_materials pm JOIN materials m ON m.id = pm.material_id
          WHERE pm.product_id = ? ORDER BY m.name ASC'
     );
@@ -1275,6 +1315,7 @@ function loadProductMaterials(PDO $pdo, string $productId): array
         'quantity_type'       => $r['quantity_type'],
         'current_stock'       => (float) $r['current_stock'],
         'last_purchase_price' => $r['last_purchase_price'] !== null ? (float) $r['last_purchase_price'] : null,
+        'stock_value'         => (float) $r['stock_value'],
     ], $stmt->fetchAll());
 }
 
@@ -2238,7 +2279,17 @@ on('GET', '/products/{id}/materials', function ($a) {
     $pdo = db();
     $id  = $a['id'];
     findProduct($pdo, $id); // ownership guard
-    json_response(['product_id' => $id, 'materials' => loadProductMaterials($pdo, $id)]);
+    $materials = loadProductMaterials($pdo, $id);
+    // What the linked stock comes to — the nearest thing a manufacture product
+    // has to a stock value of its own. Added up here rather than stored on the
+    // product: the figure belongs to materials that are shared between products
+    // and move on their own, so a column would need re-deriving from three more
+    // write paths to say the same thing this one pass over the rows already says.
+    json_response([
+        'product_id'        => $id,
+        'materials'         => $materials,
+        'total_stock_value' => round(array_sum(array_column($materials, 'stock_value')), 2),
+    ]);
 });
 
 on('PUT', '/products/{id}', function ($a) {

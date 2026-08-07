@@ -8,7 +8,8 @@
 --   Products:
 --     * manufacture — made from linked materials, SALE-ONLY (Espresso, Cappuccino,
 --       Latte, Cold Brew, Wagyu Beef Burger, Grilled Chicken Sandwich, Truffle Latte).
---       current_stock/total_stock_in/last_purchase_price stay NULL (analytics later).
+--       current_stock/total_stock_in/last_purchase_price/stock_value stay NULL
+--       (analytics later).
 --     * ready_made — bought & resold (Artisan Biscuit, Fresh Coffee Beans, Dessert Jar).
 --
 --   Customers with running balance history (advance / due tabs).
@@ -246,6 +247,23 @@ UPDATE materials m SET
   last_transaction_time = (SELECT t.timestamp    FROM material_transactions t WHERE t.material_id = m.id ORDER BY t.seq DESC LIMIT 1)
 WHERE m.book_id = @book;
 
+-- Material stock value, FIFO — the same walk fifoStockValue() does in index.php.
+-- The oldest units are the ones that have left, so the stock in hand is filled
+-- from the NEWEST stock-in backwards: `newer` is how much arrived after a lot,
+-- so what is left of that lot on the shelf is current_stock - newer, capped at
+-- the lot itself and floored at nothing. Runs after the UPDATE above, which is
+-- what put current_stock there.
+UPDATE materials m SET stock_value = COALESCE((
+  SELECT SUM(LEAST(l.quantity, GREATEST(m.current_stock - l.newer, 0)) * l.price_per_unit)
+  FROM (
+    SELECT material_id, quantity, price_per_unit,
+           COALESCE(SUM(quantity) OVER (PARTITION BY material_id ORDER BY seq DESC
+                                        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS newer
+    FROM material_transactions WHERE type = 'stock'
+  ) l WHERE l.material_id = m.id
+), 0)
+WHERE m.book_id = @book;
+
 -- Ready-made products.
 UPDATE products p SET
   current_stock       = (SELECT COALESCE(SUM(IF(t.type='stock', t.quantity, -t.quantity)), 0) FROM product_transactions t WHERE t.product_id = p.id),
@@ -257,11 +275,24 @@ UPDATE products p SET
   last_transaction_time = (SELECT t.timestamp    FROM product_transactions t WHERE t.product_id = p.id ORDER BY t.seq DESC LIMIT 1)
 WHERE p.book_id = @book AND p.product_type = 'ready_made';
 
+-- Ready-made stock value, FIFO — see the materials pass above for the walk.
+UPDATE products p SET stock_value = COALESCE((
+  SELECT SUM(LEAST(l.quantity, GREATEST(p.current_stock - l.newer, 0)) * l.price_per_unit)
+  FROM (
+    SELECT product_id, quantity, price_per_unit,
+           COALESCE(SUM(quantity) OVER (PARTITION BY product_id ORDER BY seq DESC
+                                        ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS newer
+    FROM product_transactions WHERE type = 'stock'
+  ) l WHERE l.product_id = p.id
+), 0)
+WHERE p.book_id = @book AND p.product_type = 'ready_made';
+
 -- Manufacture products: sale-only; stock columns stay NULL (analytics later).
 UPDATE products p SET
   current_stock       = NULL,
   total_stock_in      = NULL,
   last_purchase_price = NULL,
+  stock_value         = NULL,
   total_stock_out     = (SELECT COALESCE(SUM(t.quantity), 0) FROM product_transactions t WHERE t.product_id = p.id AND t.type='sale'),
   last_sale_price     = (SELECT t.price_per_unit FROM product_transactions t WHERE t.product_id = p.id AND t.type='sale' ORDER BY t.seq DESC LIMIT 1),
   transaction_count   = (SELECT COUNT(*)         FROM product_transactions t WHERE t.product_id = p.id AND t.type='sale'),

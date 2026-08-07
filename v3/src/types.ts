@@ -303,6 +303,7 @@ export interface ProductMaterial {
   quantity_type: string;
   current_stock: number;
   last_purchase_price: number | null;
+  stock_value: number;
 }
 
 export interface Product {
@@ -324,6 +325,11 @@ export interface Product {
   total_stock_out: number;
   last_purchase_price: number | null;
   last_sale_price: number | null;
+  /**
+   * What the stock in hand cost, valued FIFO on write (see schema.sql). Null for
+   * manufacture products, which hold no stock of their own.
+   */
+  stock_value: number | null;
   transaction_count: number;
   last_transaction_time: string | null;
 }
@@ -335,6 +341,8 @@ export interface ProductsResponse {
 export interface ProductMaterialsResponse {
   product_id: string;
   materials: ProductMaterial[];
+  /** The linked materials' stock values added up, summed by the API. */
+  total_stock_value: number;
 }
 
 export interface ProductTransactionsResponse {
@@ -365,6 +373,8 @@ export interface Material {
   total_stock_out: number;
   last_purchase_price: number | null;
   last_sale_price: number | null;
+  /** What the stock in hand cost, valued FIFO on write (see schema.sql). */
+  stock_value: number;
   transaction_count: number;
   last_transaction_time: string | null;
 }
